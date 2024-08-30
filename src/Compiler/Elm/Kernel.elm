@@ -86,13 +86,13 @@ fromByteString pkg foreigns bytes =
 
 parser : Pkg.Name -> Foreigns -> P.Parser z () Content
 parser pkg foreigns =
-      P.bind (P.word2 0x2F 0x2A {-/*-} toError) <| \_ ->
-      P.bind (Space.chomp ignoreError) <| \_ ->
-      P.bind (Space.checkFreshLine toError) <| \_ ->
-      P.bind (P.specialize ignoreError (Module.chompImports [])) <| \imports ->
-      P.bind (P.word2 0x2A 0x2F {-*/-} toError) <| \_ ->
-      P.bind (parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty) <| \chunks ->
-      P.return (Content imports chunks)
+  P.bind (P.word2 0x2F 0x2A {-/*-} toError) <| \_ ->
+  P.bind (Space.chomp ignoreError) <| \_ ->
+  P.bind (Space.checkFreshLine toError) <| \_ ->
+  P.bind (P.specialize ignoreError (Module.chompImports [])) <| \imports ->
+  P.bind (P.word2 0x2A 0x2F {-*/-} toError) <| \_ ->
+  P.bind (parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty) <| \chunks ->
+  P.return (Content imports chunks)
 
 
 toError : P.Row -> P.Col -> ()

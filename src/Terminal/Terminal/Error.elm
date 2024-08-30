@@ -1,18 +1,15 @@
 {- MANUALLY FORMATTED -}
-
-
 module Terminal.Terminal.Error exposing
-    ( {- Error(..)
-         , ArgError(..)
-         , FlagError(..)
-         , Expectation(..)
-         , exitWithHelp
-         , exitWithError
-         , exitWithUnknown
-         ,
-      -}
-      exitWithOverview
-    )
+  ( {-Error(..)
+  , ArgError(..)
+  , FlagError(..)
+  , Expectation(..)
+  , exitWithHelp
+  , exitWithError
+  , exitWithUnknown
+  ,-} exitWithOverview
+  )
+
 
 import Compiler.Reporting.Doc as D exposing (d)
 import Extra.System.IO as IO
@@ -27,7 +24,7 @@ import Terminal.Terminal.Internal as Internal
 
 
 type alias IO a g h v =
-    IO.IO (Terminal.Command.State a g h) v
+  IO.IO (Terminal.Command.State a g h) v
 
 
 
@@ -47,8 +44,8 @@ exitWith docs =
 
 getExeName : IO a g h String
 getExeName =
-    -- hard coded
-    IO.return "elm"
+  -- hard coded
+  IO.return "elm"
 
 
 stack : TList D.Doc -> D.Doc
@@ -67,8 +64,8 @@ argsToDoc command =
 
 argsToDocHelp : String -> D.Doc
 argsToDocHelp command =
-      D.hang 4 <| D.hsep <| MList.map D.fromChars <|
-        [ command ]
+  D.hang 4 <| D.hsep <| MList.map D.fromChars <|
+    [ command ]
 
 
 
@@ -77,17 +74,16 @@ argsToDocHelp command =
 
 exitWithOverview : D.Doc -> D.Doc -> TList Internal.Command -> IO a g h ()
 exitWithOverview intro outro commands =
-    IO.bind getExeName <|
-        \exeName ->
-            exitSuccess
-                [ intro
-                , d"The most common commands are:"
-                , D.indent 4 <| stack <| MMaybe.mapMaybe (toSummary exeName) commands
-                , d"There are a bunch of other commands as well though. Here is a full list:"
-                , D.indent 4 <| D.dullcyan <| toCommandList exeName commands
-                , d"Adding the --help flag gives a bunch of additional details about each one."
-                , outro
-                ]
+  IO.bind getExeName <| \exeName ->
+    exitSuccess
+      [ intro
+      , d"The most common commands are:"
+      , D.indent 4 <| stack <| MMaybe.mapMaybe (toSummary exeName) commands
+      , d"There are a bunch of other commands as well though. Here is a full list:"
+      , D.indent 4 <| D.dullcyan <| toCommandList exeName commands
+      , d"Adding the --help flag gives a bunch of additional details about each one."
+      , outro
+      ]
 
 
 toSummary : String -> Internal.Command -> Maybe D.Doc

@@ -834,7 +834,7 @@ toPackageProblemReport pkg vsn problem =
         )
         [ D.indent 4 <| D.dullyellow <| D.fromChars url
         , D.reflow <|
-           "But I was unable to unzip the data. Maybe there is something weird with"
+            "But I was unable to unzip the data. Maybe there is something weird with"
             ++ " your internet connection. We have gotten reports that schools, businesses,"
             ++ " airports, etc. sometimes intercept requests and add things to the body or"
             ++ " change its contents entirely. Could that be the problem?"

@@ -11,6 +11,7 @@ module Compiler.Generate.Mode exposing
   , deActivate
   )
 
+
 import Compiler.AST.Optimized as Opt
 import Compiler.Generate.JavaScript.Name as JsName
 import Compiler.Data.Name as Name

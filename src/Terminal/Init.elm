@@ -1,5 +1,8 @@
 {- MANUALLY FORMATTED -}
-module Terminal.Init exposing (run)
+module Terminal.Init exposing
+  ( run
+  )
+
 
 import Builder.Deps.Solver as Solver
 import Builder.Elm.Outline as Outline

@@ -7,6 +7,7 @@ module Compiler.Generate.JavaScript exposing
   , CodeKind(..)
   )
 
+
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt
 import Compiler.Data.Index as Index
@@ -316,17 +317,17 @@ generateCycle mode (Opt.Global home _) names values functions =
           JS.EmptyStmt
 
         ((_::_) as realBlock) ->
-            case mode of
-              Mode.Prod _ ->
-                JS.Block realBlock
+          case mode of
+            Mode.Prod _ ->
+              JS.Block realBlock
 
-              Mode.Dev _ ->
-                JS.Try (JS.Block realBlock) JsName.dollar <| JS.Throw <| JS.CString <|
-                  "Some top-level definitions from `" ++ Name.toBuilder (ModuleName.getModule home) ++ "` are causing infinite recursion:\\n"
-                  ++ drawCycle names
-                  ++ "\\n\\nThese errors are very tricky, so read "
-                  ++ D.makeNakedLink "bad-recursion"
-                  ++ " to learn how to fix it!"
+            Mode.Dev _ ->
+              JS.Try (JS.Block realBlock) JsName.dollar <| JS.Throw <| JS.CString <|
+                "Some top-level definitions from `" ++ Name.toBuilder (ModuleName.getModule home) ++ "` are causing infinite recursion:\\n"
+                ++ drawCycle names
+                ++ "\\n\\nThese errors are very tricky, so read "
+                ++ D.makeNakedLink "bad-recursion"
+                ++ " to learn how to fix it!"
     ]
 
 

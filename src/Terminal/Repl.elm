@@ -20,6 +20,7 @@ module Terminal.Repl exposing
   , openedModule
   )
 
+
 import Builder.Build as Build
 import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
@@ -384,23 +385,23 @@ attemptDeclOrExpr lines =
 
     Left declPosition ->
       if startsWithKeyword "type" lines then
-          ifFail lines (Type "ERR" src)
+        ifFail lines (Type "ERR" src)
 
       else if startsWithKeyword "port" lines then
-          Done Port
+        Done Port
 
       else
-          case P.fromByteString exprParser Tuple.pair src of
-            Right _ ->
-              ifDone lines (Expr src)
+        case P.fromByteString exprParser Tuple.pair src of
+          Right _ ->
+            ifDone lines (Expr src)
 
-            Left exprPosition ->
-              if exprPosition >= declPosition then
-                ifFail lines (Expr src)
-              else
-                case P.fromByteString annotation (\_ _ -> ()) src of
-                  Right name -> Continue (DefStart name)
-                  Left ()    -> ifFail lines (Decl "ERR" src)
+          Left exprPosition ->
+            if exprPosition >= declPosition then
+              ifFail lines (Expr src)
+            else
+              case P.fromByteString annotation (\_ _ -> ()) src of
+                Right name -> Continue (DefStart name)
+                Left ()    -> ifFail lines (Decl "ERR" src)
 
 
 startsWithColon : Lines -> Bool
@@ -630,13 +631,13 @@ inputForKind kind moduleName =
 
 toByteString : String -> State -> Output -> String
 toByteString modulePrefix (State imports types decls) output =
-    String.concat
-      [ modulePrefix, "\n"
-      , Map.foldr (++) "" imports
-      , Map.foldr (++) "" types
-      , Map.foldr (++) "" decls
-      , outputToBuilder output
-      ]
+  String.concat
+    [ modulePrefix, "\n"
+    , Map.foldr (++) "" imports
+    , Map.foldr (++) "" types
+    , Map.foldr (++) "" decls
+    , outputToBuilder output
+    ]
 
 
 defaultHeader : String

@@ -78,10 +78,10 @@ fetch : Http.Manager -> Stuff.PackageCache -> IO a c d e f g h (Either Exit.Regi
 fetch manager cache =
   post manager "/all-packages" allPkgsDecoder <|
     \versions ->
-          let size = Map.foldr addEntry 0 versions in
-          let registry = Registry size versions in
-          IO.bind (write cache registry) <| \_ ->
-          IO.return registry
+      let size = Map.foldr addEntry 0 versions in
+      let registry = Registry size versions in
+      IO.bind (write cache registry) <| \_ ->
+      IO.return registry
 
 
 addEntry : KnownVersions -> Int -> Int
@@ -153,10 +153,10 @@ newPkgDecoder =
 
 newPkgParser : P.Parser z () (Pkg.Name, V.Version)
 newPkgParser =
-      P.bind (P.specialize (\_ _ _ -> ()) Pkg.parser) <| \pkg ->
-      P.bind (P.word1 0x40 {-@-} bail) <| \_ ->
-      P.bind (P.specialize (\_ _ _ -> ()) V.parser) <| \vsn ->
-      P.return (pkg, vsn)
+  P.bind (P.specialize (\_ _ _ -> ()) Pkg.parser) <| \pkg ->
+  P.bind (P.word1 0x40 {-@-} bail) <| \_ ->
+  P.bind (P.specialize (\_ _ _ -> ()) V.parser) <| \vsn ->
+  P.return (pkg, vsn)
 
 
 bail : row -> col -> ()

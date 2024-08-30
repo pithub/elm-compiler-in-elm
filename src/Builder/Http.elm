@@ -71,23 +71,23 @@ post =
 fetch : Sys.Method -> Sys.Manager -> String -> TList Sys.Header -> (Error -> e) -> (String -> IO s (Either e a)) -> IO s (Either e a)
 fetch methodVerb manager url headers onError onSuccess =
   handle (handleHttpException url onError) <|
-    IO.bind (Sys.parseUrlThrow url) <| \req0 ->
-      let req1 =
-            { req0
-              | method = methodVerb
-              , headers = addDefaultHeaders headers
-              } in
-      Sys.withStringResponse req1 manager <| \response ->
-        case response of
-          Left err ->
-            IO.return <| Left err
-          Right string ->
-            IO.fmap Right (onSuccess string)
+  IO.bind (Sys.parseUrlThrow url) <| \req0 ->
+  let req1 =
+        { req0
+          | method = methodVerb
+          , headers = addDefaultHeaders headers
+          } in
+  Sys.withStringResponse req1 manager <| \response ->
+    case response of
+      Left err ->
+        IO.return <| Left err
+      Right string ->
+        IO.fmap Right (onSuccess string)
 
 
 addDefaultHeaders : TList Sys.Header -> TList Sys.Header
 addDefaultHeaders headers =
-      Sys.userAgent userAgent :: headers
+  Sys.userAgent userAgent :: headers
 
 
 userAgent : String
@@ -123,21 +123,21 @@ getArchive :
   -> IO s (Either e a)
 getArchive manager url onError err onSuccess =
   handle (handleHttpException url onError) <|
-    IO.bind (Sys.parseUrlThrow url) <| \req0 ->
-    let req1 =
-          { req0
-            | method = Sys.methodGet
-            , headers = addDefaultHeaders []
-            } in
-    Sys.withBytesResponse req1 manager <| \response ->
-      case response of
-        Left error ->
-          IO.return <| Left error
+  IO.bind (Sys.parseUrlThrow url) <| \req0 ->
+  let req1 =
+        { req0
+          | method = Sys.methodGet
+          , headers = addDefaultHeaders []
+          } in
+  Sys.withBytesResponse req1 manager <| \response ->
+    case response of
+      Left error ->
+        IO.return <| Left error
 
-        Right bytes ->
-          case Zip.fromBytes bytes of
-            Nothing ->
-              IO.return (Right (Left err))
+      Right bytes ->
+        case Zip.fromBytes bytes of
+          Nothing ->
+            IO.return (Right (Left err))
 
-            Just zip ->
-              IO.fmap Right (onSuccess zip)
+          Just zip ->
+            IO.fmap Right (onSuccess zip)

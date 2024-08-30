@@ -1,8 +1,8 @@
 {- MANUALLY FORMATTED -}
 module Compiler.Reporting.Error.Pattern exposing
-    ( {- P.Error(..) -}
-      toReport
-    )
+  ( {-P.Error(..)
+  ,-} toReport
+  )
 
 
 import Compiler.Elm.String as ES

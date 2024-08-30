@@ -1,7 +1,8 @@
 {- MANUALLY FORMATTED -}
 module Terminal.Reactor exposing
-  (compile
+  ( compile
   )
+
 
 import Builder.Build as Build
 import Builder.Elm.Details as Details

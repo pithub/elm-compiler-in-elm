@@ -3,6 +3,7 @@ module Compiler.Nitpick.Debug exposing
   ( hasDebugUses
   )
 
+
 import Compiler.AST.Optimized as Opt
 import Extra.Type.List as MList
 import Extra.Type.Map as Map

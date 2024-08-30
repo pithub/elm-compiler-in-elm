@@ -47,7 +47,7 @@ compile : TList (Can.Pattern, Int) -> DecisionTree
 compile rawBranches =
   let
     format (pattern, index) =
-        Branch index [(Empty, pattern)]
+      Branch index [(Empty, pattern)]
   in
     toDecisionTree (MList.map format rawBranches)
 
@@ -130,35 +130,35 @@ toDecisionTree : TList Branch -> DecisionTree
 toDecisionTree rawBranches =
   let
     branches =
-        MList.map flattenPatterns rawBranches
+      MList.map flattenPatterns rawBranches
   in
   case checkForMatch branches of
     Just goal ->
-        Match goal
+      Match goal
 
     Nothing ->
-        let
-          path =
-              pickPath branches
+      let
+        path =
+          pickPath branches
 
-          (edges, fallback) =
-              gatherEdges branches path
+        (edges, fallback) =
+          gatherEdges branches path
 
-          decisionEdges =
-              MList.map (Tuple.mapSecond toDecisionTree) edges
-        in
-          case (decisionEdges, fallback) of
-            ([(_, decisionTree)], []) ->
-                decisionTree
+        decisionEdges =
+          MList.map (Tuple.mapSecond toDecisionTree) edges
+      in
+      case (decisionEdges, fallback) of
+        ([(_, decisionTree)], []) ->
+          decisionTree
 
-            (_, []) ->
-                Decision path decisionEdges Nothing
+        (_, []) ->
+            Decision path decisionEdges Nothing
 
-            ([], _ :: _) ->
-                toDecisionTree fallback
+        ([], _ :: _) ->
+          toDecisionTree fallback
 
-            (_, _) ->
-                Decision path decisionEdges (Just (toDecisionTree fallback))
+        (_, _) ->
+            Decision path decisionEdges (Just (toDecisionTree fallback))
 
 
 isComplete : TList Test -> Bool
@@ -283,10 +283,10 @@ checkForMatch : TList Branch -> Maybe Int
 checkForMatch branches =
   case branches of
     Branch goal patterns :: _ -> if MList.all (not << needsTests << Tuple.second) patterns then
-        Just goal else Nothing
+      Just goal else Nothing
 
     _ ->
-        Nothing
+      Nothing
 
 
 
@@ -297,18 +297,18 @@ gatherEdges : TList Branch -> Path -> (TList (Test, TList Branch), TList Branch)
 gatherEdges branches path =
   let
     relevantTests =
-        testsAtPath path branches
+      testsAtPath path branches
 
     allEdges =
-        MList.map (edgesFor path branches) relevantTests
+      MList.map (edgesFor path branches) relevantTests
 
     fallbacks =
-        if isComplete relevantTests then
-          []
-        else
-          MList.filter (isIrrelevantTo path) branches
+      if isComplete relevantTests then
+        []
+      else
+        MList.filter (isIrrelevantTo path) branches
   in
-    ( allEdges, fallbacks )
+  ( allEdges, fallbacks )
 
 
 
@@ -322,16 +322,16 @@ testsAtPath selectedPath branches =
       MMaybe.mapMaybe (testAtPath selectedPath) branches
 
     skipVisited test ((uniqueTests, visitedTests) as curr) =
-        let
-          testComparable =
-            toTestComparable test
-        in
-        if Set.member testComparable visitedTests then
-            curr
-        else
-            ( test :: uniqueTests
-            , Set.insert testComparable visitedTests
-            )
+      let
+        testComparable =
+          toTestComparable test
+      in
+      if Set.member testComparable visitedTests then
+        curr
+      else
+        ( test :: uniqueTests
+        , Set.insert testComparable visitedTests
+        )
   in
   Tuple.first (MList.foldr skipVisited ([], Set.empty) allTests)
 
@@ -396,102 +396,102 @@ toRelevantBranch : Test -> Path -> Branch -> Maybe Branch
 toRelevantBranch test path ((Branch goal pathPatterns) as branch) =
   case extract path pathPatterns of
     Found start (A.At region pattern) end ->
-        case pattern of
-          Can.PCtor _ _ (Can.Union _ _ numAlts _) name _ ctorArgs ->
-              case test of
-                IsCtor _ testName _ _ _ -> if name == testName then
-                  Just <| Branch goal <|
-                    let
-                      args = MList.map dearg ctorArgs
-                      otherwise () = start ++ subPositions path args ++ end
-                    in
-                    case args of
-                      [arg] -> if numAlts == 1 then
-                        start ++ (Unbox path, arg) :: end else otherwise ()
+      case pattern of
+        Can.PCtor _ _ (Can.Union _ _ numAlts _) name _ ctorArgs ->
+          case test of
+            IsCtor _ testName _ _ _ -> if name == testName then
+              Just <| Branch goal <|
+                let
+                  args = MList.map dearg ctorArgs
+                  otherwise () = start ++ subPositions path args ++ end
+                in
+                case args of
+                  [arg] -> if numAlts == 1 then
+                    start ++ (Unbox path, arg) :: end else otherwise ()
 
-                      _ ->
-                        otherwise ()
-                  else Nothing
+                  _ ->
+                    otherwise ()
+              else Nothing
 
-                _ ->
-                  Nothing
+            _ ->
+              Nothing
 
-          Can.PList [] ->
-              case test of
-                IsNil ->
-                  Just (Branch goal (start ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PList (hd::tl) ->
-              case test of
-                IsCons ->
-                  let tl_ = A.At region (Can.PList tl) in
-                  Just (Branch goal (start ++ subPositions path [ hd, tl_ ] ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PCons hd tl ->
-              case test of
-                IsCons ->
-                  Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PChr chr ->
-              case test of
-                IsChr testChr -> if chr == testChr then
-                  Just (Branch goal (start ++ end)) else Nothing
-                _ ->
-                  Nothing
-
-          Can.PStr str ->
-              case test of
-                IsStr testStr -> if str == testStr then
-                  Just (Branch goal (start ++ end)) else Nothing
-
-                _ ->
-                  Nothing
-
-          Can.PInt int ->
-              case test of
-                IsInt testInt -> if int == testInt then
-                  Just (Branch goal (start ++ end)) else Nothing
-
-                _ ->
-                  Nothing
-
-          Can.PBool _ bool ->
-              case test of
-                IsBool testBool -> if bool == testBool then
-                  Just (Branch goal (start ++ end)) else Nothing
-
-                _ ->
-                  Nothing
-
-          Can.PUnit ->
+        Can.PList [] ->
+          case test of
+            IsNil ->
               Just (Branch goal (start ++ end))
 
-          Can.PTuple a b maybeC ->
-              Just (Branch goal (start ++ subPositions path (a :: b :: MMaybe.maybeToList maybeC) ++ end))
+            _ ->
+              Nothing
 
-          Can.PVar _ ->
-              Just branch
+        Can.PList (hd::tl) ->
+          case test of
+            IsCons ->
+              let tl_ = A.At region (Can.PList tl) in
+              Just (Branch goal (start ++ subPositions path [ hd, tl_ ] ++ end))
 
-          Can.PAnything ->
-              Just branch
+            _ ->
+              Nothing
 
-          Can.PRecord _ ->
-              Just branch
+        Can.PCons hd tl ->
+          case test of
+            IsCons ->
+              Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
 
-          Can.PAlias _ _ ->
-              Just branch
+            _ ->
+              Nothing
+
+        Can.PChr chr ->
+          case test of
+            IsChr testChr -> if chr == testChr then
+              Just (Branch goal (start ++ end)) else Nothing
+            _ ->
+              Nothing
+
+        Can.PStr str ->
+          case test of
+            IsStr testStr -> if str == testStr then
+              Just (Branch goal (start ++ end)) else Nothing
+
+            _ ->
+              Nothing
+
+        Can.PInt int ->
+          case test of
+            IsInt testInt -> if int == testInt then
+              Just (Branch goal (start ++ end)) else Nothing
+
+            _ ->
+              Nothing
+
+        Can.PBool _ bool ->
+          case test of
+            IsBool testBool -> if bool == testBool then
+              Just (Branch goal (start ++ end)) else Nothing
+
+            _ ->
+              Nothing
+
+        Can.PUnit ->
+          Just (Branch goal (start ++ end))
+
+        Can.PTuple a b maybeC ->
+          Just (Branch goal (start ++ subPositions path (a :: b :: MMaybe.maybeToList maybeC) ++ end))
+
+        Can.PVar _ ->
+          Just branch
+
+        Can.PAnything ->
+          Just branch
+
+        Can.PRecord _ ->
+          Just branch
+
+        Can.PAlias _ _ ->
+          Just branch
 
     NotFound ->
-        Just branch
+      Just branch
 
 
 type Extract
@@ -503,19 +503,19 @@ extract : Path -> TList (Path, Can.Pattern) -> Extract
 extract selectedPath pathPatterns =
   case pathPatterns of
     [] ->
-        NotFound
+      NotFound
 
     ((path, pattern) as first) :: rest ->
-        if path == selectedPath then
-            Found [] pattern rest
+      if path == selectedPath then
+        Found [] pattern rest
 
-        else
-            case extract selectedPath rest of
-              NotFound ->
-                  NotFound
+      else
+        case extract selectedPath rest of
+          NotFound ->
+            NotFound
 
-              Found start foundPattern end ->
-                  Found (first :: start) foundPattern end
+          Found start foundPattern end ->
+            Found (first :: start) foundPattern end
 
 
 
@@ -526,10 +526,10 @@ isIrrelevantTo : Path -> Branch -> Bool
 isIrrelevantTo selectedPath (Branch _ pathPatterns) =
   case MList.lookup selectedPath pathPatterns of
     Nothing ->
-        True
+      True
 
     Just pattern ->
-        not (needsTests pattern)
+      not (needsTests pattern)
 
 
 needsTests : Can.Pattern -> Bool
@@ -548,7 +548,7 @@ needsTests (A.At _ pattern) =
     Can.PInt _            -> True
     Can.PBool _ _         -> True
     Can.PAlias _ _ ->
-        Debug.todo "aliases should never reach 'isIrrelevantTo' function"
+      Debug.todo "aliases should never reach 'isIrrelevantTo' function"
 
 
 
@@ -564,18 +564,18 @@ pickPath branches =
   in
     case bests (addWeights (smallDefaults branches) allPaths) of
       [path] ->
-          path
+        path
 
       tiedPaths ->
-          MList.head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
+        MList.head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
 
 
 isChoicePath : (Path, Can.Pattern) -> Maybe Path
 isChoicePath (path, pattern) =
   if needsTests pattern then
-      Just path
+    Just path
   else
-      Nothing
+    Nothing
 
 
 addWeights : (Path -> Int) -> TList Path -> TList (Path, Int)

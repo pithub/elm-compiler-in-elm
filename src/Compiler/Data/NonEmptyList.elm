@@ -10,6 +10,7 @@ module Compiler.Data.NonEmptyList exposing
   , traverse
   )
 
+
 import Extra.Class.Applicative as Applicative
 import Extra.Class.Foldable as Foldable
 import Extra.Class.Functor as Functor
@@ -49,21 +50,21 @@ foldr f b (CList x xs) = f x (MList.foldr f b xs)
 
 
 sequenceA :
-    Applicative.Pure (MList.TList a) fla
-    -> Applicative.LiftA2 a fa (MList.TList a) fla (MList.TList a) fla
-    -> Applicative.LiftA2 a fa (MList.TList a) fla (TList a) fta
-    -> Traversable.SequenceA (TList fa) fta
+  Applicative.Pure (MList.TList a) fla
+  -> Applicative.LiftA2 a fa (MList.TList a) fla (MList.TList a) fla
+  -> Applicative.LiftA2 a fa (MList.TList a) fla (TList a) fta
+  -> Traversable.SequenceA (TList fa) fta
 sequenceA pPure pLiftA2L pLiftA2C =
-    traverse pPure pLiftA2L pLiftA2C identity
+  traverse pPure pLiftA2L pLiftA2C identity
 
 
 traverse :
-    Applicative.Pure (MList.TList b) flb
-    -> Applicative.LiftA2 b fb (MList.TList b) flb (MList.TList b) flb
-    -> Applicative.LiftA2 b fb (MList.TList b) flb (TList b) ftb
-    -> Traversable.Traverse a (TList a) fb ftb
+  Applicative.Pure (MList.TList b) flb
+  -> Applicative.LiftA2 b fb (MList.TList b) flb (MList.TList b) flb
+  -> Applicative.LiftA2 b fb (MList.TList b) flb (TList b) ftb
+  -> Traversable.Traverse a (TList a) fb ftb
 traverse pPure pLiftA2L pLiftA2C func (CList x xs) =
-    pLiftA2C CList (func x) (MList.traverse pPure pLiftA2L func xs)
+  pLiftA2C CList (func x) (MList.traverse pPure pLiftA2L func xs)
 
 
 

@@ -13,6 +13,7 @@ module Compiler.Generate.JavaScript.Expression exposing
   , generateAsync
   )
 
+
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt
 import Compiler.AST.Utils.Shader as Shader
@@ -207,8 +208,8 @@ generateAsync isAsyncDef maybeBpNames mode expression =
 
 
 type Code
-    = JsExpr JS.Expr
-    | JsBlock (TList JS.Stmt)
+  = JsExpr JS.Expr
+  | JsBlock (TList JS.Stmt)
 
 
 codeToExpr : Code -> JS.Expr
@@ -228,29 +229,29 @@ codeToStmtList : Code -> TList JS.Stmt
 codeToStmtList code =
   case code of
     JsExpr (JS.Call (JS.Function Nothing [] stmts) []) ->
-        stmts
+      stmts
 
     JsExpr expr ->
-        [ JS.Return expr ]
+      [ JS.Return expr ]
 
     JsBlock stmts ->
-        stmts
+      stmts
 
 
 codeToStmt : Code -> JS.Stmt
 codeToStmt code =
   case code of
     JsExpr (JS.Call (JS.Function Nothing [] stmts) []) ->
-        JS.Block stmts
+      JS.Block stmts
 
     JsExpr expr ->
-        JS.Return expr
+      JS.Return expr
 
     JsBlock [stmt] ->
-        stmt
+      stmt
 
     JsBlock stmts ->
-        JS.Block stmts
+      JS.Block stmts
 
 
 
@@ -646,7 +647,7 @@ toSeqs mode expr =
   case expr of
     Opt.Call (Opt.VarGlobal (Opt.Global home "append")) [left, right] ->
       if home == ModuleName.basics then
-          generateJsExpr mode left :: toSeqs mode right else otherwise ()
+        generateJsExpr mode left :: toSeqs mode right else otherwise ()
 
     _ ->
       otherwise ()
@@ -824,22 +825,22 @@ crushIfs branches final =
 
 
 crushIfsHelp
-    : TList (Opt.Expr, Opt.Expr)
-    -> TList (Opt.Expr, Opt.Expr)
-    -> Opt.Expr
-    -> (TList (Opt.Expr, Opt.Expr), Opt.Expr)
+  : TList (Opt.Expr, Opt.Expr)
+  -> TList (Opt.Expr, Opt.Expr)
+  -> Opt.Expr
+  -> (TList (Opt.Expr, Opt.Expr), Opt.Expr)
 crushIfsHelp visitedBranches unvisitedBranches final =
   case unvisitedBranches of
     [] ->
-        case final of
-          Opt.If subBranches subFinal ->
-              crushIfsHelp visitedBranches subBranches subFinal
+      case final of
+        Opt.If subBranches subFinal ->
+          crushIfsHelp visitedBranches subBranches subFinal
 
-          _ ->
-              (MList.reverse visitedBranches, final)
+        _ ->
+          (MList.reverse visitedBranches, final)
 
     visiting :: unvisited ->
-        crushIfsHelp (visiting :: visitedBranches) unvisited final
+      crushIfsHelp (visiting :: visitedBranches) unvisited final
 
 
 

@@ -49,11 +49,11 @@ type alias IO a c d e f g h v =
 type Solver z a c d e f g h v =
   Solver
   (
-      State
-      -> (State -> v -> (State -> IO a c d e f g h z) -> IO a c d e f g h z)
-      -> (State -> IO a c d e f g h z)
-      -> (Exit.Solver -> IO a c d e f g h z)
-      -> IO a c d e f g h z
+    State
+    -> (State -> v -> (State -> IO a c d e f g h z) -> IO a c d e f g h z)
+    -> (State -> IO a c d e f g h z)
+    -> (Exit.Solver -> IO a c d e f g h z)
+    -> IO a c d e f g h z
   )
 
 
@@ -214,22 +214,22 @@ exploreGoals (Goals pending solved) =
       return solved
 
     Just ((name, constraint), otherPending) ->
-          let goals1 = Goals otherPending solved in
-          let addVsn = addVersion goals1 name in
-          bind (getRelevantVersions name constraint) <| \(v,vs) ->
-          bind (oneOf (addVsn v) (MList.map addVsn vs)) <| \goals2 ->
-          exploreGoals goals2
+      let goals1 = Goals otherPending solved in
+      let addVsn = addVersion goals1 name in
+      bind (getRelevantVersions name constraint) <| \(v,vs) ->
+      bind (oneOf (addVsn v) (MList.map addVsn vs)) <| \goals2 ->
+      exploreGoals goals2
 
 
 addVersion : Goals -> Pkg.Comparable -> V.Version -> Solver z a c d e f g h Goals
 addVersion (Goals pending solved) name version =
-      bind (getConstraints (Pkg.fromComparable name) version) <| \(Constraints elm deps) ->
-      if C.goodElm elm
-        then
-              bind (MList.foldlM return bind (addConstraint solved) pending (Map.toList deps)) <| \newPending ->
-              return (Goals newPending (Map.insert name version solved))
-        else
-          backtrack
+  bind (getConstraints (Pkg.fromComparable name) version) <| \(Constraints elm deps) ->
+  if C.goodElm elm
+    then
+      bind (MList.foldlM return bind (addConstraint solved) pending (Map.toList deps)) <| \newPending ->
+      return (Goals newPending (Map.insert name version solved))
+    else
+      backtrack
 
 
 addConstraint : Map.Map Pkg.Comparable V.Version -> Map.Map Pkg.Comparable C.Constraint -> (Pkg.Comparable, C.Constraint) -> Solver z a c d e f g h (Map.Map Pkg.Comparable C.Constraint)
@@ -280,66 +280,66 @@ getRelevantVersions name constraint =
 getConstraints : Pkg.Name -> V.Version -> Solver z a c d e f g h Constraints
 getConstraints pkg vsn =
   Solver <| \((State cache connection registry cDict) as state) ok back err ->
-        let key = (Pkg.toComparable pkg, V.toComparable vsn) in
-        case Map.lookup key cDict of
-          Just cs ->
-            ok state cs back
+    let key = (Pkg.toComparable pkg, V.toComparable vsn) in
+    case Map.lookup key cDict of
+      Just cs ->
+        ok state cs back
 
-          Nothing ->
-                let toNewState cs = State cache connection registry (Map.insert key cs cDict) in
-                let home = Stuff.package cache pkg vsn in
-                let path = SysFile.addName home "elm.json"in
-                IO.bind (File.exists path) <| \outlineExists ->
-                if outlineExists
-                  then
-                        IO.bind (File.readUtf8 path) <| \bytes ->
-                        case D.fromByteString constraintsDecoder bytes of
-                          Right cs ->
-                            case connection of
-                              Online _ ->
-                                ok (toNewState cs) cs back
+      Nothing ->
+        let toNewState cs = State cache connection registry (Map.insert key cs cDict) in
+        let home = Stuff.package cache pkg vsn in
+        let path = SysFile.addName home "elm.json"in
+        IO.bind (File.exists path) <| \outlineExists ->
+        if outlineExists
+          then
+            IO.bind (File.readUtf8 path) <| \bytes ->
+            case D.fromByteString constraintsDecoder bytes of
+              Right cs ->
+                case connection of
+                  Online _ ->
+                    ok (toNewState cs) cs back
 
-                              Offline ->
-                                    IO.bind (SysFile.doesDirectoryExist (SysFile.addName (Stuff.package cache pkg vsn) "src")) <| \srcExists ->
-                                    if srcExists
-                                      then ok (toNewState cs) cs back
-                                      else back state
+                  Offline ->
+                    IO.bind (SysFile.doesDirectoryExist (SysFile.addName (Stuff.package cache pkg vsn) "src")) <| \srcExists ->
+                    if srcExists
+                      then ok (toNewState cs) cs back
+                      else back state
 
-                          Left  _  ->
-                                IO.bind (File.remove path) <| \_ ->
-                                err (Exit.SolverBadCacheData pkg vsn)
-                  else
-                    case connection of
-                      Offline ->
-                        back state
+              Left  _  ->
+                IO.bind (File.remove path) <| \_ ->
+                err (Exit.SolverBadCacheData pkg vsn)
+          else
+            case connection of
+              Offline ->
+                back state
 
-                      Online manager ->
-                            let url = Website.metadata pkg vsn "elm.json" in
-                            IO.bind (Http.get manager url [] identity (IO.return << Right)) <| \result ->
-                            case result of
-                              Left httpProblem ->
-                                err (Exit.SolverBadHttp pkg vsn httpProblem)
+              Online manager ->
+                let url = Website.metadata pkg vsn "elm.json" in
+                IO.bind (Http.get manager url [] identity (IO.return << Right)) <| \result ->
+                case result of
+                  Left httpProblem ->
+                    err (Exit.SolverBadHttp pkg vsn httpProblem)
 
-                              Right body ->
-                                case D.fromByteString constraintsDecoder body of
-                                  Right cs ->
-                                        IO.bind (SysFile.createDirectoryIfMissing True home) <| \_ ->
-                                        IO.bind (File.writeUtf8 path body) <| \_ ->
-                                        ok (toNewState cs) cs back
+                  Right body ->
+                    case D.fromByteString constraintsDecoder body of
+                      Right cs ->
+                        IO.bind (SysFile.createDirectoryIfMissing True home) <| \_ ->
+                        IO.bind (File.writeUtf8 path body) <| \_ ->
+                        ok (toNewState cs) cs back
 
-                                  Left _ ->
-                                    err (Exit.SolverBadHttpData pkg vsn url)
+                      Left _ ->
+                        err (Exit.SolverBadHttpData pkg vsn url)
 
 
 constraintsDecoder : D.Decoder z () Constraints
 constraintsDecoder =
-      D.bind (D.mapError (always ()) Outline.decoder) <| \outline ->
-      case outline of
-        Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps _ elmConstraint) ->
-          D.return (Constraints elmConstraint deps)
+  D.bind (D.mapError (always ()) Outline.decoder) <| \outline ->
+  case outline of
+    Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps _ elmConstraint) ->
+      D.return (Constraints elmConstraint deps)
 
-        Outline.App _ ->
-          D.failure ()
+    Outline.App _ ->
+      D.failure ()
 
 
 
@@ -352,28 +352,28 @@ type Env =
 
 initEnv : IO a c d e f g h (Either Exit.RegistryProblem Env)
 initEnv =
-      IO.bind Http.getManager <| \manager ->
-      IO.bind Stuff.getPackageCache <| \cache ->
-      IO.bind (Registry.read cache) <| \maybeRegistry ->
+  IO.bind Http.getManager <| \manager ->
+  IO.bind Stuff.getPackageCache <| \cache ->
+  IO.bind (Registry.read cache) <| \maybeRegistry ->
 
-      case maybeRegistry of
-        Nothing ->
-              IO.bind (Registry.fetch manager cache) <| \eitherRegistry ->
-              case eitherRegistry of
-                Right latestRegistry ->
-                  IO.return <| Right <| Env cache manager (Online manager) latestRegistry
+  case maybeRegistry of
+    Nothing ->
+      IO.bind (Registry.fetch manager cache) <| \eitherRegistry ->
+      case eitherRegistry of
+        Right latestRegistry ->
+          IO.return <| Right <| Env cache manager (Online manager) latestRegistry
 
-                Left problem ->
-                  IO.return <| Left <| problem
+        Left problem ->
+          IO.return <| Left <| problem
 
-        Just cachedRegistry ->
-              IO.bind (Registry.update manager cache cachedRegistry) <| \eitherRegistry ->
-              case eitherRegistry of
-                Right latestRegistry ->
-                  IO.return <| Right <| Env cache manager (Online manager) latestRegistry
+    Just cachedRegistry ->
+      IO.bind (Registry.update manager cache cachedRegistry) <| \eitherRegistry ->
+      case eitherRegistry of
+        Right latestRegistry ->
+          IO.return <| Right <| Env cache manager (Online manager) latestRegistry
 
-                Left _ ->
-                  IO.return <| Right <| Env cache manager Offline cachedRegistry
+        Left _ ->
+          IO.return <| Right <| Env cache manager Offline cachedRegistry
 
 
 
@@ -382,17 +382,17 @@ initEnv =
 
 return : Monad.Return v (Solver z a c d e f g h v)
 return a =
-    Solver <| \state ok back _ -> ok state a back
+  Solver <| \state ok back _ -> ok state a back
 
 bind : Monad.Bind v (Solver z a c d e f g h v) (Solver z a c d e f g h w)
 bind (Solver solverA) callback =
-    Solver <| \state ok back err ->
-      let
-        okA stateA a backA =
-          case callback a of
-            Solver solverB -> solverB stateA ok backA err
-      in
-      solverA state okA back err
+  Solver <| \state ok back err ->
+    let
+      okA stateA a backA =
+        case callback a of
+          Solver solverB -> solverB stateA ok backA err
+    in
+    solverA state okA back err
 
 
 oneOf : Solver z a c d e f g h v -> TList (Solver z a c d e f g h v) -> Solver z a c d e f g h v

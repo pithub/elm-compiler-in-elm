@@ -1,5 +1,8 @@
 {- MANUALLY FORMATTED -}
-module Terminal.Main exposing (runMain)
+module Terminal.Main exposing
+  ( runMain
+  )
+
 
 import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D exposing (d, da)
@@ -168,9 +171,9 @@ install =
         [ D.reflow
             "For example, if you want to get packages for HTTP and JSON, you would say:"
         , D.indent 4 <| D.green <| D.vcat <|
-              [ d"elm install elm/http"
-              , d"elm install elm/json"
-              ]
+            [ d"elm install elm/http"
+            , d"elm install elm/json"
+            ]
         , D.reflow <|
             "Notice that you must say the AUTHOR name and PROJECT name! After running those"
             ++ " commands, you could say `import Http` or `import Json.Decode` in your code."

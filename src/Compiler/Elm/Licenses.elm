@@ -36,13 +36,13 @@ encode (License code) =
 
 decoder : (Json.TString -> TList Json.TString -> e) -> D.Decoder z e License
 decoder toError =
-      D.bind D.string <| \str ->
-      case check str of
-        Right license ->
-          D.return license
+  D.bind D.string <| \str ->
+  case check str of
+    Right license ->
+      D.return license
 
-        Left suggestions ->
-          D.failure (toError str suggestions)
+    Left suggestions ->
+      D.failure (toError str suggestions)
 
 
 

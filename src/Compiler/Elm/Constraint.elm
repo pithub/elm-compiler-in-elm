@@ -31,7 +31,7 @@ import Extra.Type.List as MList
 
 
 type Constraint
-    = Range V.Version Op Op V.Version
+  = Range V.Version Op Op V.Version
 
 
 type Op
@@ -79,9 +79,9 @@ satisfies : Constraint -> V.Version -> Bool
 satisfies constraint version =
   case constraint of
     Range lower lowerOp upperOp upper ->
-        isLess lowerOp (V.toComparable lower) (V.toComparable version)
-          &&
-        isLess upperOp (V.toComparable version) (V.toComparable upper)
+      isLess lowerOp (V.toComparable lower) (V.toComparable version)
+        &&
+      isLess upperOp (V.toComparable version) (V.toComparable upper)
 
 
 isLess : Op -> (comparable -> comparable -> Bool)
@@ -174,19 +174,19 @@ type Error
 
 parser : P.Parser z Error Constraint
 parser =
-      P.bind parseVersion <| \lower ->
-      P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-      P.bind (parseOp) <| \loOp ->
-      P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-      P.bind (P.word1 0x76 {-v-} BadFormat) <| \_ ->
-      P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-      P.bind (parseOp) <| \hiOp ->
-      P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-      P.bind (parseVersion) <| \higher ->
-      P.Parser <| \((P.State _ _ _ _ row col) as state) _ eok _ eerr ->
-        if V.toComparable lower < V.toComparable higher
-        then eok (Range lower loOp hiOp higher) state
-        else eerr row col (\_ _ -> InvalidRange lower higher)
+  P.bind parseVersion <| \lower ->
+  P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
+  P.bind (parseOp) <| \loOp ->
+  P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
+  P.bind (P.word1 0x76 {-v-} BadFormat) <| \_ ->
+  P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
+  P.bind (parseOp) <| \hiOp ->
+  P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
+  P.bind (parseVersion) <| \higher ->
+  P.Parser <| \((P.State _ _ _ _ row col) as state) _ eok _ eerr ->
+    if V.toComparable lower < V.toComparable higher
+    then eok (Range lower loOp hiOp higher) state
+    else eerr row col (\_ _ -> InvalidRange lower higher)
 
 
 parseVersion : P.Parser z Error V.Version
@@ -196,9 +196,9 @@ parseVersion =
 
 parseOp : P.Parser z Error Op
 parseOp =
-      P.bind (P.word1 0x3C {-<-} BadFormat) <| \_ ->
-      P.oneOfWithFallback
-        [     P.bind (P.word1 0x3D {-=-} BadFormat) <| \_ ->
-              P.return LessOrEqual
-        ]
-        Less
+  P.bind (P.word1 0x3C {-<-} BadFormat) <| \_ ->
+  P.oneOfWithFallback
+    [ P.bind (P.word1 0x3D {-=-} BadFormat) <| \_ ->
+      P.return LessOrEqual
+    ]
+    Less

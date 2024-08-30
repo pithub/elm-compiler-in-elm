@@ -149,12 +149,12 @@ makeEnv : FilePath -> Details.Details -> IO a e f g h Env
 makeEnv root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
     Details.ValidApp givenSrcDirs ->
-        IO.bind (MList.traverse IO.pure IO.liftA2 (toAbsoluteSrcDir root) (NE.toList givenSrcDirs)) <| \srcDirs ->
-        IO.return <| Env root Parse.Application srcDirs buildID locals foreigns
+      IO.bind (MList.traverse IO.pure IO.liftA2 (toAbsoluteSrcDir root) (NE.toList givenSrcDirs)) <| \srcDirs ->
+      IO.return <| Env root Parse.Application srcDirs buildID locals foreigns
 
     Details.ValidPkg pkg _ _ ->
-        IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (SysFile.fromString "src"))) <| \srcDir ->
-        IO.return <| Env root (Parse.Package pkg) [srcDir] buildID locals foreigns
+      IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (SysFile.fromString "src"))) <| \srcDir ->
+      IO.return <| Env root (Parse.Package pkg) [srcDir] buildID locals foreigns
 
 
 
@@ -821,12 +821,12 @@ compile (Env root projectType _ buildID _ _) docsNeed (Details.Local path time d
 
 projectTypeToPkg : Parse.ProjectType -> Pkg.Name
 projectTypeToPkg projectType =
-    case projectType of
-        Parse.Package pkg ->
-            pkg
+  case projectType of
+    Parse.Package pkg ->
+      pkg
 
-        Parse.Application ->
-            Pkg.dummyName
+    Parse.Application ->
+      Pkg.dummyName
 
 
 
@@ -923,7 +923,7 @@ writeDocs path =
 ignoreDocs : DocsGoal a e f g h ()
 ignoreDocs =
   { kind = IgnoreDocs
-  , finalize = finalizeIgnoreDocs  
+  , finalize = finalizeIgnoreDocs
   }
 
 
@@ -1190,7 +1190,7 @@ checkRoot ((Env root _ _ _ _ _) as env) results rootStatus () =
 
         DepsNotFound problems ->
           IO.return <| ROutsideErr <| Error.Module (Src.getName modul) path time source <|
-              Error.BadImports (toImportErrors env results imports problems)
+            Error.BadImports (toImportErrors env results imports problems)
 
 
 compileOutside : Env -> Details.Local -> String -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO a e f g h RootResult

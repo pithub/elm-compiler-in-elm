@@ -7,6 +7,7 @@ module Compiler.Reporting.Error.Docs exposing
   , toReports
   )
 
+
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc exposing (d)

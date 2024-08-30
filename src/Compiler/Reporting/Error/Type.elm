@@ -833,7 +833,7 @@ toExprReport source localizer exprRegion category tipe expected =
               []
             else
               [ D.toSimpleHint <|
-                 "I always figure out the argument types from left to right. If an argument"
+                  "I always figure out the argument types from left to right. If an argument"
                   ++ " is acceptable, I assume it is “correct” and move on. So the problem may"
                   ++ " actually be in one of the previous arguments!"
               ]
@@ -1067,13 +1067,13 @@ opRightToDocs localizer category op tipe expected =
       if isFloat expected && isInt tipe then badCast op FloatInt
       else if isInt expected && isFloat tipe then badCast op IntFloat
       else
-          EmphRight <| badMath localizer category "Subtraction" "right" "-" tipe expected []
+        EmphRight <| badMath localizer category "Subtraction" "right" "-" tipe expected []
 
     "^" ->
       if isFloat expected && isInt tipe then badCast op FloatInt
       else if isInt expected && isFloat tipe then badCast op IntFloat
       else
-          EmphRight <| badMath localizer category "Exponentiation" "right" "^" tipe expected []
+        EmphRight <| badMath localizer category "Exponentiation" "right" "^" tipe expected []
 
     "/"  -> EmphRight <| badFDiv localizer (d"right") tipe expected
     "//" -> EmphRight <| badIDiv localizer (d"right") tipe expected
@@ -1442,9 +1442,9 @@ badMath localizer category operation direction op tipe expected otherHints =
     loneType localizer tipe expected
       (D.reflow (addCategory ("The " ++ direction ++ " side of (" ++ op ++ ") is") category))
       ( D.fillSep
-            [d"But",da[d"(", D.fromChars op, d")"],d"only",d"works",d"with"
-            ,D.dullyellowS "Int",d"and",D.dullyellowS "Float",d"values."
-            ]
+          [d"But",da[d"(", D.fromChars op, d")"],d"only",d"works",d"with"
+          ,D.dullyellowS "Int",d"and",D.dullyellowS "Float",d"values."
+          ]
         :: otherHints
       )
   )

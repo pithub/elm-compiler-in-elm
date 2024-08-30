@@ -54,10 +54,10 @@ io work =
 eio : (x -> y) -> IO s (Either x a) -> Task z s y a
 eio func work =
   Task <| \ok err ->
-        IO.bind (work) <| \result ->
-        case result of
-          Right a -> ok a
-          Left x -> err (func x)
+    IO.bind (work) <| \result ->
+    case result of
+      Right a -> ok a
+      Left x -> err (func x)
 
 
 
@@ -66,28 +66,28 @@ eio func work =
 
 fmap : Functor.Fmap a (Task z s x a) b (Task z s x b)
 fmap func (Task taskA) =
-    Task <| \ok err ->
-      let
-        okA arg = ok (func arg)
-      in
-      taskA okA err
+  Task <| \ok err ->
+    let
+      okA arg = ok (func arg)
+    in
+    taskA okA err
 
 
 pure : Applicative.Pure a (Task z s x a)
 pure a =
-    Task <| \ok _ -> ok a
+  Task <| \ok _ -> ok a
 
 andMap : Applicative.AndMap (Task z s x a) (Task z s x (a -> b)) (Task z s x b)
 andMap (Task taskArg) (Task taskFunc) =
-    Task <| \ok err ->
-      let
-        okFunc func =
-          let
-            okArg arg = ok (func arg)
-          in
-          taskArg okArg err
-      in
-      taskFunc okFunc err
+  Task <| \ok err ->
+    let
+      okFunc func =
+        let
+          okArg arg = ok (func arg)
+        in
+        taskArg okArg err
+    in
+    taskFunc okFunc err
 
 liftA2 : Applicative.LiftA2 a (Task z s x a) b (Task z s x b) c (Task z s x c)
 liftA2 = Applicative.liftA2 fmap andMap
@@ -98,13 +98,13 @@ return = pure
 
 bind : Monad.Bind a (Task z s x a) (Task z s x b)
 bind (Task taskA) callback =
-    Task <| \ok err ->
-      let
-        okA a =
-          case callback a of
-            Task taskB -> taskB ok err
-      in
-      taskA okA err
+  Task <| \ok err ->
+    let
+      okA a =
+        case callback a of
+          Task taskB -> taskB ok err
+    in
+    taskA okA err
 
 andThen : Monad.AndThen a (Task z s x a) (Task z s x b)
 andThen = Monad.andThen bind

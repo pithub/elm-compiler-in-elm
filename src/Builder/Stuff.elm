@@ -138,12 +138,12 @@ getReplCache =
 
 getCacheDir : FileName -> IO a c d e f g h FilePath
 getCacheDir projectName =
-      IO.bind getElmHome <| \home ->
-      let root = SysFile.addNames home [ compilerVersion, projectName ] in
-      IO.bind (SysFile.createDirectoryIfMissing True root) <| \_ ->
-      IO.return root
+  IO.bind getElmHome <| \home ->
+  let root = SysFile.addNames home [ compilerVersion, projectName ] in
+  IO.bind (SysFile.createDirectoryIfMissing True root) <| \_ ->
+  IO.return root
 
 
 getElmHome : IO a c d e f g h FilePath
 getElmHome =
-      SysFile.getAppUserDataDirectory "elm"
+  SysFile.getAppUserDataDirectory "elm"

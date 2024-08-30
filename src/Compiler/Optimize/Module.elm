@@ -229,9 +229,9 @@ addDef : ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> TRe
 addDef home annotations def graph =
   case def of
     Can.Def (A.At region name) args body ->
-          let (Can.Forall _ tipe) = Map.ex annotations name in
-          MResult.bind (MResult.warn <| W.MissingTypeAnnotation region name tipe) <| \_ ->
-          addDefHelp region annotations home name args body graph
+      let (Can.Forall _ tipe) = Map.ex annotations name in
+      MResult.bind (MResult.warn <| W.MissingTypeAnnotation region name tipe) <| \_ ->
+      addDefHelp region annotations home name args body graph
 
     Can.TypedDef (A.At region name) _ typedArgs body _ ->
       addDefHelp region annotations home name (MList.map Tuple.first typedArgs) body graph
@@ -250,26 +250,26 @@ addDefHelp region annotations home name args body ((Opt.LocalGraph _ nodes field
           Opt.LocalGraph (Just main) nodes (Map.unionWith (+) fields fieldCounts)
     in
     let
-        otherwise () =
-          MResult.throw (E.BadType region tipe)
+      otherwise () =
+        MResult.throw (E.BadType region tipe)
     in
     case Type.deepDealias tipe of
       Can.TType hm nm [_] -> if hm == ModuleName.virtualDom && nm == Name.node then
-          MResult.ok <| addMain <| Names.run <|
-            Names.registerKernel Name.virtualDom Opt.Static else otherwise ()
+        MResult.ok <| addMain <| Names.run <|
+          Names.registerKernel Name.virtualDom Opt.Static else otherwise ()
 
       Can.TType hm nm [flags, _, message] -> if hm == ModuleName.platform && nm == Name.program then
-          case Effects.checkPayload flags of
-            Right () ->
-              MResult.ok <| addMain <| Names.run <|
-                Names.fmap (Opt.Dynamic message) <| Port.toFlagsDecoder flags
+        case Effects.checkPayload flags of
+          Right () ->
+            MResult.ok <| addMain <| Names.run <|
+              Names.fmap (Opt.Dynamic message) <| Port.toFlagsDecoder flags
 
-            Left (subType, invalidPayload) ->
-              MResult.throw (E.BadFlags region subType invalidPayload)
-          else otherwise ()
+          Left (subType, invalidPayload) ->
+            MResult.throw (E.BadFlags region subType invalidPayload)
+        else otherwise ()
 
       _ ->
-          otherwise ()
+        otherwise ()
 
 
 addDefNode : ModuleName.Canonical -> Name.Name -> TList Can.Pattern -> Can.Expr -> Set.Set Opt.GlobalComparable -> Opt.LocalGraph -> Opt.LocalGraph
@@ -282,10 +282,10 @@ addDefNode home name args body mainDeps graph =
             Expr.optimize Set.empty body
 
           _ ->
-                Names.bind (Expr.destructArgs args) <| \(argNames, destructors) ->
-                Names.bind (Expr.optimize Set.empty body) <| \obody ->
-                Names.pure <| Opt.Function argNames <|
-                  MList.foldr Opt.Destruct obody destructors
+            Names.bind (Expr.destructArgs args) <| \(argNames, destructors) ->
+            Names.bind (Expr.optimize Set.empty body) <| \obody ->
+            Names.pure <| Opt.Function argNames <|
+              MList.foldr Opt.Destruct obody destructors
   in
   addToGraph (Opt.Global home name) (Opt.Define def (Set.union deps mainDeps)) fields graph
 
@@ -360,9 +360,9 @@ addRecDefHelp : Set.Set Name.Name -> State -> Name.Name -> TList Can.Pattern -> 
 addRecDefHelp cycle (State values funcs) name args body =
   case args of
     [] ->
-          Names.bind (Expr.optimize cycle body) <| \obody ->
-          Names.pure <| State ((name, obody) :: values) funcs
+      Names.bind (Expr.optimize cycle body) <| \obody ->
+      Names.pure <| State ((name, obody) :: values) funcs
 
     _::_ ->
-          Names.bind (Expr.optimizePotentialTailCall cycle name args body) <| \odef ->
-          Names.pure <| State values (odef :: funcs)
+      Names.bind (Expr.optimizePotentialTailCall cycle name args body) <| \odef ->
+      Names.pure <| State values (odef :: funcs)

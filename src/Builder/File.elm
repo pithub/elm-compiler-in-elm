@@ -15,6 +15,7 @@ module Builder.File exposing
   , toMillis
   )
 
+
 import BigInt exposing (BigInt)
 import Bytes exposing (Bytes)
 import Bytes.Decode
@@ -94,35 +95,35 @@ halfTimeFactor =
 
 writeBinary : B.Binary v -> FilePath -> v -> IO a c d e f g h ()
 writeBinary binA path value =
-      let dir = SysFile.dropLastName path in
-      IO.bind (SysFile.createDirectoryIfMissing True dir) <| \_ ->
-      B.encodeFile binA path value
+  let dir = SysFile.dropLastName path in
+  IO.bind (SysFile.createDirectoryIfMissing True dir) <| \_ ->
+  B.encodeFile binA path value
 
 
 readBinary : B.Binary v -> FilePath -> IO a c d e f g h (Maybe v)
 readBinary binA path =
-      IO.bind (SysFile.doesFileExist path) <| \pathExists ->
-      if pathExists
-        then
-              IO.bind (B.decodeFileOrFail binA path) <| \result ->
-              case result of
-                Right a ->
-                  IO.return (Just a)
+  IO.bind (SysFile.doesFileExist path) <| \pathExists ->
+  if pathExists
+    then
+      IO.bind (B.decodeFileOrFail binA path) <| \result ->
+      case result of
+        Right a ->
+          IO.return (Just a)
 
-                Left (offset, message) ->
-                  IO.bind (IO.log "readBinary" <|
-                    [ "+-------------------------------------------------------------------------------"
-                    , "|  Corrupt File: " ++ SysFile.toString path
-                    , "|   Byte Offset: " ++ String.fromInt offset
-                    , "|       Message: " ++ message
-                    , "|"
-                    , "| Please report this to https://github.com/elm/compiler/issues"
-                    , "| Trying to continue anyway."
-                    , "+-------------------------------------------------------------------------------"
-                    ]) <| \_ ->
-                  IO.return Nothing
-        else
+        Left (offset, message) ->
+          IO.bind (IO.log "readBinary" <|
+            [ "+-------------------------------------------------------------------------------"
+            , "|  Corrupt File: " ++ SysFile.toString path
+            , "|   Byte Offset: " ++ String.fromInt offset
+            , "|       Message: " ++ message
+            , "|"
+            , "| Please report this to https://github.com/elm/compiler/issues"
+            , "| Trying to continue anyway."
+            , "+-------------------------------------------------------------------------------"
+            ]) <| \_ ->
           IO.return Nothing
+    else
+      IO.return Nothing
 
 
 
@@ -145,7 +146,7 @@ readUtf8 path =
 
 bytesToString : Bytes -> Maybe String
 bytesToString bytes =
-    Bytes.Decode.decode (Bytes.Decode.string (Bytes.width bytes)) bytes
+  Bytes.Decode.decode (Bytes.Decode.string (Bytes.width bytes)) bytes
 
 
 
@@ -163,7 +164,7 @@ writeBuilder =
 
 writePackage : FilePath -> Zip.Zip -> IO a c d e f g h ()
 writePackage destination archive =
-   case Zip.entries archive of
+  case Zip.entries archive of
     [] ->
       IO.return ()
 
@@ -183,17 +184,17 @@ writeEntry destination root entry =
     || path == "README.md"
     || path == "elm.json"
   then
-      if not (String.isEmpty path) && String.endsWith "/" path
-      then SysFile.createDirectoryIfMissing True (SysFile.combine destination (SysFile.fromString path))
-      else
-        case Zip.Entry.toBytes entry of
-          Err _ ->
-            IO.return ()
+    if not (String.isEmpty path) && String.endsWith "/" path
+    then SysFile.createDirectoryIfMissing True (SysFile.combine destination (SysFile.fromString path))
+    else
+      case Zip.Entry.toBytes entry of
+        Err _ ->
+          IO.return ()
 
-          Ok bytes ->
-            SysFile.writeFile (SysFile.combine destination (SysFile.fromString path)) bytes
+        Ok bytes ->
+          SysFile.writeFile (SysFile.combine destination (SysFile.fromString path)) bytes
   else
-      IO.return ()
+    IO.return ()
 
 
 
@@ -211,7 +212,7 @@ exists path =
 
 remove : FilePath -> IO a c d e f g h ()
 remove path =
-    IO.bind (SysFile.doesFileExist path) <| \exists_ ->
-      if exists_
-        then SysFile.removeFile path
-        else IO.return ()
+  IO.bind (SysFile.doesFileExist path) <| \exists_ ->
+    if exists_
+      then SysFile.removeFile path
+      else IO.return ()

@@ -289,4 +289,4 @@ commaNewline =
 
 newline : String
 newline =
-   "\n"
+  "\n"

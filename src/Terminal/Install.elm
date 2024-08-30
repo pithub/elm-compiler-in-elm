@@ -3,6 +3,7 @@ module Terminal.Install exposing
   ( install
   )
 
+
 import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
 import Builder.Deps.Registry as Registry
@@ -71,28 +72,28 @@ attemptChanges root env oldOutline toChars changes =
     PromoteIndirect newOutline ->
       attemptChangesHelp root env oldOutline newOutline <|
         D.vcat
-         [ D.fillSep
+          [ D.fillSep
             [d"I",d"found",d"it",d"in",d"your",d"elm.json",d"file,"
             ,d"but",d"in",d"the",D.dullyellowS "\"indirect\"",d"dependencies."
             ]
-         , D.fillSep
+          , D.fillSep
             [d"Should",d"I",d"move",d"it",d"into",D.greenS "\"direct\""
             ,d"dependencies",d"for",d"more",d"general",d"use?",d"[Y/n]: "
             ]
-         ]
+          ]
 
     PromoteTest newOutline ->
       attemptChangesHelp root env oldOutline newOutline <|
         D.vcat
-         [ D.fillSep
+          [ D.fillSep
             [d"I",d"found",d"it",d"in",d"your",d"elm.json",d"file,"
             ,d"but",d"in",d"the",D.dullyellowS "\"test-dependencies\"",d"field."
             ]
-         , D.fillSep
+          , D.fillSep
             [d"Should",d"I",d"move",d"it",d"into",D.greenS "\"dependencies\""
             ,d"for",d"more",d"general",d"use?",d"[Y/n]: "
             ]
-         ]
+          ]
 
     Changes changeDict newOutline ->
       let

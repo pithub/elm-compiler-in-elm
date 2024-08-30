@@ -35,11 +35,11 @@ type alias IO a =
 
 
 type alias IOState =
-    ( -- types
-      Type.State
-    , -- pools
-      MVector.State (TList Type.Variable)
-    )
+  ( -- types
+    Type.State
+  , -- pools
+    MVector.State (TList Type.Variable)
+  )
 
 
 init : IOState
@@ -61,17 +61,17 @@ liftP = IO.liftS (\( _, x ) -> x) (\x ( a, _ ) -> ( a, x ))
 
 run : Type.Constraint -> IO (Either (NE.TList Error.Error) (Map.Map Name.Name Can.Annotation))
 run constraint =
-      IO.bind (liftP <| MVector.replicate 8 []) <| \pools ->
+  IO.bind (liftP <| MVector.replicate 8 []) <| \pools ->
 
-      IO.bind
-        (solve Map.empty Type.outermostRank pools emptyState constraint) <| \(State env _ errors) ->
+  IO.bind
+    (solve Map.empty Type.outermostRank pools emptyState constraint) <| \(State env _ errors) ->
 
-      case errors of
-        [] ->
-          IO.fmap Right <| Map.traverse IO.pure IO.liftA2 Type.toAnnotation env
+  case errors of
+    [] ->
+      IO.fmap Right <| Map.traverse IO.pure IO.liftA2 Type.toAnnotation env
 
-        e::es ->
-          IO.return <| Left (NE.CList e es)
+    e::es ->
+      IO.return <| Left (NE.CList e es)
 
 
 emptyState : State
@@ -111,131 +111,131 @@ solve env rank pools state constraint =
       IO.return (setEnv env state)
 
     Type.CEqual region category tipe expectation ->
-          IO.bind (typeToVariable rank pools tipe) <| \actual ->
-          IO.bind (expectedToVariable rank pools expectation) <| \expected ->
-          IO.bind (Unify.unify actual expected) <| \answer ->
-          case answer of
-            Unify.COk vars ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return state
+      IO.bind (typeToVariable rank pools tipe) <| \actual ->
+      IO.bind (expectedToVariable rank pools expectation) <| \expected ->
+      IO.bind (Unify.unify actual expected) <| \answer ->
+      case answer of
+        Unify.COk vars ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return state
 
-            Unify.CErr vars actualType expectedType ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return <| addError state <|
-                    Error.BadExpr region category actualType <|
-                      Error.typeReplace expectation expectedType
+        Unify.CErr vars actualType expectedType ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return <| addError state <|
+            Error.BadExpr region category actualType <|
+              Error.typeReplace expectation expectedType
 
     Type.CLocal region name expectation ->
-          IO.bind (makeCopy rank pools (Map.ex env name)) <| \actual ->
-          IO.bind (expectedToVariable rank pools expectation) <| \expected ->
-          IO.bind (Unify.unify actual expected) <| \answer ->
-          case answer of
-            Unify.COk vars ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return state
+      IO.bind (makeCopy rank pools (Map.ex env name)) <| \actual ->
+      IO.bind (expectedToVariable rank pools expectation) <| \expected ->
+      IO.bind (Unify.unify actual expected) <| \answer ->
+      case answer of
+        Unify.COk vars ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return state
 
-            Unify.CErr vars actualType expectedType ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return <| addError state <|
-                    Error.BadExpr region (Error.Local name) actualType <|
-                      Error.typeReplace expectation expectedType
+        Unify.CErr vars actualType expectedType ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return <| addError state <|
+            Error.BadExpr region (Error.Local name) actualType <|
+              Error.typeReplace expectation expectedType
 
     Type.CForeign region name (Can.Forall freeVars srcType) expectation ->
-          IO.bind (srcTypeToVariable rank pools freeVars srcType) <| \actual ->
-          IO.bind (expectedToVariable rank pools expectation) <| \expected ->
-          IO.bind (Unify.unify actual expected) <| \answer ->
-          case answer of
-            Unify.COk vars ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return state
+      IO.bind (srcTypeToVariable rank pools freeVars srcType) <| \actual ->
+      IO.bind (expectedToVariable rank pools expectation) <| \expected ->
+      IO.bind (Unify.unify actual expected) <| \answer ->
+      case answer of
+        Unify.COk vars ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return state
 
-            Unify.CErr vars actualType expectedType ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return <| addError state <|
-                    Error.BadExpr region (Error.Foreign name) actualType <|
-                      Error.typeReplace expectation expectedType
+        Unify.CErr vars actualType expectedType ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return <| addError state <|
+            Error.BadExpr region (Error.Foreign name) actualType <|
+              Error.typeReplace expectation expectedType
 
     Type.CPattern region category tipe expectation ->
-          IO.bind (typeToVariable rank pools tipe) <| \actual ->
-          IO.bind (patternExpectationToVariable rank pools expectation) <| \expected ->
-          IO.bind (Unify.unify actual expected) <| \answer ->
-          case answer of
-            Unify.COk vars ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return state
+      IO.bind (typeToVariable rank pools tipe) <| \actual ->
+      IO.bind (patternExpectationToVariable rank pools expectation) <| \expected ->
+      IO.bind (Unify.unify actual expected) <| \answer ->
+      case answer of
+        Unify.COk vars ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return state
 
-            Unify.CErr vars actualType expectedType ->
-                  IO.bind (introduce rank pools vars) <| \_ ->
-                  IO.return <| addError state <|
-                    Error.BadPattern region category actualType
-                      (Error.ptypeReplace expectation expectedType)
+        Unify.CErr vars actualType expectedType ->
+          IO.bind (introduce rank pools vars) <| \_ ->
+          IO.return <| addError state <|
+            Error.BadPattern region category actualType
+              (Error.ptypeReplace expectation expectedType)
 
     Type.CAnd constraints ->
       MList.foldlM IO.return IO.bind (solve env rank pools) state constraints
 
     Type.CLet [] flexs _ headerCon Type.CTrue ->
-          IO.bind (introduce rank pools flexs) <| \_ ->
-          solve env rank pools state headerCon
+      IO.bind (introduce rank pools flexs) <| \_ ->
+      solve env rank pools state headerCon
 
     Type.CLet [] [] header headerCon subCon ->
-          IO.bind (solve env rank pools state headerCon) <| \state1 ->
-          IO.bind (Map.traverse IO.pure IO.liftA2 (A.traverse IO.fmap (typeToVariable rank pools)) header) <| \locals ->
-          let newEnv = Map.union env (Map.map A.toValue locals) in
-          IO.bind (solve newEnv rank pools state1 subCon) <| \state2 ->
-          MList.foldlM IO.return IO.bind occurs state2 <| Map.toList locals
+      IO.bind (solve env rank pools state headerCon) <| \state1 ->
+      IO.bind (Map.traverse IO.pure IO.liftA2 (A.traverse IO.fmap (typeToVariable rank pools)) header) <| \locals ->
+      let newEnv = Map.union env (Map.map A.toValue locals) in
+      IO.bind (solve newEnv rank pools state1 subCon) <| \state2 ->
+      MList.foldlM IO.return IO.bind occurs state2 <| Map.toList locals
 
     Type.CLet rigids flexs header headerCon subCon ->
-          -- work in the next pool to localize header
-          let nextRank = rank + 1
-              poolsLength = MVector.length pools in
-          IO.bind
-            (if nextRank < poolsLength
-              then IO.return pools
-              else liftP <| MVector.grow pools poolsLength) <| \nextPools ->
+      -- work in the next pool to localize header
+      let nextRank = rank + 1
+          poolsLength = MVector.length pools in
+      IO.bind
+        (if nextRank < poolsLength
+          then IO.return pools
+          else liftP <| MVector.grow pools poolsLength) <| \nextPools ->
 
-          -- introduce variables
-          let vars = rigids ++ flexs in
-          IO.bind (MList.forM_ IO.return IO.bind vars <| \var ->
-            UF.modify var <| \(Type.Descriptor content _ mark copy) ->
-              Type.Descriptor content nextRank mark copy) <| \_ ->
-          IO.bind (liftP <| MVector.write nextPools nextRank vars) <| \_ ->
+      -- introduce variables
+      let vars = rigids ++ flexs in
+      IO.bind (MList.forM_ IO.return IO.bind vars <| \var ->
+        UF.modify var <| \(Type.Descriptor content _ mark copy) ->
+          Type.Descriptor content nextRank mark copy) <| \_ ->
+      IO.bind (liftP <| MVector.write nextPools nextRank vars) <| \_ ->
 
-          -- run solver in next pool
-          IO.bind (Map.traverse IO.pure IO.liftA2 (A.traverse IO.fmap (typeToVariable nextRank nextPools)) header) <| \locals ->
-          IO.bind (solve env nextRank nextPools state headerCon) <| \(State savedEnv mark errors) ->
+      -- run solver in next pool
+      IO.bind (Map.traverse IO.pure IO.liftA2 (A.traverse IO.fmap (typeToVariable nextRank nextPools)) header) <| \locals ->
+      IO.bind (solve env nextRank nextPools state headerCon) <| \(State savedEnv mark errors) ->
 
-          let youngMark = mark
-              visitMark = Type.nextMark youngMark
-              finalMark = Type.nextMark visitMark in
+      let youngMark = mark
+          visitMark = Type.nextMark youngMark
+          finalMark = Type.nextMark visitMark in
 
-          -- pop pool
-          IO.bind (generalize youngMark visitMark nextRank nextPools) <| \_ ->
-          IO.bind (liftP <| MVector.write nextPools nextRank []) <| \_ ->
+      -- pop pool
+      IO.bind (generalize youngMark visitMark nextRank nextPools) <| \_ ->
+      IO.bind (liftP <| MVector.write nextPools nextRank []) <| \_ ->
 
-          -- check that things went well
-          IO.bind (MList.mapM_ IO.return IO.bind isGeneric rigids) <| \_ ->
+      -- check that things went well
+      IO.bind (MList.mapM_ IO.return IO.bind isGeneric rigids) <| \_ ->
 
-          let newEnv = Map.union env (Map.map A.toValue locals)
-              tempState = State savedEnv finalMark errors in
-          IO.bind (solve newEnv rank nextPools tempState subCon) <| \newState ->
+      let newEnv = Map.union env (Map.map A.toValue locals)
+          tempState = State savedEnv finalMark errors in
+      IO.bind (solve newEnv rank nextPools tempState subCon) <| \newState ->
 
-          MList.foldlM IO.return IO.bind occurs newState (Map.toList locals)
+      MList.foldlM IO.return IO.bind occurs newState (Map.toList locals)
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
 isGeneric : Type.Variable -> IO ()
 isGeneric var =
-      IO.bind (UF.get var) <| \(Type.Descriptor _ rank _ _) ->
-      if rank == Type.noRank
-        then IO.return ()
-        else
-              IO.bind (Type.toErrorType var) <| \tipe ->
-              Debug.todo <|
-                "You ran into a compiler bug. Here are some details for the developers:\n\n"
-                ++ "    " ++ D.toString (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ String.fromInt rank ++ "]\n\n"
-                ++
-                  "Please create an <http://sscce.org/> and then report it\n"
-                  ++ "at <https://github.com/elm/compiler/issues>\n\n"
+  IO.bind (UF.get var) <| \(Type.Descriptor _ rank _ _) ->
+  if rank == Type.noRank
+    then IO.return ()
+    else
+      IO.bind (Type.toErrorType var) <| \tipe ->
+      Debug.todo <|
+        "You ran into a compiler bug. Here are some details for the developers:\n\n"
+        ++ "    " ++ D.toString (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ String.fromInt rank ++ "]\n\n"
+        ++
+          "Please create an <http://sscce.org/> and then report it\n"
+          ++ "at <https://github.com/elm/compiler/issues>\n\n"
 
 
 
@@ -282,15 +282,15 @@ addError (State savedEnv rank errors) err =
 
 occurs : State -> (Name.Name, A.Located Type.Variable) -> IO State
 occurs state (name, A.At region variable) =
-      IO.bind (Occurs.occurs variable) <| \hasOccurred ->
-      if hasOccurred
-        then
-              IO.bind (Type.toErrorType variable) <| \errorType ->
-              IO.bind (UF.get variable) <| \(Type.Descriptor _ rank mark copy) ->
-              IO.bind (UF.set variable (Type.Descriptor Type.Error rank mark copy)) <| \_ ->
-              IO.return <| addError state (Error.InfiniteType region name errorType)
-        else
-          IO.return state
+  IO.bind (Occurs.occurs variable) <| \hasOccurred ->
+  if hasOccurred
+    then
+      IO.bind (Type.toErrorType variable) <| \errorType ->
+      IO.bind (UF.get variable) <| \(Type.Descriptor _ rank mark copy) ->
+      IO.bind (UF.set variable (Type.Descriptor Type.Error rank mark copy)) <| \_ ->
+      IO.return <| addError state (Error.InfiniteType region name errorType)
+    else
+      IO.return state
 
 
 
@@ -302,52 +302,52 @@ This sorts variables into the young and old pools accordingly.
 -}
 generalize : Type.Mark -> Type.Mark -> Int -> Pools -> IO ()
 generalize youngMark visitMark youngRank pools =
-      IO.bind (liftP <| MVector.read pools youngRank) <| \youngVars ->
-      IO.bind (poolToRankTable youngMark youngRank youngVars) <| \rankTable ->
+  IO.bind (liftP <| MVector.read pools youngRank) <| \youngVars ->
+  IO.bind (poolToRankTable youngMark youngRank youngVars) <| \rankTable ->
 
-      -- get the ranks right for each entry.
-      -- start at low ranks so that we only have to pass
-      -- over the information once.
-      IO.bind (MList.imapM_ IO.return IO.bind
-        (\rank table -> MList.mapM_ IO.return IO.bind (adjustRank youngMark visitMark rank) table)
-        rankTable) <| \_ ->
+  -- get the ranks right for each entry.
+  -- start at low ranks so that we only have to pass
+  -- over the information once.
+  IO.bind (MList.imapM_ IO.return IO.bind
+    (\rank table -> MList.mapM_ IO.return IO.bind (adjustRank youngMark visitMark rank) table)
+    rankTable) <| \_ ->
 
-      -- For variables that have rank lowerer than youngRank, register them in
-      -- the appropriate old pool if they are not redundant.
-      IO.bind (MList.forM_ IO.return IO.bind (MList.init rankTable) <| \vars ->
-        MList.forM_ IO.return IO.bind vars <| \var ->
-              IO.bind (UF.redundant var) <| \isRedundant ->
-              if isRedundant
-                then IO.return ()
-                else
-                      IO.bind (UF.get var) <| \(Type.Descriptor _ rank _ _) ->
-                      liftP <| MVector.modify pools (\l -> var::l) rank) <| \_ ->
+  -- For variables that have rank lowerer than youngRank, register them in
+  -- the appropriate old pool if they are not redundant.
+  IO.bind (MList.forM_ IO.return IO.bind (MList.init rankTable) <| \vars ->
+    MList.forM_ IO.return IO.bind vars <| \var ->
+      IO.bind (UF.redundant var) <| \isRedundant ->
+      if isRedundant
+        then IO.return ()
+        else
+          IO.bind (UF.get var) <| \(Type.Descriptor _ rank _ _) ->
+          liftP <| MVector.modify pools (\l -> var::l) rank) <| \_ ->
 
-      -- For variables with rank youngRank
-      --   If rank < youngRank: register in oldPool
-      --   otherwise generalize
-      MList.forM_ IO.return IO.bind (MList.last rankTable) <| \var ->
-            IO.bind (UF.redundant var) <| \isRedundant ->
-            if isRedundant
-              then IO.return ()
-              else
-                    IO.bind (UF.get var) <| \(Type.Descriptor content rank mark copy) ->
-                    if rank < youngRank
-                      then liftP <| MVector.modify pools (\l -> var::l) rank
-                      else UF.set var <| Type.Descriptor content Type.noRank mark copy
+  -- For variables with rank youngRank
+  --   If rank < youngRank: register in oldPool
+  --   otherwise generalize
+  MList.forM_ IO.return IO.bind (MList.last rankTable) <| \var ->
+    IO.bind (UF.redundant var) <| \isRedundant ->
+    if isRedundant
+      then IO.return ()
+      else
+        IO.bind (UF.get var) <| \(Type.Descriptor content rank mark copy) ->
+        if rank < youngRank
+          then liftP <| MVector.modify pools (\l -> var::l) rank
+          else UF.set var <| Type.Descriptor content Type.noRank mark copy
 
 
 poolToRankTable : Type.Mark -> Int -> TList Type.Variable -> IO (TList (TList Type.Variable))
 poolToRankTable youngMark youngRank youngInhabitants =
-      IO.bind (liftP <| MVector.replicate (youngRank + 1) []) <| \mutableTable ->
+  IO.bind (liftP <| MVector.replicate (youngRank + 1) []) <| \mutableTable ->
 
-      -- Sort the youngPool variables into buckets by rank.
-      IO.bind (MList.forM_ IO.return IO.bind youngInhabitants <| \var ->
-            IO.bind (UF.get var) <| \(Type.Descriptor content rank _ copy) ->
-            IO.bind (UF.set var (Type.Descriptor content rank youngMark copy)) <| \_ ->
-            liftP <| MVector.modify mutableTable (\l -> var::l) rank) <| \_ ->
+  -- Sort the youngPool variables into buckets by rank.
+  IO.bind (MList.forM_ IO.return IO.bind youngInhabitants <| \var ->
+    IO.bind (UF.get var) <| \(Type.Descriptor content rank _ copy) ->
+    IO.bind (UF.set var (Type.Descriptor content rank youngMark copy)) <| \_ ->
+    liftP <| MVector.modify mutableTable (\l -> var::l) rank) <| \_ ->
 
-      liftP <| MVector.unsafeFreeze mutableTable
+  liftP <| MVector.unsafeFreeze mutableTable
 
 
 
@@ -359,22 +359,22 @@ poolToRankTable youngMark youngRank youngInhabitants =
 --
 adjustRank : Type.Mark -> Type.Mark -> Int -> Type.Variable -> Type.IO t Int
 adjustRank youngMark visitMark groupRank var =
-      IO.bind (UF.get var) <| \(Type.Descriptor content rank mark copy) ->
-      if mark == youngMark then
-              -- Set the variable as marked first because it may be cyclic.
-              IO.bind (UF.set var <| Type.Descriptor content rank visitMark copy) <| \_ ->
-              IO.bind (adjustRankContent youngMark visitMark groupRank content) <| \maxRank ->
-              IO.bind (UF.set var <| Type.Descriptor content maxRank visitMark copy) <| \_ ->
-              IO.return maxRank
+  IO.bind (UF.get var) <| \(Type.Descriptor content rank mark copy) ->
+  if mark == youngMark then
+    -- Set the variable as marked first because it may be cyclic.
+    IO.bind (UF.set var <| Type.Descriptor content rank visitMark copy) <| \_ ->
+    IO.bind (adjustRankContent youngMark visitMark groupRank content) <| \maxRank ->
+    IO.bind (UF.set var <| Type.Descriptor content maxRank visitMark copy) <| \_ ->
+    IO.return maxRank
 
-        else if mark == visitMark then
-          IO.return rank
+  else if mark == visitMark then
+    IO.return rank
 
-        else
-              let minRank = min groupRank rank in
-              -- TODO how can minRank ever be groupRank?
-              IO.bind (UF.set var <| Type.Descriptor content minRank visitMark copy) <| \_ ->
-              IO.return minRank
+  else
+    let minRank = min groupRank rank in
+    -- TODO how can minRank ever be groupRank?
+    IO.bind (UF.set var <| Type.Descriptor content minRank visitMark copy) <| \_ ->
+    IO.return minRank
 
 
 adjustRankContent : Type.Mark -> Type.Mark -> Int -> Type.Content -> Type.IO t Int
@@ -384,16 +384,16 @@ adjustRankContent youngMark visitMark groupRank content =
   in
     case content of
       Type.FlexVar _ ->
-          IO.return groupRank
+        IO.return groupRank
 
       Type.FlexSuper _ _ ->
-          IO.return groupRank
+        IO.return groupRank
 
       Type.RigidVar _ ->
-          IO.return groupRank
+        IO.return groupRank
 
       Type.RigidSuper _ _ ->
-          IO.return groupRank
+        IO.return groupRank
 
       Type.Structure flatType ->
         case flatType of
@@ -401,36 +401,36 @@ adjustRankContent youngMark visitMark groupRank content =
             MList.foldlM IO.return IO.bind (\rank arg -> IO.fmap (max rank) <| go arg) Type.outermostRank args
 
           Type.Fun1 arg result ->
-              IO.liftA2 max (go arg) (go result)
+            IO.liftA2 max (go arg) (go result)
 
           Type.EmptyRecord1 ->
-              -- THEORY: an empty record never needs to get generalized
-              IO.return Type.outermostRank
+            -- THEORY: an empty record never needs to get generalized
+            IO.return Type.outermostRank
 
           Type.Record1 fields extension ->
-                  IO.bind (go extension) <| \extRank ->
-                  Map.foldlM IO.return IO.bind (\rank field -> IO.fmap (max rank) <| go field) extRank fields
+            IO.bind (go extension) <| \extRank ->
+            Map.foldlM IO.return IO.bind (\rank field -> IO.fmap (max rank) <| go field) extRank fields
 
           Type.Unit1 ->
-              -- THEORY: a unit never needs to get generalized
-              IO.return Type.outermostRank
+            -- THEORY: a unit never needs to get generalized
+            IO.return Type.outermostRank
 
           Type.Tuple1 a b maybeC ->
-                  IO.bind (go a) <| \ma ->
-                  IO.bind (go b) <| \mb ->
-                  case maybeC of
-                    Nothing ->
-                      IO.return (max ma mb)
+            IO.bind (go a) <| \ma ->
+            IO.bind (go b) <| \mb ->
+            case maybeC of
+              Nothing ->
+                IO.return (max ma mb)
 
-                    Just c ->
-                      IO.fmap (max (max ma mb)) <| go c
+              Just c ->
+                IO.fmap (max (max ma mb)) <| go c
 
       Type.Alias _ _ args _ ->
-          -- THEORY: anything in the realVar would be outermostRank
-          MList.foldlM IO.return IO.bind (\rank (_, argVar) -> IO.fmap (max rank) <| go argVar) Type.outermostRank args
+        -- THEORY: anything in the realVar would be outermostRank
+        MList.foldlM IO.return IO.bind (\rank (_, argVar) -> IO.fmap (max rank) <| go argVar) Type.outermostRank args
 
       Type.Error ->
-          IO.return groupRank
+        IO.return groupRank
 
 
 
@@ -439,10 +439,10 @@ adjustRankContent youngMark visitMark groupRank content =
 
 introduce : Int -> Pools -> (TList Type.Variable) -> IO ()
 introduce rank pools variables =
-      IO.bind (liftP <| MVector.modify pools (\l -> variables++l) rank) <| \_ ->
-      MList.forM_ IO.return IO.bind variables <| \var ->
-        UF.modify var <| \(Type.Descriptor content _ mark copy) ->
-          Type.Descriptor content rank mark copy
+  IO.bind (liftP <| MVector.modify pools (\l -> variables++l) rank) <| \_ ->
+  MList.forM_ IO.return IO.bind variables <| \var ->
+    UF.modify var <| \(Type.Descriptor content _ mark copy) ->
+      Type.Descriptor content rank mark copy
 
 
 
@@ -469,26 +469,26 @@ typeToVar rank pools aliasDict tipe =
       IO.return v
 
     Type.AppN home name args ->
-          IO.bind (MList.traverse IO.pure IO.liftA2 go args) <| \argVars ->
-          register rank pools (Type.Structure (Type.App1 home name argVars))
+      IO.bind (MList.traverse IO.pure IO.liftA2 go args) <| \argVars ->
+      register rank pools (Type.Structure (Type.App1 home name argVars))
 
     Type.FunN a b ->
-          IO.bind (go a) <| \aVar ->
-          IO.bind (go b) <| \bVar ->
-          register rank pools (Type.Structure (Type.Fun1 aVar bVar))
+      IO.bind (go a) <| \aVar ->
+      IO.bind (go b) <| \bVar ->
+      register rank pools (Type.Structure (Type.Fun1 aVar bVar))
 
     Type.AliasN home name args aliasType ->
-          IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
-          IO.bind (typeToVar rank pools (Map.fromList argVars) aliasType) <| \aliasVar ->
-          register rank pools (Type.Alias home name argVars aliasVar)
+      IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
+      IO.bind (typeToVar rank pools (Map.fromList argVars) aliasType) <| \aliasVar ->
+      register rank pools (Type.Alias home name argVars aliasVar)
 
     Type.PlaceHolder name ->
       IO.return (Map.ex aliasDict name)
 
     Type.RecordN fields ext ->
-          IO.bind (Map.traverse IO.pure IO.liftA2 go fields) <| \fieldVars ->
-          IO.bind (go ext) <| \extVar ->
-          register rank pools (Type.Structure (Type.Record1 fieldVars extVar))
+      IO.bind (Map.traverse IO.pure IO.liftA2 go fields) <| \fieldVars ->
+      IO.bind (go ext) <| \extVar ->
+      register rank pools (Type.Structure (Type.Record1 fieldVars extVar))
 
     Type.EmptyRecordN ->
       register rank pools emptyRecord1
@@ -497,17 +497,17 @@ typeToVar rank pools aliasDict tipe =
       register rank pools unit1
 
     Type.TupleN a b c ->
-          IO.bind (go a) <| \aVar ->
-          IO.bind (go b) <| \bVar ->
-          IO.bind (MMaybe.traverse IO.pure IO.fmap go c) <| \cVar ->
-          register rank pools (Type.Structure (Type.Tuple1 aVar bVar cVar))
+      IO.bind (go a) <| \aVar ->
+      IO.bind (go b) <| \bVar ->
+      IO.bind (MMaybe.traverse IO.pure IO.fmap go c) <| \cVar ->
+      register rank pools (Type.Structure (Type.Tuple1 aVar bVar cVar))
 
 
 register : Int -> Pools -> Type.Content -> IO Type.Variable
 register rank pools content =
-      IO.bind (UF.fresh (Type.Descriptor content rank Type.noMark Nothing)) <| \var ->
-      IO.bind (liftP <| MVector.modify pools (\l -> var::l) rank) <| \_ ->
-      IO.return var
+  IO.bind (UF.fresh (Type.Descriptor content rank Type.noMark Nothing)) <| \var ->
+  IO.bind (liftP <| MVector.modify pools (\l -> var::l) rank) <| \_ ->
+  IO.return var
 
 
 emptyRecord1 : Type.Content
@@ -537,9 +537,9 @@ srcTypeToVariable rank pools freeVars srcType =
     makeVar name _ =
       UF.fresh (Type.Descriptor (nameToContent name) rank Type.noMark Nothing)
   in
-      IO.bind (Map.traverseWithKey IO.pure IO.liftA2 makeVar freeVars) <| \flexVars ->
-      IO.bind (liftP <| MVector.modify pools (\l -> Map.elems flexVars ++ l) rank) <| \_ ->
-      srcTypeToVar rank pools flexVars srcType
+    IO.bind (Map.traverseWithKey IO.pure IO.liftA2 makeVar freeVars) <| \flexVars ->
+    IO.bind (liftP <| MVector.modify pools (\l -> Map.elems flexVars ++ l) rank) <| \_ ->
+    srcTypeToVar rank pools flexVars srcType
 
 
 srcTypeToVar : Int -> Pools -> Map.Map Name.Name Type.Variable -> Can.Type -> IO Type.Variable
@@ -547,47 +547,47 @@ srcTypeToVar rank pools flexVars srcType =
   let go = srcTypeToVar rank pools flexVars in
   case srcType of
     Can.TLambda argument result ->
-          IO.bind (go argument) <| \argVar ->
-          IO.bind (go result) <| \resultVar ->
-          register rank pools (Type.Structure (Type.Fun1 argVar resultVar))
+      IO.bind (go argument) <| \argVar ->
+      IO.bind (go result) <| \resultVar ->
+      register rank pools (Type.Structure (Type.Fun1 argVar resultVar))
 
     Can.TVar name ->
       IO.return (Map.ex flexVars name)
 
     Can.TType home name args ->
-          IO.bind (MList.traverse IO.pure IO.liftA2 go args) <| \argVars ->
-          register rank pools (Type.Structure (Type.App1 home name argVars))
+      IO.bind (MList.traverse IO.pure IO.liftA2 go args) <| \argVars ->
+      register rank pools (Type.Structure (Type.App1 home name argVars))
 
     Can.TRecord fields maybeExt ->
-          IO.bind (Map.traverse IO.pure IO.liftA2 (srcFieldTypeToVar rank pools flexVars) fields) <| \fieldVars ->
-          IO.bind
-            (case maybeExt of
-              Nothing -> register rank pools emptyRecord1
-              Just ext -> IO.return (Map.ex flexVars ext)
-            ) <| \extVar ->
-          register rank pools (Type.Structure (Type.Record1 fieldVars extVar))
+      IO.bind (Map.traverse IO.pure IO.liftA2 (srcFieldTypeToVar rank pools flexVars) fields) <| \fieldVars ->
+      IO.bind
+        (case maybeExt of
+          Nothing -> register rank pools emptyRecord1
+          Just ext -> IO.return (Map.ex flexVars ext)
+        ) <| \extVar ->
+      register rank pools (Type.Structure (Type.Record1 fieldVars extVar))
 
     Can.TUnit ->
       register rank pools unit1
 
     Can.TTuple a b c ->
-          IO.bind (go a) <| \aVar ->
-          IO.bind (go b) <| \bVar ->
-          IO.bind (MMaybe.traverse IO.pure IO.fmap go c) <| \cVar ->
-          register rank pools (Type.Structure (Type.Tuple1 aVar bVar cVar))
+      IO.bind (go a) <| \aVar ->
+      IO.bind (go b) <| \bVar ->
+      IO.bind (MMaybe.traverse IO.pure IO.fmap go c) <| \cVar ->
+      register rank pools (Type.Structure (Type.Tuple1 aVar bVar cVar))
 
     Can.TAlias home name args aliasType ->
-          IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
-          IO.bind
-            (case aliasType of
-              Can.Holey tipe ->
-                srcTypeToVar rank pools (Map.fromList argVars) tipe
+      IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
+      IO.bind
+        (case aliasType of
+          Can.Holey tipe ->
+            srcTypeToVar rank pools (Map.fromList argVars) tipe
 
-              Can.Filled tipe ->
-                go tipe
-            ) <| \aliasVar ->
+          Can.Filled tipe ->
+            go tipe
+        ) <| \aliasVar ->
 
-          register rank pools (Type.Alias home name argVars aliasVar)
+      register rank pools (Type.Alias home name argVars aliasVar)
 
 
 srcFieldTypeToVar : Int -> Pools -> Map.Map Name.Name Type.Variable -> Can.FieldType -> IO Type.Variable
@@ -601,66 +601,66 @@ srcFieldTypeToVar rank pools flexVars (Can.FieldType _ srcTipe) =
 
 makeCopy : Int -> Pools -> Type.Variable -> IO Type.Variable
 makeCopy rank pools var =
-      IO.bind (makeCopyHelp rank pools var) <| \copy ->
-      IO.bind (restore var) <| \_ ->
-      IO.return copy
+  IO.bind (makeCopyHelp rank pools var) <| \copy ->
+  IO.bind (restore var) <| \_ ->
+  IO.return copy
 
 
 makeCopyHelp : Int -> Pools -> Type.Variable -> IO Type.Variable
 makeCopyHelp maxRank pools variable =
-      IO.bind (UF.get variable) <| \(Type.Descriptor content rank _ maybeCopy) ->
+  IO.bind (UF.get variable) <| \(Type.Descriptor content rank _ maybeCopy) ->
 
-      case maybeCopy of
-        Just copy ->
-          IO.return copy
+  case maybeCopy of
+    Just copy ->
+      IO.return copy
 
-        Nothing ->
-          if rank /= Type.noRank then
-            IO.return variable
+    Nothing ->
+      if rank /= Type.noRank then
+        IO.return variable
 
-          else
-                let makeDescriptor c = Type.Descriptor c maxRank Type.noMark Nothing in
-                IO.bind (UF.fresh <| makeDescriptor content) <| \copy ->
-                IO.bind (liftP <| MVector.modify pools (\l -> copy::l) maxRank) <| \_ ->
+      else
+        let makeDescriptor c = Type.Descriptor c maxRank Type.noMark Nothing in
+        IO.bind (UF.fresh <| makeDescriptor content) <| \copy ->
+        IO.bind (liftP <| MVector.modify pools (\l -> copy::l) maxRank) <| \_ ->
 
-                -- Link the original variable to the new variable. This lets us
-                -- avoid making multiple copies of the variable we are instantiating.
-                --
-                -- Need to do this before recursively copying to avoid looping.
-                IO.bind (UF.set variable <|
-                  Type.Descriptor content rank Type.noMark (Just copy)) <| \_ ->
+        -- Link the original variable to the new variable. This lets us
+        -- avoid making multiple copies of the variable we are instantiating.
+        --
+        -- Need to do this before recursively copying to avoid looping.
+        IO.bind (UF.set variable <|
+          Type.Descriptor content rank Type.noMark (Just copy)) <| \_ ->
 
-                -- Now we recursively copy the content of the variable.
-                -- We have already marked the variable as copied, so we
-                -- will not repeat this work or crawl this variable again.
-                case content of
-                  Type.Structure term ->
-                        IO.bind (traverseFlatType (makeCopyHelp maxRank pools) term) <| \newTerm ->
-                        IO.bind (UF.set copy <| makeDescriptor (Type.Structure newTerm)) <| \_ ->
-                        IO.return copy
+        -- Now we recursively copy the content of the variable.
+        -- We have already marked the variable as copied, so we
+        -- will not repeat this work or crawl this variable again.
+        case content of
+          Type.Structure term ->
+            IO.bind (traverseFlatType (makeCopyHelp maxRank pools) term) <| \newTerm ->
+            IO.bind (UF.set copy <| makeDescriptor (Type.Structure newTerm)) <| \_ ->
+            IO.return copy
 
-                  Type.FlexVar _ ->
-                    IO.return copy
+          Type.FlexVar _ ->
+            IO.return copy
 
-                  Type.FlexSuper _ _ ->
-                    IO.return copy
+          Type.FlexSuper _ _ ->
+            IO.return copy
 
-                  Type.RigidVar name ->
-                        IO.bind (UF.set copy <| makeDescriptor <| Type.FlexVar (Just name)) <| \_ ->
-                        IO.return copy
+          Type.RigidVar name ->
+            IO.bind (UF.set copy <| makeDescriptor <| Type.FlexVar (Just name)) <| \_ ->
+            IO.return copy
 
-                  Type.RigidSuper super name ->
-                        IO.bind (UF.set copy <| makeDescriptor <| Type.FlexSuper super (Just name)) <| \_ ->
-                        IO.return copy
+          Type.RigidSuper super name ->
+            IO.bind (UF.set copy <| makeDescriptor <| Type.FlexSuper super (Just name)) <| \_ ->
+            IO.return copy
 
-                  Type.Alias home name args realType ->
-                        IO.bind (MList.mapM IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap (makeCopyHelp maxRank pools)) args) <| \newArgs ->
-                        IO.bind (makeCopyHelp maxRank pools realType) <| \newRealType ->
-                        IO.bind (UF.set copy <| makeDescriptor (Type.Alias home name newArgs newRealType)) <| \_ ->
-                        IO.return copy
+          Type.Alias home name args realType ->
+            IO.bind (MList.mapM IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap (makeCopyHelp maxRank pools)) args) <| \newArgs ->
+            IO.bind (makeCopyHelp maxRank pools realType) <| \newRealType ->
+            IO.bind (UF.set copy <| makeDescriptor (Type.Alias home name newArgs newRealType)) <| \_ ->
+            IO.return copy
 
-                  Type.Error ->
-                    IO.return copy
+          Type.Error ->
+            IO.return copy
 
 
 
@@ -669,14 +669,14 @@ makeCopyHelp maxRank pools variable =
 
 restore : Type.Variable -> IO ()
 restore variable =
-      IO.bind (UF.get variable) <| \(Type.Descriptor content _ _ maybeCopy) ->
-      case maybeCopy of
-        Nothing ->
-          IO.return ()
+  IO.bind (UF.get variable) <| \(Type.Descriptor content _ _ maybeCopy) ->
+  case maybeCopy of
+    Nothing ->
+      IO.return ()
 
-        Just _ ->
-              IO.bind (UF.set variable <| Type.Descriptor content Type.noRank Type.noMark Nothing) <| \_ ->
-              restoreContent content
+    Just _ ->
+      IO.bind (UF.set variable <| Type.Descriptor content Type.noRank Type.noMark Nothing) <| \_ ->
+      restoreContent content
 
 
 restoreContent : Type.Content -> IO ()
@@ -700,32 +700,32 @@ restoreContent content =
           MList.mapM_ IO.return IO.bind restore args
 
         Type.Fun1 arg result ->
-              IO.bind (restore arg) <| \_ ->
-              restore result
+          IO.bind (restore arg) <| \_ ->
+          restore result
 
         Type.EmptyRecord1 ->
           IO.return ()
 
         Type.Record1 fields ext ->
-              IO.bind (Map.mapM_ IO.return IO.bind restore fields) <| \_ ->
-              restore ext
+          IO.bind (Map.mapM_ IO.return IO.bind restore fields) <| \_ ->
+          restore ext
 
         Type.Unit1 ->
           IO.return ()
 
         Type.Tuple1 a b maybeC ->
-              IO.bind (restore a) <| \_ ->
-              IO.bind (restore b) <| \_ ->
-              case maybeC of
-                Nothing -> IO.return ()
-                Just c  -> restore c
+          IO.bind (restore a) <| \_ ->
+          IO.bind (restore b) <| \_ ->
+          case maybeC of
+            Nothing -> IO.return ()
+            Just c  -> restore c
 
     Type.Alias _ _ args var ->
-          IO.bind (MList.mapM_ IO.return IO.bind (MTuple.traverseSecond IO.fmap restore) args) <| \_ ->
-          restore var
+      IO.bind (MList.mapM_ IO.return IO.bind (MTuple.traverseSecond IO.fmap restore) args) <| \_ ->
+      restore var
 
     Type.Error ->
-        IO.return ()
+      IO.return ()
 
 
 
@@ -736,19 +736,19 @@ traverseFlatType : (Type.Variable -> IO Type.Variable) -> Type.FlatType -> IO Ty
 traverseFlatType f flatType =
   case flatType of
     Type.App1 home name args ->
-        IO.liftM (Type.App1 home name) (MList.traverse IO.pure IO.liftA2 f args)
+      IO.liftM (Type.App1 home name) (MList.traverse IO.pure IO.liftA2 f args)
 
     Type.Fun1 a b ->
-        IO.liftM2 Type.Fun1 (f a) (f b)
+      IO.liftM2 Type.Fun1 (f a) (f b)
 
     Type.EmptyRecord1 ->
-        IO.pure Type.EmptyRecord1
+      IO.pure Type.EmptyRecord1
 
     Type.Record1 fields ext ->
-        IO.liftM2 Type.Record1 (Map.traverse IO.pure IO.liftA2 f fields) (f ext)
+      IO.liftM2 Type.Record1 (Map.traverse IO.pure IO.liftA2 f fields) (f ext)
 
     Type.Unit1 ->
-        IO.pure Type.Unit1
+      IO.pure Type.Unit1
 
     Type.Tuple1 a b cs ->
-        IO.liftM3 Type.Tuple1 (f a) (f b) (MMaybe.traverse IO.pure IO.fmap f cs)
+      IO.liftM3 Type.Tuple1 (f a) (f b) (MMaybe.traverse IO.pure IO.fmap f cs)

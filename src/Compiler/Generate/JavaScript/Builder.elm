@@ -259,7 +259,7 @@ fromStmt ((Level indent toNextLevel) as level) statement =
     FunctionStmt name args stmts ->
       indent ++ "function " ++ Name.toBuilder name ++ "(" ++ commaSep (MList.map Name.toBuilder args) ++ ") {\n"
       ++
-          fromStmtBlock (toNextLevel ()) stmts
+        fromStmtBlock (toNextLevel ()) stmts
       ++
       indent ++ "}\n"
 
@@ -432,7 +432,7 @@ fromExpr ((Level indent toNextLevel) as level) grouping expression =
       Tuple.pair Many <|
         "function " ++ MMaybe.maybe "" Name.toBuilder maybeName ++ "(" ++ commaSep (MList.map Name.toBuilder args) ++ ") {\n"
         ++
-            fromStmtBlock nextLevel stmts
+          fromStmtBlock nextLevel stmts
         ++
         indent ++ "}"
 
@@ -451,7 +451,7 @@ fromExpr ((Level indent toNextLevel) as level) grouping expression =
       Tuple.pair Many <|
         "async function " ++ MMaybe.maybe "" Name.toBuilder maybeName ++ "(" ++ commaSep (MList.map Name.toBuilder args) ++ ") {\n"
         ++
-            fromStmtBlock nextLevel stmts
+          fromStmtBlock nextLevel stmts
         ++
         indent ++ "}"
 

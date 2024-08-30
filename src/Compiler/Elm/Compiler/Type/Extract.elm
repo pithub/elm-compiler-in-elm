@@ -10,6 +10,7 @@ module Compiler.Elm.Compiler.Type.Extract exposing
   , fromMsg
   )
 
+
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt
 import Compiler.AST.Utils.Type as Type
@@ -220,10 +221,10 @@ noDeps =
 
 type Extractor z a =
   Extractor (
-      Set.Set Opt.GlobalComparable
-      -> Set.Set Opt.GlobalComparable
-      -> (Set.Set Opt.GlobalComparable -> Set.Set Opt.GlobalComparable -> a -> z)
-      -> z
+    Set.Set Opt.GlobalComparable
+    -> Set.Set Opt.GlobalComparable
+    -> (Set.Set Opt.GlobalComparable -> Set.Set Opt.GlobalComparable -> a -> z)
+    -> z
   )
 
 
@@ -247,31 +248,31 @@ addUnion union value =
 
 fmap : Functor.Fmap a (Extractor z a) b (Extractor z b)
 fmap func (Extractor k) =
-    Extractor <| \aliases unions ok ->
-      let
-        ok1 a1 u1 value =
-          ok a1 u1 (func value)
-      in
-      k aliases unions ok1
+  Extractor <| \aliases unions ok ->
+    let
+      ok1 a1 u1 value =
+        ok a1 u1 (func value)
+    in
+    k aliases unions ok1
 
 
 pure : Applicative.Pure a (Extractor z a)
 pure value =
-    Extractor <| \aliases unions ok ->
-      ok aliases unions value
+  Extractor <| \aliases unions ok ->
+    ok aliases unions value
 
 andMap : Applicative.AndMap (Extractor z a) (Extractor z (a -> b)) (Extractor z b)
 andMap (Extractor kv) (Extractor kf) =
-    Extractor <| \aliases unions ok ->
-      let
-        ok1 a1 u1 func =
-          let
-            ok2 a2 u2 value =
-              ok a2 u2 (func value)
-          in
-          kv a1 u1 ok2
-      in
-      kf aliases unions ok1
+  Extractor <| \aliases unions ok ->
+    let
+      ok1 a1 u1 func =
+        let
+          ok2 a2 u2 value =
+            ok a2 u2 (func value)
+        in
+        kv a1 u1 ok2
+    in
+    kf aliases unions ok1
 
 liftA2 : Applicative.LiftA2 a (Extractor z a) b (Extractor z b) c (Extractor z c)
 liftA2 = Applicative.liftA2 fmap andMap
@@ -282,10 +283,10 @@ return = pure
 
 bind : Monad.Bind a (Extractor z a) (Extractor z b)
 bind (Extractor ka) callback =
-    Extractor <| \aliases unions ok ->
-      let
-        ok1 a1 u1 value =
-          case callback value of
-            Extractor kb -> kb a1 u1 ok
-      in
-      ka aliases unions ok1
+  Extractor <| \aliases unions ok ->
+    let
+      ok1 a1 u1 value =
+        case callback value of
+          Extractor kb -> kb a1 u1 ok
+    in
+    ka aliases unions ok1

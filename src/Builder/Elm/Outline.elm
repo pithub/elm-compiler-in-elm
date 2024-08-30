@@ -187,40 +187,40 @@ encodeSrcDir srcDir =
 
 read : FilePath -> IO a c d e f g h (Either Exit.Outline Outline)
 read root =
-      IO.bind (File.readUtf8 (SysFile.addName root "elm.json")) <| \bytes ->
-      case D.fromByteString decoder bytes of
-        Left err ->
-          IO.return <| Left (Exit.OutlineHasBadStructure err)
+  IO.bind (File.readUtf8 (SysFile.addName root "elm.json")) <| \bytes ->
+  case D.fromByteString decoder bytes of
+    Left err ->
+      IO.return <| Left (Exit.OutlineHasBadStructure err)
 
-        Right outline ->
-          case outline of
-            Pkg (PkgOutline pkg _ _ _ _ deps _ _) ->
-              IO.return <|
-                if not (Map.member (Pkg.toComparable Pkg.core) deps) && pkg /= Pkg.core
-                then Left Exit.OutlineNoPkgCore
-                else Right outline
+    Right outline ->
+      case outline of
+        Pkg (PkgOutline pkg _ _ _ _ deps _ _) ->
+          IO.return <|
+            if not (Map.member (Pkg.toComparable Pkg.core) deps) && pkg /= Pkg.core
+            then Left Exit.OutlineNoPkgCore
+            else Right outline
 
-            App (AppOutline _ srcDirs direct indirect _ _) ->
-              if not (Map.member (Pkg.toComparable Pkg.core) direct) then
-                  IO.return <| Left Exit.OutlineNoAppCore
+        App (AppOutline _ srcDirs direct indirect _ _) ->
+          if not (Map.member (Pkg.toComparable Pkg.core) direct) then
+            IO.return <| Left Exit.OutlineNoAppCore
 
-              else if not (Map.member (Pkg.toComparable Pkg.json) direct) && not (Map.member (Pkg.toComparable Pkg.json) indirect) then
-                  IO.return <| Left Exit.OutlineNoAppJson
+          else if not (Map.member (Pkg.toComparable Pkg.json) direct) && not (Map.member (Pkg.toComparable Pkg.json) indirect) then
+            IO.return <| Left Exit.OutlineNoAppJson
 
-              else
-                      IO.bind (MList.filterM IO.pure IO.liftA2 (isSrcDirMissing root) (NE.toList srcDirs)) <| \badDirs ->
-                      case MList.map toGiven badDirs of
-                        d::ds ->
-                          IO.return <| Left (Exit.OutlineHasMissingSrcDirs d ds)
+          else
+            IO.bind (MList.filterM IO.pure IO.liftA2 (isSrcDirMissing root) (NE.toList srcDirs)) <| \badDirs ->
+            case MList.map toGiven badDirs of
+              d::ds ->
+                IO.return <| Left (Exit.OutlineHasMissingSrcDirs d ds)
 
-                        [] ->
-                              IO.bind (detectDuplicates root (NE.toList srcDirs)) <| \maybeDups ->
-                              case maybeDups of
-                                Nothing ->
-                                  IO.return <| Right outline
+              [] ->
+                IO.bind (detectDuplicates root (NE.toList srcDirs)) <| \maybeDups ->
+                case maybeDups of
+                  Nothing ->
+                    IO.return <| Right outline
 
-                                Just (canonicalDir, (dir1,dir2)) ->
-                                  IO.return <| Left (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
+                  Just (canonicalDir, (dir1,dir2)) ->
+                    IO.return <| Left (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
 
 
 isSrcDirMissing : FilePath -> SrcDir -> IO a c d e f g h Bool
@@ -244,9 +244,9 @@ toAbsolute root srcDir =
 
 detectDuplicates : FilePath -> TList SrcDir -> IO a c d e f g h (Maybe (String, (FilePath, FilePath)))
 detectDuplicates root srcDirs =
-      IO.bind (MList.traverse IO.pure IO.liftA2 (toPair root) srcDirs) <| \pairs ->
-      IO.return <| Map.lookupMin <| Map.mapMaybe isDup <|
-        Map.fromListWith OneOrMore.more pairs
+  IO.bind (MList.traverse IO.pure IO.liftA2 (toPair root) srcDirs) <| \pairs ->
+  IO.return <| Map.lookupMin <| Map.mapMaybe isDup <|
+    Map.fromListWith OneOrMore.more pairs
 
 
 toPair : FilePath -> SrcDir -> IO a c d e f g h (String, OneOrMore.OneOrMore FilePath)
@@ -275,10 +275,10 @@ decoder =
     application = Json.fromChars "application"
     package     = Json.fromChars "package"
   in
-      D.bind (D.field "type" D.string) <| \tipe ->
-      if      tipe == application then D.fmap App <| appDecoder
-      else if tipe == package     then D.fmap Pkg <| pkgDecoder
-      else                             D.failure Exit.OP_BadType
+  D.bind (D.field "type" D.string) <| \tipe ->
+  if      tipe == application then D.fmap App <| appDecoder
+  else if tipe == package     then D.fmap Pkg <| pkgDecoder
+  else                             D.failure Exit.OP_BadType
 
 
 appDecoder : Decoder z AppOutline

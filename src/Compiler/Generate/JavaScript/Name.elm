@@ -15,6 +15,7 @@ module Compiler.Generate.JavaScript.Name exposing
   , dollar
   )
 
+
 import Compiler.Data.Index as Index
 import Compiler.Data.Name as Name
 import Compiler.Elm.ModuleName as ModuleName
@@ -202,7 +203,7 @@ unsafeIntToAscii width bytes n =
   else
     let
       quotient =
-         n // numInnerBytes
+        n // numInnerBytes
       remainder =
         modBy numInnerBytes  n
     in

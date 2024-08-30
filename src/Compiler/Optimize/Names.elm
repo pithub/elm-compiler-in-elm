@@ -35,11 +35,11 @@ import Compiler.AST.Optimized exposing (toGlobalComparable)
 
 type Tracker z a =
   Tracker (
-      Int
-      -> Set.Set Opt.GlobalComparable
-      -> Map.Map Name.Name Int
-      -> (Int -> Set.Set Opt.GlobalComparable -> Map.Map Name.Name Int -> a -> z)
-      -> z
+    Int
+    -> Set.Set Opt.GlobalComparable
+    -> Map.Map Name.Name Int
+    -> (Int -> Set.Set Opt.GlobalComparable -> Map.Map Name.Name Int -> a -> z)
+    -> z
   )
 
 
@@ -138,54 +138,54 @@ addOne name fields =
 
 fmap : Functor.Fmap a (Tracker z a) b (Tracker z b)
 fmap func (Tracker kv) =
-    Tracker <| \n d f ok ->
-      let
-        ok1 n1 d1 f1 value =
-          ok n1 d1 f1 (func value)
-      in
-      kv n d f ok1
+  Tracker <| \n d f ok ->
+    let
+      ok1 n1 d1 f1 value =
+        ok n1 d1 f1 (func value)
+    in
+    kv n d f ok1
 
 
 pure : Applicative.Pure a (Tracker z a)
 pure value =
-    Tracker <| \n d f ok -> ok n d f value
+  Tracker <| \n d f ok -> ok n d f value
 
 
 andMap : Applicative.AndMap (Tracker z a) (Tracker z (a -> b)) (Tracker z b)
 andMap (Tracker kv) (Tracker kf) =
-    Tracker <| \n d f ok ->
-      let
-        ok1 n1 d1 f1 func =
-          let
-            ok2 n2 d2 f2 value =
-              ok n2 d2 f2 (func value)
-          in
-          kv n1 d1 f1 ok2
-      in
-      kf n d f ok1
+  Tracker <| \n d f ok ->
+    let
+      ok1 n1 d1 f1 func =
+        let
+          ok2 n2 d2 f2 value =
+            ok n2 d2 f2 (func value)
+        in
+        kv n1 d1 f1 ok2
+    in
+    kf n d f ok1
 
 
 liftA2 : Applicative.LiftA2 a (Tracker z a) b (Tracker z b) c (Tracker z c)
 liftA2 =
-    Applicative.liftA2 fmap andMap
+  Applicative.liftA2 fmap andMap
 
 
 return : Monad.Return a (Tracker z a)
 return =
-    pure
+  pure
 
 
 bind : Monad.Bind a (Tracker z a) (Tracker z b)
 bind (Tracker k) callback =
-    Tracker <| \n d f ok ->
-      let
-        ok1 n1 d1 f1 a =
-          case callback a of
-            Tracker kb -> kb n1 d1 f1 ok
-      in
-      k n d f ok1
+  Tracker <| \n d f ok ->
+    let
+      ok1 n1 d1 f1 a =
+        case callback a of
+          Tracker kb -> kb n1 d1 f1 ok
+    in
+    k n d f ok1
 
 
 andThen : Monad.AndThen a (Tracker z a) (Tracker z b)
 andThen =
-    Monad.andThen bind
+  Monad.andThen bind

@@ -186,22 +186,22 @@ type Direction = Have | Need
 
 fmap : Functor.Fmap a (Diff a) b (Diff b)
 fmap func (Diff a b status) =
-    Diff (func a) (func b) status
+  Diff (func a) (func b) status
 
 
 pure : Applicative.Pure a (Diff a)
 pure a =
-    Diff a a Similar
+  Diff a a Similar
 
 
 andMap : Applicative.AndMap (Diff a) (Diff (a -> b)) (Diff b)
 andMap (Diff aArg bArg status2) (Diff aFunc bFunc status1) =
-    Diff (aFunc aArg) (bFunc bArg) (merge status1 status2)
+  Diff (aFunc aArg) (bFunc bArg) (merge status1 status2)
 
 
 liftA2 : Applicative.LiftA2 a (Diff a) b (Diff b) c (Diff c)
 liftA2 =
-    Applicative.liftA2 fmap andMap
+  Applicative.liftA2 fmap andMap
 
 
 merge : Status -> Status -> Status

@@ -813,23 +813,23 @@ downloadPackage cache manager pkg vsn =
   let
     url = Website.metadata pkg vsn "endpoint.json"
   in
-      IO.bind (Http.get manager url [] identity (IO.return << Right)) <| \eitherByteString ->
+  IO.bind (Http.get manager url [] identity (IO.return << Right)) <| \eitherByteString ->
 
-      case eitherByteString of
-        Left err ->
-          IO.return <| Left <| Exit.PP_BadEndpointRequest err
+  case eitherByteString of
+    Left err ->
+      IO.return <| Left <| Exit.PP_BadEndpointRequest err
 
-        Right byteString ->
-          case D.fromByteString endpointDecoder byteString of
-            Left _ ->
-              IO.return <| Left <| Exit.PP_BadEndpointContent url
+    Right byteString ->
+      case D.fromByteString endpointDecoder byteString of
+        Left _ ->
+          IO.return <| Left <| Exit.PP_BadEndpointContent url
 
-            Right (endpoint, _) ->
-              Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) <|
-                \archive ->
-                  {- if expectedHash == Http.shaToChars sha
-                  then -} IO.fmap Right <| File.writePackage (Stuff.package cache pkg vsn) archive
-                  --else IO.return <| Left <| Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
+        Right (endpoint, _) ->
+          Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) <|
+            \archive ->
+              {- if expectedHash == Http.shaToChars sha
+              then -} IO.fmap Right <| File.writePackage (Stuff.package cache pkg vsn) archive
+              --else IO.return <| Left <| Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
 
 
 endpointDecoder : D.Decoder z e (String, String)

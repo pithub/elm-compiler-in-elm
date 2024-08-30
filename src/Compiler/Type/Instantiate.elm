@@ -41,14 +41,14 @@ fromSrcType freeVars sourceType =
       IO.fmap (Type.AppN home name) <| MList.traverse IO.pure IO.liftA2 (fromSrcType freeVars) args
 
     Can.TAlias home name args aliasedType ->
-          IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap (fromSrcType freeVars)) args) <| \targs ->
-          IO.fmap (Type.AliasN home name targs) <|
-            case aliasedType of
-              Can.Filled realType ->
-                fromSrcType freeVars realType
+      IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap (fromSrcType freeVars)) args) <| \targs ->
+      IO.fmap (Type.AliasN home name targs) <|
+        case aliasedType of
+          Can.Filled realType ->
+            fromSrcType freeVars realType
 
-              Can.Holey realType ->
-                fromSrcType (Map.fromList targs) realType
+          Can.Holey realType ->
+            fromSrcType (Map.fromList targs) realType
 
     Can.TTuple a b maybeC ->
       IO.pure Type.TupleN

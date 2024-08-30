@@ -68,14 +68,14 @@ toEncoder tipe =
     Can.TRecord fields Nothing ->
       let
         encodeField (name, Can.FieldType _ fieldType) =
-              Names.bind (toEncoder fieldType) <| \encoder ->
-              let value = Opt.Call encoder [Opt.Access (Opt.VarLocal Name.dollar) name] in
-              Names.return <| Opt.Tuple (Opt.Str (Name.toElmString name)) value Nothing
+          Names.bind (toEncoder fieldType) <| \encoder ->
+          let value = Opt.Call encoder [Opt.Access (Opt.VarLocal Name.dollar) name] in
+          Names.return <| Opt.Tuple (Opt.Str (Name.toElmString name)) value Nothing
       in
-          Names.bind (encode "object") <| \object ->
-          Names.bind (MList.traverse Names.pure Names.liftA2 encodeField (Map.toList fields)) <| \keyValuePairs ->
-          Names.registerFieldDict fields <|
-            Opt.Function [Name.dollar] (Opt.Call object [Opt.CList keyValuePairs])
+        Names.bind (encode "object") <| \object ->
+        Names.bind (MList.traverse Names.pure Names.liftA2 encodeField (Map.toList fields)) <| \keyValuePairs ->
+        Names.registerFieldDict fields <|
+          Opt.Function [Name.dollar] (Opt.Call object [Opt.CList keyValuePairs])
 
 
 
@@ -84,25 +84,25 @@ toEncoder tipe =
 
 encodeMaybe : Can.Type -> Names.Tracker z Opt.Expr
 encodeMaybe tipe =
-      Names.bind (encode "null") <| \null ->
-      Names.bind (toEncoder tipe) <| \encoder ->
-      Names.bind (Names.registerGlobal ModuleName.maybe "destruct") <| \destruct ->
-      Names.return <| Opt.Function [Name.dollar] <|
-        Opt.Call destruct [ null, encoder, Opt.VarLocal Name.dollar ]
+  Names.bind (encode "null") <| \null ->
+  Names.bind (toEncoder tipe) <| \encoder ->
+  Names.bind (Names.registerGlobal ModuleName.maybe "destruct") <| \destruct ->
+  Names.return <| Opt.Function [Name.dollar] <|
+    Opt.Call destruct [ null, encoder, Opt.VarLocal Name.dollar ]
 
 
 encodeList : Can.Type -> Names.Tracker z Opt.Expr
 encodeList tipe =
-      Names.bind (encode "list") <| \list ->
-      Names.bind (toEncoder tipe) <| \encoder ->
-      Names.return <| Opt.Call list [ encoder ]
+  Names.bind (encode "list") <| \list ->
+  Names.bind (toEncoder tipe) <| \encoder ->
+  Names.return <| Opt.Call list [ encoder ]
 
 
 encodeArray : Can.Type -> Names.Tracker z Opt.Expr
 encodeArray tipe =
-      Names.bind (encode "array") <| \array ->
-      Names.bind (toEncoder tipe) <| \encoder ->
-      Names.return <| Opt.Call array [ encoder ]
+  Names.bind (encode "array") <| \array ->
+  Names.bind (toEncoder tipe) <| \encoder ->
+  Names.return <| Opt.Call array [ encoder ]
 
 
 encodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker z Opt.Expr
@@ -112,28 +112,28 @@ encodeTuple a b maybeC =
       Opt.Destruct (Opt.Destructor arg (Opt.Index index (Opt.Root Name.dollar))) body
 
     encodeArg arg tipe =
-          Names.bind (toEncoder tipe) <| \encoder ->
-          Names.return <| Opt.Call encoder [ Opt.VarLocal arg ]
+      Names.bind (toEncoder tipe) <| \encoder ->
+      Names.return <| Opt.Call encoder [ Opt.VarLocal arg ]
   in
-      Names.bind (encode "list") <| \list ->
-      Names.bind (Names.registerGlobal ModuleName.basics Name.identity_) <| \identity_ ->
-      Names.bind (encodeArg "a" a) <| \arg1 ->
-      Names.bind (encodeArg "b" b) <| \arg2 ->
+  Names.bind (encode "list") <| \list ->
+  Names.bind (Names.registerGlobal ModuleName.basics Name.identity_) <| \identity_ ->
+  Names.bind (encodeArg "a" a) <| \arg1 ->
+  Names.bind (encodeArg "b" b) <| \arg2 ->
 
-      case maybeC of
-        Nothing ->
-          Names.return <| Opt.Function [Name.dollar] <|
-            let_ "a" Index.first <|
-            let_ "b" Index.second <|
-              Opt.Call list [ identity_, Opt.CList [ arg1, arg2 ] ]
+  case maybeC of
+    Nothing ->
+      Names.return <| Opt.Function [Name.dollar] <|
+        let_ "a" Index.first <|
+        let_ "b" Index.second <|
+          Opt.Call list [ identity_, Opt.CList [ arg1, arg2 ] ]
 
-        Just c ->
-              Names.bind (encodeArg "c" c) <| \arg3 ->
-              Names.return <| Opt.Function [Name.dollar] <|
-                let_ "a" Index.first <|
-                let_ "b" Index.second <|
-                let_ "c" Index.third <|
-                  Opt.Call list [ identity_, Opt.CList [ arg1, arg2, arg3 ] ]
+    Just c ->
+      Names.bind (encodeArg "c" c) <| \arg3 ->
+      Names.return <| Opt.Function [Name.dollar] <|
+        let_ "a" Index.first <|
+        let_ "b" Index.second <|
+        let_ "c" Index.third <|
+          Opt.Call list [ identity_, Opt.CList [ arg1, arg2, arg3 ] ]
 
 
 
@@ -144,8 +144,8 @@ toFlagsDecoder : Can.Type -> Names.Tracker z Opt.Expr
 toFlagsDecoder tipe =
   case tipe of
     Can.TUnit ->
-          Names.bind (decode "succeed") <| \succeed ->
-          Names.return <| Opt.Call succeed [ Opt.Unit ]
+      Names.bind (decode "succeed") <| \succeed ->
+      Names.return <| Opt.Call succeed [ Opt.Unit ]
 
     _ ->
       toDecoder tipe
@@ -209,22 +209,22 @@ toDecoder tipe =
 
 decodeMaybe : Can.Type -> Names.Tracker z Opt.Expr
 decodeMaybe tipe =
-      Names.bind (Names.registerGlobal ModuleName.maybe "Nothing") <| \nothing ->
-      Names.bind (Names.registerGlobal ModuleName.maybe "Just") <| \just ->
+  Names.bind (Names.registerGlobal ModuleName.maybe "Nothing") <| \nothing ->
+  Names.bind (Names.registerGlobal ModuleName.maybe "Just") <| \just ->
 
-      Names.bind (decode "oneOf") <| \oneOf ->
-      Names.bind (decode "null") <| \null ->
-      Names.bind (decode "map") <| \map_ ->
+  Names.bind (decode "oneOf") <| \oneOf ->
+  Names.bind (decode "null") <| \null ->
+  Names.bind (decode "map") <| \map_ ->
 
-      Names.bind (toDecoder tipe) <| \subDecoder ->
+  Names.bind (toDecoder tipe) <| \subDecoder ->
 
-      Names.return <|
-        Opt.Call oneOf
-          [ Opt.CList
-              [ Opt.Call null [ nothing ]
-              , Opt.Call map_ [ just, subDecoder ]
-              ]
+  Names.return <|
+    Opt.Call oneOf
+      [ Opt.CList
+          [ Opt.Call null [ nothing ]
+          , Opt.Call map_ [ just, subDecoder ]
           ]
+      ]
 
 
 -- DECODE LIST
@@ -232,9 +232,9 @@ decodeMaybe tipe =
 
 decodeList : Can.Type -> Names.Tracker z Opt.Expr
 decodeList tipe =
-      Names.bind (decode "list") <| \list ->
-      Names.bind (toDecoder tipe) <| \decoder ->
-      Names.return <| Opt.Call list [ decoder ]
+  Names.bind (decode "list") <| \list ->
+  Names.bind (toDecoder tipe) <| \decoder ->
+  Names.return <| Opt.Call list [ decoder ]
 
 
 
@@ -243,9 +243,9 @@ decodeList tipe =
 
 decodeArray : Can.Type -> Names.Tracker z Opt.Expr
 decodeArray tipe =
-      Names.bind (decode "array") <| \array ->
-      Names.bind (toDecoder tipe) <| \decoder ->
-      Names.return <| Opt.Call array [ decoder ]
+  Names.bind (decode "array") <| \array ->
+  Names.bind (toDecoder tipe) <| \decoder ->
+  Names.return <| Opt.Call array [ decoder ]
 
 
 
@@ -254,24 +254,24 @@ decodeArray tipe =
 
 decodeTuple0 : Names.Tracker z Opt.Expr
 decodeTuple0 =
-      Names.bind (decode "null") <| \null ->
-      Names.return (Opt.Call null [ Opt.Unit ])
+  Names.bind (decode "null") <| \null ->
+  Names.return (Opt.Call null [ Opt.Unit ])
 
 
 decodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker z Opt.Expr
 decodeTuple a b maybeC =
-      Names.bind (decode "succeed") <| \succeed ->
-      case maybeC of
-        Nothing ->
-          let tuple = Opt.Tuple (toLocal 0) (toLocal 1) Nothing in
-          Names.andThen (indexAndThen 0 a) <|
-            indexAndThen 1 b (Opt.Call succeed [tuple])
+  Names.bind (decode "succeed") <| \succeed ->
+  case maybeC of
+    Nothing ->
+      let tuple = Opt.Tuple (toLocal 0) (toLocal 1) Nothing in
+      Names.andThen (indexAndThen 0 a) <|
+        indexAndThen 1 b (Opt.Call succeed [tuple])
 
-        Just c ->
-          let tuple = Opt.Tuple (toLocal 0) (toLocal 1) (Just (toLocal 2)) in
-          Names.andThen (indexAndThen 0 a) <|
-            Names.andThen (indexAndThen 1 b) <|
-              indexAndThen 2 c (Opt.Call succeed [tuple])
+    Just c ->
+      let tuple = Opt.Tuple (toLocal 0) (toLocal 1) (Just (toLocal 2)) in
+      Names.andThen (indexAndThen 0 a) <|
+        Names.andThen (indexAndThen 1 b) <|
+          indexAndThen 2 c (Opt.Call succeed [tuple])
 
 
 toLocal : Int -> Opt.Expr
@@ -281,14 +281,14 @@ toLocal index =
 
 indexAndThen : Int -> Can.Type -> Opt.Expr -> Names.Tracker z Opt.Expr
 indexAndThen i tipe decoder =
-      Names.bind (decode "andThen") <| \andThen ->
-      Names.bind (decode "index") <| \index ->
-      Names.bind (toDecoder tipe) <| \typeDecoder ->
-      Names.return <|
-        Opt.Call andThen
-          [ Opt.Function [Name.fromVarIndex i] decoder
-          , Opt.Call index [ Opt.CInt i, typeDecoder ]
-          ]
+  Names.bind (decode "andThen") <| \andThen ->
+  Names.bind (decode "index") <| \index ->
+  Names.bind (toDecoder tipe) <| \typeDecoder ->
+  Names.return <|
+    Opt.Call andThen
+      [ Opt.Function [Name.fromVarIndex i] decoder
+      , Opt.Call index [ Opt.CInt i, typeDecoder ]
+      ]
 
 
 
@@ -304,21 +304,21 @@ decodeRecord fields =
     record =
       Opt.Record (Map.mapWithKey toFieldExpr fields)
   in
-        Names.bind (decode "succeed") <| \succeed ->
-        Names.andThen (MList.foldlM Names.return Names.bind fieldAndThen (Opt.Call succeed [record])) <|
-          Names.registerFieldDict fields (Map.toList fields)
+  Names.bind (decode "succeed") <| \succeed ->
+  Names.andThen (MList.foldlM Names.return Names.bind fieldAndThen (Opt.Call succeed [record])) <|
+    Names.registerFieldDict fields (Map.toList fields)
 
 
 fieldAndThen : Opt.Expr -> (Name.Name, Can.FieldType) -> Names.Tracker z Opt.Expr
 fieldAndThen decoder (key, Can.FieldType _ tipe) =
-      Names.bind (decode "andThen") <| \andThen ->
-      Names.bind (decode "field") <| \field ->
-      Names.bind (toDecoder tipe) <| \typeDecoder ->
-      Names.return <|
-        Opt.Call andThen
-          [ Opt.Function [key] decoder
-          , Opt.Call field [ Opt.Str (Name.toElmString key), typeDecoder ]
-          ]
+  Names.bind (decode "andThen") <| \andThen ->
+  Names.bind (decode "field") <| \field ->
+  Names.bind (toDecoder tipe) <| \typeDecoder ->
+  Names.return <|
+    Opt.Call andThen
+      [ Opt.Function [key] decoder
+      , Opt.Call field [ Opt.Str (Name.toElmString key), typeDecoder ]
+      ]
 
 
 

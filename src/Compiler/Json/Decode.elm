@@ -61,10 +61,10 @@ fromByteString (Decoder decode) src =
 type Decoder z x a =
   Decoder
   (
-      AST
-      -> (a -> z)
-      -> (Problem x -> z)
-      -> z
+    AST
+    -> (a -> z)
+    -> (Problem x -> z)
+    -> z
   )
 
 
@@ -105,11 +105,11 @@ type DecodeExpectation
 
 fmap : Functor.Fmap a (Decoder z x a) b (Decoder z x b)
 fmap func (Decoder decodeA) =
-    Decoder <| \ast ok err ->
-      let
-        ok_ a = ok (func a)
-      in
-      decodeA ast ok_ err
+  Decoder <| \ast ok err ->
+    let
+      ok_ a = ok (func a)
+    in
+    decodeA ast ok_ err
 
 
 pure : Applicative.Pure a (Decoder z x a)
@@ -117,31 +117,31 @@ pure = return
 
 andMap : Applicative.AndMap (Decoder z x a) (Decoder z x (a -> b)) (Decoder z x b)
 andMap (Decoder decodeArg) (Decoder decodeFunc) =
-    Decoder <| \ast ok err ->
-      let
-        okF func =
-          let
-            okA arg = ok (func arg)
-          in
-          decodeArg ast okA err
-      in
-      decodeFunc ast okF err
+  Decoder <| \ast ok err ->
+    let
+      okF func =
+        let
+          okA arg = ok (func arg)
+        in
+        decodeArg ast okA err
+    in
+    decodeFunc ast okF err
 
 
 return : Monad.Return a (Decoder z x a)
 return a =
-    Decoder <| \_ ok _ ->
-      ok a
+  Decoder <| \_ ok _ ->
+    ok a
 
 bind : Monad.Bind a (Decoder z x a) (Decoder z x b)
 bind (Decoder decodeA) callback =
-    Decoder <| \ast ok err ->
-      let
-        ok_ a =
-          case callback a of
-            Decoder decodeB -> decodeB ast ok err
-      in
-      decodeA ast ok_ err
+  Decoder <| \ast ok err ->
+    let
+      ok_ a =
+        case callback a of
+          Decoder decodeB -> decodeB ast ok err
+    in
+    decodeA ast ok_ err
 
 andThen : Monad.AndThen a (Decoder z x a) (Decoder z x b)
 andThen = Monad.andThen bind
@@ -210,10 +210,10 @@ listHelp ((Decoder decodeA) as decoder) ok err i asts revs =
 
 nonEmptyList : Decoder z x a -> x -> Decoder z x (NE.TList a)
 nonEmptyList decoder x =
-      bind (list decoder) <| \values ->
-      case values of
-        v::vs -> return (NE.CList v vs)
-        []   -> failure x
+  bind (list decoder) <| \values ->
+  case values of
+    v::vs -> return (NE.CList v vs)
+    []    -> failure x
 
 
 
@@ -432,10 +432,10 @@ type StringProblem
 
 pFile : Parser z AST
 pFile =
-      P.bind spaces <| \_ ->
-      P.bind pValue <| \value ->
-      P.bind spaces <| \_ ->
-      P.return value
+  P.bind spaces <| \_ ->
+  P.bind pValue <| \value ->
+  P.bind spaces <| \_ ->
+  P.return value
 
 
 pValue : Parser z AST
@@ -458,40 +458,40 @@ pValue =
 
 pObject : Parser z AST_
 pObject =
-      P.bind (P.word1 0x7B {- { -} Start) <| \_ ->
+  P.bind (P.word1 0x7B {- { -} Start) <| \_ ->
+  P.bind spaces <| \_ ->
+  P.oneOf ObjectField
+    [ P.bind (pField) <| \entry ->
       P.bind spaces <| \_ ->
-      P.oneOf ObjectField
-        [     P.bind (pField) <| \entry ->
-              P.bind spaces <| \_ ->
-              pObjectHelp [entry]
-        ,     P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
-              P.return (Object [])
-        ]
+      pObjectHelp [entry]
+    , P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
+      P.return (Object [])
+    ]
 
 
 pObjectHelp : TList (P.Snippet, AST) -> Parser z AST_
 pObjectHelp revEntries =
   P.oneOf ObjectEnd
     [
-          P.bind (P.word1 0x2C {-,-} ObjectEnd) <| \_ ->
-          P.bind spaces <| \_ ->
-          P.bind pField <| \entry ->
-          P.bind spaces <| \_ ->
-          pObjectHelp (entry::revEntries)
+      P.bind (P.word1 0x2C {-,-} ObjectEnd) <| \_ ->
+      P.bind spaces <| \_ ->
+      P.bind pField <| \entry ->
+      P.bind spaces <| \_ ->
+      pObjectHelp (entry::revEntries)
     ,
-          P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
-          P.return (Object (MList.reverse revEntries))
+      P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
+      P.return (Object (MList.reverse revEntries))
     ]
 
 
 pField : Parser z (P.Snippet, AST)
 pField =
-      P.bind (pString ObjectField) <| \key ->
-      P.bind spaces <| \_ ->
-      P.bind (P.word1 0x3A {-:-} ObjectColon) <| \_ ->
-      P.bind spaces <| \_ ->
-      P.bind (pValue) <| \value ->
-      P.return (key, value)
+  P.bind (pString ObjectField) <| \key ->
+  P.bind spaces <| \_ ->
+  P.bind (P.word1 0x3A {-:-} ObjectColon) <| \_ ->
+  P.bind spaces <| \_ ->
+  P.bind (pValue) <| \value ->
+  P.return (key, value)
 
 
 
@@ -500,29 +500,29 @@ pField =
 
 pArray : Parser z AST_
 pArray =
-      P.bind (P.word1 0x5B {-[-} Start) <| \_ ->
+  P.bind (P.word1 0x5B {-[-} Start) <| \_ ->
+  P.bind spaces <| \_ ->
+  P.oneOf Start
+    [ P.bind (pValue) <| \entry ->
       P.bind spaces <| \_ ->
-      P.oneOf Start
-        [     P.bind (pValue) <| \entry ->
-              P.bind spaces <| \_ ->
-              pArrayHelp 1 [entry]
-        ,     P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
-              P.return (Array [])
-        ]
+      pArrayHelp 1 [entry]
+    , P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
+      P.return (Array [])
+    ]
 
 
 pArrayHelp : Int -> TList AST -> Parser z AST_
 pArrayHelp len revEntries =
   P.oneOf ArrayEnd
     [
-          P.bind (P.word1 0x2C {-,-} ArrayEnd) <| \_ ->
-          P.bind spaces <| \_ ->
-          P.bind pValue <| \entry ->
-          P.bind spaces <| \_ ->
-          pArrayHelp (len + 1) (entry::revEntries)
+      P.bind (P.word1 0x2C {-,-} ArrayEnd) <| \_ ->
+      P.bind spaces <| \_ ->
+      P.bind pValue <| \entry ->
+      P.bind spaces <| \_ ->
+      pArrayHelp (len + 1) (entry::revEntries)
     ,
-          P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
-          P.return (Array (MList.reverse revEntries))
+      P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
+      P.return (Array (MList.reverse revEntries))
     ]
 
 
