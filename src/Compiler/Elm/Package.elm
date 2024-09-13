@@ -265,11 +265,11 @@ parser : P.Parser z ( P.Row, P.Col ) Name
 parser =
     P.bind (parseName isAlphaOrDigit isAlphaOrDigit) <|
         \author ->
-            P.doAndBind [ P.do (P.word1 0x2F {- / -} Tuple.pair) ]
-                (parseName isLower isLowerOrDigit)
-            <|
-                \project ->
-                    P.return (Name author project)
+            P.bind (P.word1 0x2F {- / -} Tuple.pair) <|
+                \_ ->
+                    P.bind (parseName isLower isLowerOrDigit) <|
+                        \project ->
+                            P.return (Name author project)
 
 
 parseName : (Int -> Bool) -> (Int -> Bool) -> P.Parser z ( P.Row, P.Col ) Utf8.Utf8

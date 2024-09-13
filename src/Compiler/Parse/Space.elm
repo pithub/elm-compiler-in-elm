@@ -1,11 +1,17 @@
+{- MANUALLY FORMATTED -}
 module Compiler.Parse.Space exposing
-    ( checkAligned
-    , checkFreshLine
-    , checkIndent
-    , chomp
-    , chompAndCheckIndent
-    , docComment
-    )
+  ( Parser
+  --
+  , chomp
+  , chompAndCheckIndent
+  --
+  , checkIndent
+  , checkAligned
+  , checkFreshLine
+  --
+  , docComment
+  )
+
 
 import Compiler.AST.Source as Src
 import Compiler.Parse.Primitives as P
@@ -14,30 +20,32 @@ import Compiler.Reporting.Error.Syntax as E
 
 
 
+-- SPACE PARSING
+
+
+type alias Parser z x a =
+  P.Parser z x (a, A.Position)
+
+
+
 -- CHOMP
 
 
 chomp : (E.Space -> P.Row -> P.Col -> x) -> P.Parser z x ()
 chomp toError =
-    P.Parser <|
-        \(P.State src pos end indent row col) cok _ cerr _ ->
-            let
-                ( ( status, newPos ), ( newRow, newCol ) ) =
-                    eatSpaces src pos end row col
-            in
-            case status of
-                Good ->
-                    let
-                        newState =
-                            P.State src newPos end indent newRow newCol
-                    in
-                    cok () newState
+  P.Parser <| \(P.State src pos end indent row col) cok _ cerr _ ->
+    let
+      ((status, newPos), (newRow, newCol)) = eatSpaces src pos end row col
+    in
+    case status of
+      Good ->
+        let
+          newState = P.State src newPos end indent newRow newCol
+        in
+        cok () newState
 
-                HasTab ->
-                    cerr newRow newCol (toError E.HasTab)
-
-                EndlessMultiComment ->
-                    cerr newRow newCol (toError E.EndlessMultiComment)
+      HasTab               -> cerr newRow newCol (toError E.HasTab)
+      EndlessMultiComment  -> cerr newRow newCol (toError E.EndlessMultiComment)
 
 
 
@@ -46,35 +54,26 @@ chomp toError =
 
 checkIndent : A.Position -> (P.Row -> P.Col -> x) -> P.Parser z x ()
 checkIndent (A.Position endRow endCol) toError =
-    P.Parser <|
-        \((P.State _ _ _ indent _ col) as state) _ eok _ eerr ->
-            if col > indent && col > 1 then
-                eok () state
-
-            else
-                eerr endRow endCol toError
+  P.Parser <| \((P.State _ _ _ indent _ col) as state) _ eok _ eerr ->
+    if col > indent && col > 1
+    then eok () state
+    else eerr endRow endCol toError
 
 
 checkAligned : (Int -> P.Row -> P.Col -> x) -> P.Parser z x ()
 checkAligned toError =
-    P.Parser <|
-        \((P.State _ _ _ indent row col) as state) _ eok _ eerr ->
-            if col == indent then
-                eok () state
-
-            else
-                eerr row col (toError indent)
+  P.Parser <| \((P.State _ _ _ indent row col) as state) _ eok _ eerr ->
+    if col == indent
+    then eok () state
+    else eerr row col (toError indent)
 
 
 checkFreshLine : (P.Row -> P.Col -> x) -> P.Parser z x ()
 checkFreshLine toError =
-    P.Parser <|
-        \((P.State _ _ _ _ row col) as state) _ eok _ eerr ->
-            if col == 1 then
-                eok () state
-
-            else
-                eerr row col toError
+  P.Parser <| \((P.State _ _ _ _ row col) as state) _ eok _ eerr ->
+    if col == 1
+    then eok () state
+    else eerr row col toError
 
 
 
@@ -83,29 +82,25 @@ checkFreshLine toError =
 
 chompAndCheckIndent : (E.Space -> P.Row -> P.Col -> x) -> (P.Row -> P.Col -> x) -> P.Parser z x ()
 chompAndCheckIndent toSpaceError toIndentError =
-    P.Parser <|
-        \(P.State src pos end indent row col) cok _ cerr _ ->
-            let
-                ( ( status, newPos ), ( newRow, newCol ) ) =
-                    eatSpaces src pos end row col
-            in
-            case status of
-                Good ->
-                    if newCol > indent && newCol > 1 then
-                        let
-                            newState =
-                                P.State src newPos end indent newRow newCol
-                        in
-                        cok () newState
+  P.Parser <| \(P.State src pos end indent row col) cok _ cerr _ ->
+    let
+      ((status, newPos), (newRow, newCol)) = eatSpaces src pos end row col
+    in
+    case status of
+      Good ->
+        if newCol > indent && newCol > 1
+        then
 
-                    else
-                        cerr row col toIndentError
+          let
+            newState = P.State src newPos end indent newRow newCol
+          in
+          cok () newState
 
-                HasTab ->
-                    cerr newRow newCol (toSpaceError E.HasTab)
+        else
+          cerr row col toIndentError
 
-                EndlessMultiComment ->
-                    cerr newRow newCol (toSpaceError E.EndlessMultiComment)
+      HasTab               -> cerr newRow newCol (toSpaceError E.HasTab)
+      EndlessMultiComment  -> cerr newRow newCol (toSpaceError E.EndlessMultiComment)
 
 
 
@@ -113,153 +108,124 @@ chompAndCheckIndent toSpaceError toIndentError =
 
 
 type Status
-    = Good
-    | HasTab
-    | EndlessMultiComment
+  = Good
+  | HasTab
+  | EndlessMultiComment
 
 
-eatSpaces : String -> Int -> Int -> P.Row -> P.Col -> ( ( Status, Int ), ( P.Row, P.Col ) )
+eatSpaces : String -> Int -> Int -> P.Row -> P.Col -> ((Status, Int), (P.Row, P.Col))
 eatSpaces src pos end row col =
-    if pos >= end then
-        ( ( Good, pos ), ( row, col ) )
+  if pos >= end then
+    ((Good, pos), (row, col))
 
-    else
-        case P.unsafeIndex src pos of
-            0x20 ->
-                {- -}
-                eatSpaces src (pos + 1) end row (col + 1)
+  else
+    case P.unsafeIndex src pos of
+      0x20 {-   -} ->
+        eatSpaces src (pos + 1) end row (col + 1)
 
-            0x0A ->
-                {- \n -}
-                eatSpaces src (pos + 1) end (row + 1) 1
+      0x0A {- \n -} ->
+        eatSpaces src (pos + 1) end (row + 1) 1
 
-            0x7B ->
-                {- { -}
-                eatMultiComment src pos end row col
+      0x7B {- { -} ->
+        eatMultiComment src pos end row col
 
-            0x2D ->
-                {- - -}
-                let
-                    pos1 =
-                        pos + 1
-                in
-                if pos1 < end && P.unsafeIndex src pos1 == 0x2D {- - -} then
-                    eatLineComment src (pos + 2) end row (col + 2)
+      0x2D {- - -} ->
+        let pos1 = pos + 1 in
+        if pos1 < end && P.unsafeIndex src pos1 == 0x2D {- - -} then
+          eatLineComment src (pos + 2) end row (col + 2)
+        else
+          ((Good, pos), (row, col))
 
-                else
-                    ( ( Good, pos ), ( row, col ) )
+      0x0D {- \r -} ->
+        eatSpaces src (pos + 1) end row col
 
-            0x0D ->
-                {- \r -}
-                eatSpaces src (pos + 1) end row col
+      0x09 {- \t -} ->
+        ((HasTab, pos), (row, col))
 
-            0x09 ->
-                {- \t -}
-                ( ( HasTab, pos ), ( row, col ) )
-
-            _ ->
-                ( ( Good, pos ), ( row, col ) )
+      _ ->
+        ((Good, pos), (row, col))
 
 
 
 -- LINE COMMENTS
 
 
-eatLineComment : String -> Int -> Int -> P.Row -> P.Col -> ( ( Status, Int ), ( P.Row, P.Col ) )
+eatLineComment : String -> Int -> Int -> P.Row -> P.Col -> ((Status, Int), (P.Row, P.Col))
 eatLineComment src pos end row col =
-    if pos >= end then
-        ( ( Good, pos ), ( row, col ) )
+  if pos >= end then
+    ((Good, pos), (row, col))
 
+  else
+    let word = P.unsafeIndex src pos in
+    if word == 0x0A {- \n -} then
+      eatSpaces src (pos + 1) end (row + 1) 1
     else
-        let
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == 0x0A {- \n -} then
-            eatSpaces src (pos + 1) end (row + 1) 1
-
-        else
-            let
-                newPos =
-                    pos + P.getCharWidth word
-            in
-            eatLineComment src newPos end row (col + 1)
+      let newPos = pos + (P.getCharWidth word) in
+      eatLineComment src newPos end row (col + 1)
 
 
 
 -- MULTI COMMENTS
 
 
-eatMultiComment : String -> Int -> Int -> P.Row -> P.Col -> ( ( Status, Int ), ( P.Row, P.Col ) )
+eatMultiComment : String -> Int -> Int -> P.Row -> P.Col -> ((Status, Int), (P.Row, P.Col))
 eatMultiComment src pos end row col =
-    let
-        pos2 =
-            pos + 2
-    in
-    if pos2 >= end then
-        ( ( Good, pos ), ( row, col ) )
+  let
+    pos1 = pos + 1
+    pos2 = pos + 2
+  in
+  if pos2 >= end then
+    ((Good, pos), (row, col))
 
-    else if P.unsafeIndex src (pos + 1) == 0x2D {- - -} then
-        if P.unsafeIndex src pos2 == 0x7C {- | -} then
-            ( ( Good, pos ), ( row, col ) )
+  else if P.unsafeIndex src pos1 == 0x2D {- - -} then
 
-        else
-            let
-                ( ( status, newPos ), ( newRow, newCol ) ) =
-                    eatMultiCommentHelp src pos2 end row (col + 2) 1
-            in
-            case status of
-                MultiGood ->
-                    eatSpaces src newPos end newRow newCol
-
-                MultiTab ->
-                    ( ( HasTab, newPos ), ( newRow, newCol ) )
-
-                MultiEndless ->
-                    ( ( EndlessMultiComment, pos ), ( row, col ) )
-
+    if P.unsafeIndex src pos2 == 0x7C {- | -} then
+      ((Good, pos), (row, col))
     else
-        ( ( Good, pos ), ( row, col ) )
+      let
+        ((status, newPos), (newRow, newCol)) =
+          eatMultiCommentHelp src pos2 end row (col + 2) 1
+      in
+      case status of
+        MultiGood    -> eatSpaces src newPos end newRow newCol
+        MultiTab     -> ((HasTab, newPos), (newRow, newCol))
+        MultiEndless -> ((EndlessMultiComment, pos), (row, col))
+
+  else
+    ((Good, pos), (row, col))
 
 
 type MultiStatus
-    = MultiGood
-    | MultiTab
-    | MultiEndless
+  = MultiGood
+  | MultiTab
+  | MultiEndless
 
 
-eatMultiCommentHelp : String -> Int -> Int -> P.Row -> P.Col -> Int -> ( ( MultiStatus, Int ), ( P.Row, P.Col ) )
+eatMultiCommentHelp : String -> Int -> Int -> P.Row -> P.Col -> Int -> ((MultiStatus, Int), (P.Row, P.Col))
 eatMultiCommentHelp src pos end row col openComments =
-    if pos >= end then
-        ( ( MultiEndless, pos ), ( row, col ) )
+  if pos >= end then
+    ((MultiEndless, pos), (row, col))
+
+  else
+    let word = P.unsafeIndex src pos in
+    if word == 0x0A {- \n -} then
+      eatMultiCommentHelp src (pos + 1) end (row + 1) 1 openComments
+
+    else if word == 0x09 {- \t -} then
+      ((MultiTab, pos), (row, col))
+
+    else if word == 0x2D {- - -} && P.isWord src (pos + 1) end 0x7D {- } -} then
+      if openComments == 1 then
+        ((MultiGood, pos + 2), (row, col + 2))
+      else
+        eatMultiCommentHelp src (pos + 2) end row (col + 2) (openComments - 1)
+
+    else if word == 0x7B {- { -} && P.isWord src (pos + 1) end 0x2D {- - -} then
+      eatMultiCommentHelp src (pos + 2) end row (col + 2) (openComments + 1)
 
     else
-        let
-            word =
-                P.unsafeIndex src pos
-        in
-        if word == 0x0A {- \n -} then
-            eatMultiCommentHelp src (pos + 1) end (row + 1) 1 openComments
-
-        else if word == 0x09 {- \t -} then
-            ( ( MultiTab, pos ), ( row, col ) )
-
-        else if word == 0x2D {- - -} && P.isWord src (pos + 1) end 0x7D {- } -} then
-            if openComments == 1 then
-                ( ( MultiGood, pos + 2 ), ( row, col + 2 ) )
-
-            else
-                eatMultiCommentHelp src (pos + 2) end row (col + 2) (openComments - 1)
-
-        else if word == 0x7B {- { -} && P.isWord src (pos + 1) end 0x2D {- - -} then
-            eatMultiCommentHelp src (pos + 2) end row (col + 2) (openComments + 1)
-
-        else
-            let
-                newPos =
-                    pos + P.getCharWidth word
-            in
-            eatMultiCommentHelp src newPos end row (col + 1) openComments
+      let newPos = pos + (P.getCharWidth word) in
+      eatMultiCommentHelp src newPos end row (col + 1) openComments
 
 
 
@@ -268,50 +234,33 @@ eatMultiCommentHelp src pos end row col openComments =
 
 docComment : (P.Row -> P.Col -> x) -> (E.Space -> P.Row -> P.Col -> x) -> P.Parser z x Src.Comment
 docComment toExpectation toSpaceError =
-    P.Parser <|
-        \(P.State src pos end indent row col) cok _ cerr eerr ->
-            let
-                pos3 =
-                    pos + 3
-            in
-            if
-                (pos3 <= end)
-                    && (P.unsafeIndex src pos == 0x7B {- { -})
-                    && (P.unsafeIndex src (pos + 1) == 0x2D {- - -})
-                    && (P.unsafeIndex src (pos + 2) == 0x7C {- | -})
-            then
-                let
-                    col3 =
-                        col + 3
+  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+    let
+      pos3 = pos + 3
+    in
+    if pos3 <= end
+      && P.unsafeIndex src (pos    ) == 0x7B {- { -}
+      && P.unsafeIndex src (pos + 1) == 0x2D {- - -}
+      && P.unsafeIndex src (pos + 2) == 0x7C {- | -}
+    then
+      let
+        col3 = col + 3
 
-                    ( ( status, newPos ), ( newRow, newCol ) ) =
-                        eatMultiCommentHelp src pos3 end row col3 1
-                in
-                case status of
-                    MultiGood ->
-                        let
-                            off =
-                                pos3
+        ((status, newPos), (newRow, newCol)) =
+           eatMultiCommentHelp src pos3 end row col3 1
+      in
+      case status of
+        MultiGood ->
+          let
+            off = pos3
+            len = newPos - pos3 - 2
+            snippet = P.Snippet src off len row col3
+            comment = Src.Comment snippet
+            newState = P.State src newPos end indent newRow newCol
+          in
+          cok comment newState
 
-                            len =
-                                newPos - pos3 - 2
-
-                            snippet =
-                                P.Snippet src off len row col3
-
-                            comment =
-                                Src.Comment snippet
-
-                            newState =
-                                P.State src newPos end indent newRow newCol
-                        in
-                        cok comment newState
-
-                    MultiTab ->
-                        cerr newRow newCol (toSpaceError E.HasTab)
-
-                    MultiEndless ->
-                        cerr row col (toSpaceError E.EndlessMultiComment)
-
-            else
-                eerr row col toExpectation
+        MultiTab -> cerr newRow newCol (toSpaceError E.HasTab)
+        MultiEndless -> cerr row col (toSpaceError E.EndlessMultiComment)
+    else
+      eerr row col toExpectation
