@@ -8,8 +8,6 @@ module Builder.Deps.Registry exposing
   --, latest
   , getVersions
   , getVersionsE
-  --
-  , write
   )
 
 
@@ -64,12 +62,6 @@ read cache =
   File.readBinary bRegistry (Stuff.registry cache)
 
 
-{- NEW: write -}
-write : Stuff.PackageCache -> Registry -> IO a c d e f g h ()
-write cache registry =
-  File.writeBinary bRegistry (Stuff.registry cache) registry
-
-
 
 -- FETCH
 
@@ -80,7 +72,8 @@ fetch manager cache =
     \versions ->
       let size = Map.foldr addEntry 0 versions in
       let registry = Registry size versions in
-      IO.bind (write cache registry) <| \_ ->
+      let path = Stuff.registry cache in
+      IO.bind (File.writeBinary bRegistry path registry) <| \_ ->
       IO.return registry
 
 
@@ -124,7 +117,7 @@ update manager cache ((Registry size packages) as oldRegistry) =
             newPkgs = MList.foldr addNew packages news
             newRegistry = Registry newSize newPkgs
           in
-          IO.bind (write cache newRegistry) <| \_ ->
+          IO.bind (File.writeBinary bRegistry (Stuff.registry cache) newRegistry) <| \_ ->
           IO.return newRegistry
 
 

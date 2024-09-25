@@ -536,7 +536,7 @@ initialBreakpointState id bpName =
 
 
 eval : Env a g h -> State -> Input -> IO a g h Outcome
-eval env ((State imports types decls) as state) input =
+eval ((Env _ _ _ mode _ _) as env) ((State imports types decls) as state) input =
   case input of
     Skip ->
       IO.return (Loop state)
@@ -552,7 +552,7 @@ eval env ((State imports types decls) as state) input =
         (IO.return (Loop (initialState env)))
 
     Help maybeUnknownCommand ->
-      IO.bind (Command.putTemporary (toHelpMessage maybeUnknownCommand)) <| \_ ->
+      IO.bind (Command.putTemporary (toHelpMessage (isBreakpoint mode) maybeUnknownCommand)) <| \_ ->
       IO.return (Loop state)
 
     Import name src ->
@@ -675,23 +675,24 @@ toPrintName output =
 -- HELP MESSAGES
 
 
-toHelpMessage : Maybe String -> String
-toHelpMessage maybeBadCommand =
+toHelpMessage : Bool -> Maybe String -> String
+toHelpMessage showResume maybeBadCommand =
   case maybeBadCommand of
     Nothing ->
-      genericHelpMessage
+      (genericHelpMessage showResume)
 
     Just command ->
-      "I do not recognize the :" ++ command ++ " command. " ++ genericHelpMessage
+      "I do not recognize the :" ++ command ++ " command. " ++ (genericHelpMessage showResume)
 
 
-genericHelpMessage : String
-genericHelpMessage =
+genericHelpMessage : Bool -> String
+genericHelpMessage showResume =
   "Valid commands include:\n"
   ++ "\n"
   ++ "  :exit    Exit the REPL\n"
   ++ "  :help    Show this information\n"
   ++ "  :reset   Clear all previous imports and definitions\n"
+  ++ (if showResume then "  :resume  Resume from current breakpoint\n" else "")
   ++ "\n"
   ++ "More info at " ++ D.makeLink "repl" ++ "\n"
 
