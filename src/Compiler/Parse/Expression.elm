@@ -25,7 +25,7 @@ import Extra.Type.List as MList exposing (TList)
 -- TERMS
 
 
-term : P.Parser z E.Expr Src.Expr
+term : P.Parser E.Expr Src.Expr
 term =
   P.bind P.getPosition <| \start ->
   P.oneOf E.Start
@@ -41,19 +41,19 @@ term =
     ]
 
 
-string : A.Position -> P.Parser z E.Expr Src.Expr
+string : A.Position -> P.Parser E.Expr Src.Expr
 string start =
   P.bind (String.string E.Start E.CString) <| \str ->
   P.addEnd start (Src.Str str)
 
 
-character : A.Position -> P.Parser z E.Expr Src.Expr
+character : A.Position -> P.Parser E.Expr Src.Expr
 character start =
   P.bind (String.character E.Start E.CChar) <| \chr ->
   P.addEnd start (Src.Chr chr)
 
 
-number : A.Position -> P.Parser z E.Expr Src.Expr
+number : A.Position -> P.Parser E.Expr Src.Expr
 number start =
   P.bind (Number.number E.Start E.Number) <| \nmbr ->
   P.addEnd start <|
@@ -62,20 +62,20 @@ number start =
       Number.CFloat float -> Src.CFloat float
 
 
-accessor : A.Position -> P.Parser z E.Expr Src.Expr
+accessor : A.Position -> P.Parser E.Expr Src.Expr
 accessor start =
   P.bind (P.word1 0x2E {-.-} E.Dot) <| \_ ->
   P.bind (Var.lower E.Access) <| \field ->
   P.addEnd start (Src.Accessor field)
 
 
-variable : A.Position -> P.Parser z E.Expr Src.Expr
+variable : A.Position -> P.Parser E.Expr Src.Expr
 variable start =
   P.bind (Var.foreignAlpha E.Start) <| \var ->
   P.addEnd start var
 
 
-accessible : A.Position -> Src.Expr -> P.Parser z E.Expr Src.Expr
+accessible : A.Position -> Src.Expr -> P.Parser E.Expr Src.Expr
 accessible start expr =
   P.oneOfWithFallback
     [ P.bind (P.word1 0x2E {-.-} E.Dot) <| \_ ->
@@ -92,7 +92,7 @@ accessible start expr =
 -- LISTS
 
 
-list : A.Position -> P.Parser z E.Expr Src.Expr
+list : A.Position -> P.Parser E.Expr Src.Expr
 list start =
   P.inContext E.CList (P.word1 0x5B {-[-} E.Start) <|
     P.bind (Space.chompAndCheckIndent E.ListSpace E.ListIndentOpen) <| \_ ->
@@ -105,7 +105,7 @@ list start =
       ]
 
 
-chompListEnd : A.Position -> TList Src.Expr -> P.Parser z E.TList Src.Expr
+chompListEnd : A.Position -> TList Src.Expr -> P.Parser E.TList Src.Expr
 chompListEnd start entries =
   P.oneOf E.ListEnd
     [ P.bind (P.word1 0x2C {-,-} E.ListEnd) <| \_ ->
@@ -122,7 +122,7 @@ chompListEnd start entries =
 -- TUPLES
 
 
-tuple : A.Position -> P.Parser z E.Expr Src.Expr
+tuple : A.Position -> P.Parser E.Expr Src.Expr
 tuple ((A.Position row col) as start) =
   P.inContext E.Tuple (P.word1 0x28 {-(-} E.Start) <|
     P.bind P.getPosition <| \before ->
@@ -167,7 +167,7 @@ tuple ((A.Position row col) as start) =
           ]
 
 
-chompTupleEnd : A.Position -> Src.Expr -> TList Src.Expr -> P.Parser z E.Tuple Src.Expr
+chompTupleEnd : A.Position -> Src.Expr -> TList Src.Expr -> P.Parser E.Tuple Src.Expr
 chompTupleEnd start firstExpr revExprs =
   P.oneOf E.TupleEnd
     [ P.bind (P.word1 0x2C {-,-} E.TupleEnd) <| \_ ->
@@ -189,7 +189,7 @@ chompTupleEnd start firstExpr revExprs =
 -- RECORDS
 
 
-record : A.Position -> P.Parser z E.Expr Src.Expr
+record : A.Position -> P.Parser E.Expr Src.Expr
 record start =
   P.inContext E.Record (P.word1 0x7B {- { -} E.Start) <|
     P.bind (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen) <| \_ ->
@@ -217,7 +217,7 @@ record start =
 type alias Field = ( A.Located Name.Name, Src.Expr )
 
 
-chompFields : TList Field -> P.Parser z E.Record (TList Field)
+chompFields : TList Field -> P.Parser E.Record (TList Field)
 chompFields fields =
   P.oneOf E.RecordEnd
     [ P.bind (P.word1 0x2C {-,-} E.RecordEnd) <| \_ ->
@@ -229,7 +229,7 @@ chompFields fields =
     ]
 
 
-chompField : P.Parser z E.Record Field
+chompField : P.Parser E.Record Field
 chompField =
   P.bind (P.addLocation (Var.lower E.RecordField)) <| \key ->
   P.bind (Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals) <| \_ ->
@@ -244,7 +244,7 @@ chompField =
 -- EXPRESSIONS
 
 
-expression : Space.Parser z E.Expr Src.Expr
+expression : Space.Parser E.Expr Src.Expr
 expression =
   P.bind P.getPosition <| \start ->
   P.oneOf E.Start
@@ -267,7 +267,7 @@ type State =
     {- end  -} A.Position
 
 
-chompExprEnd : A.Position -> State -> Space.Parser z E.Expr Src.Expr
+chompExprEnd : A.Position -> State -> Space.Parser E.Expr Src.Expr
 chompExprEnd start (State ops expr args end) =
   P.oneOfWithFallback
     [ -- argument
@@ -329,7 +329,7 @@ chompExprEnd start (State ops expr args end) =
     )
 
 
-possiblyNegativeTerm : A.Position -> P.Parser z E.Expr Src.Expr
+possiblyNegativeTerm : A.Position -> P.Parser E.Expr Src.Expr
 possiblyNegativeTerm start =
   P.oneOf E.Start
     [ P.bind (P.word1 0x2D {---} E.Start) <| \_ ->
@@ -353,13 +353,13 @@ toCall func revArgs =
 -- IF EXPRESSION
 
 
-if_ : A.Position -> Space.Parser z E.Expr Src.Expr
+if_ : A.Position -> Space.Parser E.Expr Src.Expr
 if_ start =
   P.inContext E.If (Keyword.if_ E.Start) <|
     chompIfEnd start []
 
 
-chompIfEnd : A.Position -> TList (Src.Expr, Src.Expr) -> Space.Parser z E.If Src.Expr
+chompIfEnd : A.Position -> TList (Src.Expr, Src.Expr) -> Space.Parser E.If Src.Expr
 chompIfEnd start branches =
   P.bind (Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition) <| \_ ->
   P.bind (P.specialize E.IfCondition expression) <| \(condition, condEnd) ->
@@ -386,7 +386,7 @@ chompIfEnd start branches =
 -- LAMBDA EXPRESSION
 
 
-function : A.Position -> Space.Parser z E.Expr Src.Expr
+function : A.Position -> Space.Parser E.Expr Src.Expr
 function start =
   P.inContext E.Func (P.word1 0x5C {-\-} E.Start) <|
     P.bind (Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg) <| \_ ->
@@ -399,7 +399,7 @@ function start =
     P.return (A.at start end funcExpr, end)
 
 
-chompArgs : TList Src.Pattern -> P.Parser z E.Func (TList Src.Pattern)
+chompArgs : TList Src.Pattern -> P.Parser E.Func (TList Src.Pattern)
 chompArgs revArgs =
   P.oneOf E.FuncArrow
     [ P.bind (P.specialize E.FuncArg Pattern.term) <| \arg ->
@@ -414,7 +414,7 @@ chompArgs revArgs =
 -- CASE EXPRESSIONS
 
 
-case_ : A.Position -> Space.Parser z E.Expr Src.Expr
+case_ : A.Position -> Space.Parser E.Expr Src.Expr
 case_ start =
   P.inContext E.Case (Keyword.case_ E.Start) <|
     P.bind (Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr) <| \_ ->
@@ -431,7 +431,7 @@ case_ start =
         )
 
 
-chompBranch : Space.Parser z E.Case (Src.Pattern, Src.Expr)
+chompBranch : Space.Parser E.Case (Src.Pattern, Src.Expr)
 chompBranch =
   P.bind (P.specialize E.CasePattern Pattern.expression) <| \(pattern, patternEnd) ->
   P.bind (Space.checkIndent patternEnd E.CaseIndentArrow) <| \_ ->
@@ -441,7 +441,7 @@ chompBranch =
   P.return ( (pattern, branchExpr), end )
 
 
-chompCaseEnd : TList (Src.Pattern, Src.Expr) -> A.Position -> Space.Parser z E.Case (TList (Src.Pattern, Src.Expr))
+chompCaseEnd : TList (Src.Pattern, Src.Expr) -> A.Position -> Space.Parser E.Case (TList (Src.Pattern, Src.Expr))
 chompCaseEnd branches end =
   P.oneOfWithFallback
     [ P.bind (Space.checkAligned E.CasePatternAlignment) <| \_ ->
@@ -455,7 +455,7 @@ chompCaseEnd branches end =
 -- LET EXPRESSION
 
 
-let_ : A.Position -> Space.Parser z E.Expr Src.Expr
+let_ : A.Position -> Space.Parser E.Expr Src.Expr
 let_ start =
   P.inContext E.Let (Keyword.let_ E.Start) <|
     P.bind
@@ -475,7 +475,7 @@ let_ start =
       )
 
 
-chompLetDefs : TList (A.Located Src.Def) -> A.Position -> Space.Parser z E.Let (TList (A.Located Src.Def))
+chompLetDefs : TList (A.Located Src.Def) -> A.Position -> Space.Parser E.Let (TList (A.Located Src.Def))
 chompLetDefs revDefs end =
   P.oneOfWithFallback
     [ P.bind (Space.checkAligned E.LetDefAlignment) <| \_ ->
@@ -489,7 +489,7 @@ chompLetDefs revDefs end =
 -- LET DEFINITIONS
 
 
-chompLetDef : Space.Parser z E.Let (A.Located Src.Def)
+chompLetDef : Space.Parser E.Let (A.Located Src.Def)
 chompLetDef =
   P.oneOf E.LetDefName
     [ definition
@@ -501,7 +501,7 @@ chompLetDef =
 -- DEFINITION
 
 
-definition : Space.Parser z E.Let (A.Located Src.Def)
+definition : Space.Parser E.Let (A.Located Src.Def)
 definition =
   P.bind (P.addLocation (Var.lower E.LetDefName)) <| \((A.At (A.Region start _) name) as aname) ->
   P.specialize (E.LetDef name) <|
@@ -520,7 +520,7 @@ definition =
       ]
 
 
-chompDefArgsAndBody : A.Position -> A.Located Name.Name -> Maybe Src.Type -> TList Src.Pattern -> Space.Parser z E.Def (A.Located Src.Def)
+chompDefArgsAndBody : A.Position -> A.Located Name.Name -> Maybe Src.Type -> TList Src.Pattern -> Space.Parser E.Def (A.Located Src.Def)
 chompDefArgsAndBody start name tipe revArgs =
   P.oneOf E.DefEquals
     [ P.bind (P.specialize E.DefArg Pattern.term) <| \arg ->
@@ -536,31 +536,30 @@ chompDefArgsAndBody start name tipe revArgs =
     ]
 
 
-chompMatchingName : Name.Name -> P.Parser z E.Def (A.Located Name.Name)
+chompMatchingName : Name.Name -> P.Parser E.Def (A.Located Name.Name)
 chompMatchingName expectedName =
   let
     (P.Parser parserL) = Var.lower E.DefNameRepeat
   in
-  P.Parser <| \((P.State _ _ _ _ sr sc) as state) cok eok cerr eerr ->
-    let
-      cokL name ((P.State _ _ _ _ er ec) as newState) =
+  P.Parser <| \((P.State _ _ _ _ sr sc) as state) ->
+    case parserL state of
+      P.Cok name ((P.State _ _ _ _ er ec) as newState) ->
         if expectedName == name
-        then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else cerr sr sc (E.DefNameMatch name)
-
-      eokL name ((P.State _ _ _ _ er ec) as newState) =
+        then P.Cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
+        else P.Cerr sr sc (E.DefNameMatch name)
+      P.Eok name ((P.State _ _ _ _ er ec) as newState) ->
         if expectedName == name
-        then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else eerr sr sc (E.DefNameMatch name)
-    in
-    parserL state cokL eokL cerr eerr
+        then P.Eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
+        else P.Eerr sr sc (E.DefNameMatch name)
+      P.Cerr r c t -> P.Cerr r c t
+      P.Eerr r c t -> P.Eerr r c t
 
 
 
 -- DESTRUCTURE
 
 
-destructure : Space.Parser z E.Let (A.Located Src.Def)
+destructure : Space.Parser E.Let (A.Located Src.Def)
 destructure =
   P.specialize E.LetDestruct <|
   P.bind P.getPosition <| \start ->

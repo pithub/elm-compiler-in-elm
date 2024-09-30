@@ -17,29 +17,29 @@ import Extra.Type.List as MList exposing (TList)
 -- CHARACTER
 
 
-character : (P.Row -> P.Col -> x) -> (E.TChar -> P.Row -> P.Col -> x) -> P.Parser z x ES.TString
+character : (P.Row -> P.Col -> x) -> (E.TChar -> P.Row -> P.Col -> x) -> P.Parser x ES.TString
 character toExpectation toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if pos >= end || P.unsafeIndex src pos /= 0x27 {- ' -} then
-      eerr row col toExpectation
+      P.Eerr row col toExpectation
 
     else
       case chompChar src (pos + 1) end row (col + 1) 0 placeholder of
         Good newPos newCol numChars mostRecent ->
           if numChars /= 1 then
-            cerr row col (toError (E.CharNotString (newCol - col)))
+            P.Cerr row col (toError (E.CharNotString (newCol - col)))
           else
             let
               newState = P.State src newPos end indent row newCol
               char = ES.fromChunks src [mostRecent]
             in
-            cok char newState
+            P.Cok char newState
 
         CharEndless newCol ->
-          cerr row newCol (toError E.CharEndless)
+          P.Cerr row newCol (toError E.CharEndless)
 
         CharEscape r c escape ->
-          cerr r c (toError (E.CharEscape escape))
+          P.Cerr r c (toError (E.CharEscape escape))
 
 
 type CharResult
@@ -92,9 +92,9 @@ chompChar src pos end row col numChars mostRecent =
 -- STRINGS
 
 
-string : (P.Row -> P.Col -> x) -> (E.TString -> P.Row -> P.Col -> x) -> P.Parser z x ES.TString
+string : (P.Row -> P.Col -> x) -> (E.TString -> P.Row -> P.Col -> x) -> P.Parser x ES.TString
 string toExpectation toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if isDoubleQuote src pos end then
 
       let
@@ -119,13 +119,13 @@ string toExpectation toError =
             newState =
               P.State src newPos end indent newRow newCol
           in
-          cok utf8 newState
+          P.Cok utf8 newState
 
         CErr r c x ->
-          cerr r c (toError x)
+          P.Cerr r c (toError x)
 
     else
-      eerr row col toExpectation
+      P.Eerr row col toExpectation
 
 
 isDoubleQuote : String -> Int -> Int -> Bool

@@ -19,7 +19,7 @@ import Extra.Type.List as MList exposing (TList)
 -- TYPE TERMS
 
 
-term : P.Parser z E.Type Src.Type
+term : P.Parser E.Type Src.Type
 term =
   P.bind P.getPosition <| \start ->
   P.oneOf E.TStart
@@ -80,7 +80,7 @@ term =
 -- TYPE EXPRESSIONS
 
 
-expression : Space.Parser z E.Type Src.Type
+expression : Space.Parser E.Type Src.Type
 expression =
   P.bind P.getPosition <| \start ->
   P.bind
@@ -106,7 +106,7 @@ expression =
 -- TYPE CONSTRUCTORS
 
 
-app : A.Position -> Space.Parser z E.Type Src.Type
+app : A.Position -> Space.Parser E.Type Src.Type
 app start =
   P.bind (Var.foreignUpper E.TStart) <| \upper ->
   P.bind P.getPosition <| \upperEnd ->
@@ -125,7 +125,7 @@ app start =
   P.return ( A.at start end tipe, end )
 
 
-chompArgs : TList Src.Type -> A.Position -> Space.Parser z E.Type (TList Src.Type)
+chompArgs : TList Src.Type -> A.Position -> Space.Parser E.Type (TList Src.Type)
 chompArgs args end =
   P.oneOfWithFallback
     [ P.bind (Space.checkIndent end E.TIndentStart) <| \_ ->
@@ -141,7 +141,7 @@ chompArgs args end =
 -- TUPLES
 
 
-chompTupleEnd : A.Position -> Src.Type -> TList Src.Type -> P.Parser z E.TTuple Src.Type
+chompTupleEnd : A.Position -> Src.Type -> TList Src.Type -> P.Parser E.TTuple Src.Type
 chompTupleEnd start firstType revTypes =
   P.oneOf E.TTupleEnd
     [ P.bind (P.word1 0x2C {-,-} E.TTupleEnd) <| \_ ->
@@ -166,7 +166,7 @@ chompTupleEnd start firstType revTypes =
 type alias Field = ( A.Located Name.Name, Src.Type )
 
 
-chompRecordEnd : TList Field -> P.Parser z E.TRecord (TList Field)
+chompRecordEnd : TList Field -> P.Parser E.TRecord (TList Field)
 chompRecordEnd fields =
   P.oneOf E.TRecordEnd
     [ P.bind (P.word1 0x2C {-,-} E.TRecordEnd) <| \_ ->
@@ -178,7 +178,7 @@ chompRecordEnd fields =
     ]
 
 
-chompField : P.Parser z E.TRecord Field
+chompField : P.Parser E.TRecord Field
 chompField =
   P.bind (P.addLocation (Var.lower E.TRecordField)) <| \name ->
   P.bind (Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon) <| \_ ->
@@ -193,7 +193,7 @@ chompField =
 -- VARIANT
 
 
-variant : Space.Parser z E.CustomType (A.Located Name.Name, TList Src.Type)
+variant : Space.Parser E.CustomType (A.Located Name.Name, TList Src.Type)
 variant =
   P.bind (P.addLocation (Var.upper E.CT_Variant)) <| \((A.At (A.Region _ nameEnd) _) as name) ->
   P.bind (Space.chomp E.CT_Space) <| \_ ->

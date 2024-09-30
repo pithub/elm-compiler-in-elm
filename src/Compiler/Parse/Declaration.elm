@@ -34,7 +34,7 @@ type Decl
   | Port (Maybe Src.Comment) Src.Port
 
 
-declaration : Space.Parser z E.Decl Decl
+declaration : Space.Parser E.Decl Decl
 declaration =
   P.bind chompDocComment <| \maybeDocs ->
   P.bind P.getPosition <| \start ->
@@ -49,7 +49,7 @@ declaration =
 -- DOC COMMENT
 
 
-chompDocComment : P.Parser z E.Decl (Maybe Src.Comment)
+chompDocComment : P.Parser E.Decl (Maybe Src.Comment)
 chompDocComment =
   P.oneOfWithFallback
     [
@@ -65,7 +65,7 @@ chompDocComment =
 -- DEFINITION and ANNOTATION
 
 
-valueDecl : Maybe Src.Comment -> A.Position -> Space.Parser z E.Decl Decl
+valueDecl : Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 valueDecl maybeDocs start =
   P.bind (Var.lower E.DeclStart) <| \name ->
   P.bind P.getPosition <| \end ->
@@ -85,7 +85,7 @@ valueDecl maybeDocs start =
       ]
 
 
-chompDefArgsAndBody : Maybe Src.Comment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> TList Src.Pattern -> Space.Parser z E.DeclDef Decl
+chompDefArgsAndBody : Maybe Src.Comment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> TList Src.Pattern -> Space.Parser E.DeclDef Decl
 chompDefArgsAndBody maybeDocs start name tipe revArgs =
   P.oneOf E.DeclDefEquals
     [ P.bind (P.specialize E.DeclDefArg Pattern.term) <| \arg ->
@@ -100,31 +100,30 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
     ]
 
 
-chompMatchingName : Name.Name -> P.Parser z E.DeclDef (A.Located Name.Name)
+chompMatchingName : Name.Name -> P.Parser E.DeclDef (A.Located Name.Name)
 chompMatchingName expectedName =
   let
     (P.Parser parserL) = Var.lower E.DeclDefNameRepeat
   in
-  P.Parser <| \((P.State _ _ _ _ sr sc) as state) cok eok cerr eerr ->
-    let
-      cokL name ((P.State _ _ _ _ er ec) as newState) =
+  P.Parser <| \((P.State _ _ _ _ sr sc) as state) ->
+    case parserL state of
+      P.Cok name ((P.State _ _ _ _ er ec) as newState) ->
         if expectedName == name
-        then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else cerr sr sc (E.DeclDefNameMatch name)
-
-      eokL name ((P.State _ _ _ _ er ec) as newState) =
+        then P.Cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
+        else P.Cerr sr sc (E.DeclDefNameMatch name)
+      P.Eok name ((P.State _ _ _ _ er ec) as newState) ->
         if expectedName == name
-        then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else eerr sr sc (E.DeclDefNameMatch name)
-    in
-    parserL state cokL eokL cerr eerr
+        then P.Eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
+        else P.Eerr sr sc (E.DeclDefNameMatch name)
+      P.Cerr r c t -> P.Cerr r c t
+      P.Eerr r c t -> P.Eerr r c t
 
 
 
 -- TYPE DECLARATIONS
 
 
-typeDecl : Maybe Src.Comment -> A.Position -> Space.Parser z E.Decl Decl
+typeDecl : Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 typeDecl maybeDocs start =
   P.inContext E.DeclType (Keyword.type_ E.DeclStart) <|
     P.bind (Space.chompAndCheckIndent E.DT_Space E.DT_IndentName) <| \_ ->
@@ -150,14 +149,14 @@ typeDecl maybeDocs start =
 -- TYPE ALIASES
 
 
-chompAliasNameToEquals : P.Parser z E.TypeAlias (A.Located Name.Name, TList (A.Located Name.Name))
+chompAliasNameToEquals : P.Parser E.TypeAlias (A.Located Name.Name, TList (A.Located Name.Name))
 chompAliasNameToEquals =
   P.bind (P.addLocation (Var.upper E.AliasName)) <| \name ->
   P.bind (Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals) <| \_ ->
   chompAliasNameToEqualsHelp name []
 
 
-chompAliasNameToEqualsHelp : A.Located Name.Name -> TList (A.Located Name.Name) -> P.Parser z E.TypeAlias (A.Located Name.Name, TList (A.Located Name.Name))
+chompAliasNameToEqualsHelp : A.Located Name.Name -> TList (A.Located Name.Name) -> P.Parser E.TypeAlias (A.Located Name.Name, TList (A.Located Name.Name))
 chompAliasNameToEqualsHelp name args =
   P.oneOf E.AliasEquals
     [ P.bind (P.addLocation (Var.lower E.AliasEquals)) <| \arg ->
@@ -173,14 +172,14 @@ chompAliasNameToEqualsHelp name args =
 -- CUSTOM TYPES
 
 
-chompCustomNameToEquals : P.Parser z E.CustomType (A.Located Name.Name, TList (A.Located Name.Name))
+chompCustomNameToEquals : P.Parser E.CustomType (A.Located Name.Name, TList (A.Located Name.Name))
 chompCustomNameToEquals =
   P.bind (P.addLocation (Var.upper E.CT_Name)) <| \name ->
   P.bind (Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals) <| \_ ->
   chompCustomNameToEqualsHelp name []
 
 
-chompCustomNameToEqualsHelp : A.Located Name.Name -> TList (A.Located Name.Name) -> P.Parser z E.CustomType (A.Located Name.Name, TList (A.Located Name.Name))
+chompCustomNameToEqualsHelp : A.Located Name.Name -> TList (A.Located Name.Name) -> P.Parser E.CustomType (A.Located Name.Name, TList (A.Located Name.Name))
 chompCustomNameToEqualsHelp name args =
   P.oneOf E.CT_Equals
     [ P.bind (P.addLocation (Var.lower E.CT_Equals)) <| \arg ->
@@ -192,7 +191,7 @@ chompCustomNameToEqualsHelp name args =
     ]
 
 
-chompVariants : TList (A.Located Name.Name, TList Src.Type) -> A.Position -> Space.Parser z E.CustomType (TList (A.Located Name.Name, TList Src.Type))
+chompVariants : TList (A.Located Name.Name, TList Src.Type) -> A.Position -> Space.Parser E.CustomType (TList (A.Located Name.Name, TList Src.Type))
 chompVariants variants end =
   P.oneOfWithFallback
     [ P.bind (Space.checkIndent end E.CT_IndentBar) <| \_ ->
@@ -208,7 +207,7 @@ chompVariants variants end =
 -- PORT
 
 
-portDecl : Maybe Src.Comment -> Space.Parser z E.Decl Decl
+portDecl : Maybe Src.Comment -> Space.Parser E.Decl Decl
 portDecl maybeDocs =
   P.inContext E.Port (Keyword.port_ E.DeclStart) <|
     P.bind (Space.chompAndCheckIndent E.PortSpace E.PortIndentName) <| \_ ->
@@ -229,7 +228,7 @@ portDecl maybeDocs =
 
 -- INVARIANT: always chomps to a freshline
 --
-infix_ : P.Parser z E.Module (A.Located Src.Infix)
+infix_ : P.Parser E.Module (A.Located Src.Infix)
 infix_ =
   let
     err = E.Infix

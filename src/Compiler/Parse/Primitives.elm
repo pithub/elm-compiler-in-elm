@@ -14,6 +14,7 @@ module Compiler.Parse.Primitives exposing
   , Snippet(..)
   , fromSnippet
   --
+  , PStep(..)
   , fmap
   , return, bind
   )
@@ -30,15 +31,15 @@ import Extra.Type.List exposing (TList)
 -- PARSER
 
 
-type Parser z x a =
-  Parser (
-      State
-      -> (a -> State -> z)                       -- consumed ok
-      -> (a -> State -> z)                       -- empty ok
-      -> (Row -> Col -> (Row -> Col -> x) -> z)  -- consumed err
-      -> (Row -> Col -> (Row -> Col -> x) -> z)  -- empty err
-      -> z
-  )
+type Parser x a =
+  Parser (State -> PStep x a)
+
+
+type PStep x a
+  = Cok a State
+  | Eok a State
+  | Cerr Row Col (Row -> Col -> x)
+  | Eerr Row Col (Row -> Col -> x)
 
 
 type State = -- PERF try taking some out to avoid allocation
@@ -59,120 +60,125 @@ type alias Col = Int
 -- FUNCTOR
 
 
-fmap : Functor.Fmap a (Parser z x a) b (Parser z x b)
+fmap : Functor.Fmap a (Parser x a) b (Parser x b)
 fmap f (Parser parser) =
-  Parser <| \state cok eok cerr eerr ->
-    let
-      cok_ a s = cok (f a) s
-      eok_ a s = eok (f a) s
-    in
-    parser state cok_ eok_ cerr eerr
+  Parser <| \state ->
+    case parser state of
+      Cok a s -> Cok (f a) s
+      Eok a s -> Eok (f a) s
+      Cerr r c t -> Cerr r c t
+      Eerr r c t -> Eerr r c t
 
 
 
 -- ONE OF
 
 
-oneOf : (Row -> Col -> x) -> TList (Parser z x a) -> Parser z x a
+oneOf : (Row -> Col -> x) -> TList (Parser x a) -> Parser x a
 oneOf toError parsers =
-  Parser <| \state cok eok cerr eerr ->
-    oneOfHelp state cok eok cerr eerr toError parsers
+  Parser <| \state ->
+    oneOfHelp state toError parsers
 
 
 oneOfHelp
   : State
-  -> (a -> State -> z)
-  -> (a -> State -> z)
-  -> (Row -> Col -> (Row -> Col -> x) -> z)
-  -> (Row -> Col -> (Row -> Col -> x) -> z)
   -> (Row -> Col -> x)
-  -> TList (Parser z x a)
-  -> z
-oneOfHelp state cok eok cerr eerr toError parsers =
+  -> TList (Parser x a)
+  -> PStep x a
+oneOfHelp state toError parsers =
   case parsers of
     Parser parser :: parsers_ ->
-      let
-        eerr_ _ _ _ =
-          oneOfHelp state cok eok cerr eerr toError parsers_
-      in
-      parser state cok eok cerr eerr_
+      case parser state of
+        --Cok a s -> Cok a s
+        --Eok a s -> Eok a s
+        --Cerr r c t -> Cerr r c t
+        Eerr _ _ _ -> oneOfHelp state toError parsers_
+        x -> x
 
     [] ->
       let
         (State _ _ _ _ row col) = state
       in
-      eerr row col toError
+      Eerr row col toError
 
 
 
 -- ONE OF WITH FALLBACK
 
 
-oneOfWithFallback : TList (Parser z x a) -> a -> Parser z x a -- PERF is this function okay? Worried about allocation/laziness with fallback values.
+oneOfWithFallback : TList (Parser x a) -> a -> Parser x a -- PERF is this function okay? Worried about allocation/laziness with fallback values.
 oneOfWithFallback parsers fallback =
-  Parser <| \state cok eok cerr _ ->
-    oowfHelp state cok eok cerr parsers fallback
+  Parser <| \state ->
+    oowfHelp state parsers fallback
 
 
 oowfHelp
   : State
-  -> (a -> State -> z)
-  -> (a -> State -> z)
-  -> (Row -> Col -> (Row -> Col -> x) -> z)
-  -> TList (Parser z x a)
+  -> TList (Parser x a)
   -> a
-  -> z
-oowfHelp state cok eok cerr parsers fallback =
+  -> PStep x a
+oowfHelp state parsers fallback =
   case parsers of
     [] ->
-      eok fallback state
+      Eok fallback state
 
     Parser parser :: parsers_ ->
-      let
-        eerr_ _ _ _ =
-          oowfHelp state cok eok cerr parsers_ fallback
-      in
-      parser state cok eok cerr eerr_
+      case parser state of
+        --Cok a s -> Cok a s
+        --Eok a s -> Eok a s
+        --Cerr r c t -> Cerr r c t
+        Eerr _ _ _ -> oowfHelp state parsers_ fallback
+        x -> x
 
 
 
 -- MONAD
 
 
-return : Monad.Return a (Parser z x a)
+return : Monad.Return a (Parser x a)
 return value =
-  Parser <| \state _ eok _ _ ->
-    eok value state
+  Parser <| \state ->
+    Eok value state
 
 
-bind : Monad.Bind a (Parser z x a) (Parser z x b)
+bind : Monad.Bind a (Parser x a) (Parser x b)
 bind (Parser parserA) callback =
-  Parser <| \state cok eok cerr eerr ->
-    let
-      cok_ a s =
+  Parser <| \state ->
+    case parserA state of
+      Cok a s ->
         case callback a of
-          Parser parserB -> parserB s cok cok cerr cerr
-
-      eok_ a s =
+          Parser parserB ->
+            case parserB s of
+              --Cok a_ s_ -> Cok a_ s_
+              Eok a_ s_ -> Cok a_ s_
+              --Cerr r c t -> Cerr r c t
+              Eerr r c t -> Cerr r c t
+              x -> x
+      Eok a s ->
         case callback a of
-          Parser parserB -> parserB s cok eok cerr eerr
-    in
-    parserA state cok_ eok_ cerr eerr
+          Parser parserB ->
+            parserB s
+      Cerr r c t -> Cerr r c t
+      Eerr r c t -> Eerr r c t
 
 
 
 -- FROM BYTESTRING
 
 
-fromByteString : Parser (Either x a) x a -> (Row -> Col -> x) -> String -> Either x a
+fromByteString : Parser x a -> (Row -> Col -> x) -> String -> Either x a
 fromByteString (Parser parser) toBadEnd fptr =
   let
     toOk_ = toOk toBadEnd
     pos = 0
     end = String.length fptr
-    result = parser (State fptr pos end 0 1 1) toOk_ toOk_ toErr toErr
+    result = parser (State fptr pos end 0 1 1)
   in
-  result
+  case result of
+    Cok a s -> toOk_ a s
+    Eok a s -> toOk_ a s
+    Cerr r c t -> toErr r c t
+    Eerr r c t -> toErr r c t
 
 
 toOk : (Row -> Col -> x) -> a -> State -> Either x a
@@ -200,119 +206,132 @@ type Snippet =
     {- offCol -} Col
 
 
-fromSnippet : Parser (Either x a) x a -> (Row -> Col -> x) -> Snippet -> Either x a
+fromSnippet : Parser x a -> (Row -> Col -> x) -> Snippet -> Either x a
 fromSnippet (Parser parser) toBadEnd (Snippet fptr offset length row col) =
   let
     toOk_ = toOk toBadEnd
     pos = offset
     end = pos + length
-    result = parser (State fptr pos end 0 row col) toOk_ toOk_ toErr toErr
+    result = parser (State fptr pos end 0 row col)
   in
-  result
+  case result of
+    Cok a s -> toOk_ a s
+    Eok a s -> toOk_ a s
+    Cerr r c t -> toErr r c t
+    Eerr r c t -> toErr r c t
 
 
 
 -- POSITION
 
 
-getPosition : Parser z x A.Position
+getPosition : Parser x A.Position
 getPosition =
-  Parser <| \((State _ _ _ _ row col) as state) _ eok _ _ ->
-    eok (A.Position row col) state
+  Parser <| \((State _ _ _ _ row col) as state) ->
+    Eok (A.Position row col) state
 
 
-addLocation : Parser z x a -> Parser z x (A.Located a)
+addLocation : Parser x a -> Parser x (A.Located a)
 addLocation (Parser parser) =
-  Parser <| \((State _ _ _ _ sr sc) as state) cok eok cerr eerr ->
-    let
-      cok_ a ((State _ _ _ _ er ec) as s) = cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
-      eok_ a ((State _ _ _ _ er ec) as s) = eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
-    in
-    parser state cok_ eok_ cerr eerr
+  Parser <| \((State _ _ _ _ sr sc) as state) ->
+    case parser state of
+      Cok a ((State _ _ _ _ er ec) as s) -> Cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
+      Eok a ((State _ _ _ _ er ec) as s) -> Eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
+      Cerr r c t -> Cerr r c t
+      Eerr r c t -> Eerr r c t
 
 
-addEnd : A.Position -> a -> Parser z x (A.Located a)
+addEnd : A.Position -> a -> Parser x (A.Located a)
 addEnd start value =
-  Parser <| \((State _ _ _ _ row col) as state) _ eok _ _ ->
-    eok (A.at start (A.Position row col) value) state
+  Parser <| \((State _ _ _ _ row col) as state) ->
+    Eok (A.at start (A.Position row col) value) state
 
 
 
 -- INDENT
 
 
-withIndent : Parser z x a -> Parser z x a
+withIndent : Parser x a -> Parser x a
 withIndent (Parser parser) =
-  Parser <| \(State src pos end oldIndent row col) cok eok cerr eerr ->
-    let
-      cok_ a (State s p e _ r c) = cok a (State s p e oldIndent r c)
-      eok_ a (State s p e _ r c) = eok a (State s p e oldIndent r c)
-    in
-    parser (State src pos end col row col) cok_ eok_ cerr eerr
+  Parser <| \(State src pos end oldIndent row col) ->
+    case parser (State src pos end col row col) of
+      Cok a (State s p e _ r c) -> Cok a (State s p e oldIndent r c)
+      Eok a (State s p e _ r c) -> Eok a (State s p e oldIndent r c)
+      --Cerr r c t -> Cerr r c t
+      --Eerr r c t -> Eerr r c t
+      x -> x
 
 
-withBacksetIndent : Int -> Parser z x a -> Parser z x a
+withBacksetIndent : Int -> Parser x a -> Parser x a
 withBacksetIndent backset (Parser parser) =
-  Parser <| \(State src pos end oldIndent row col) cok eok cerr eerr ->
-    let
-      cok_ a (State s p e _ r c) = cok a (State s p e oldIndent r c)
-      eok_ a (State s p e _ r c) = eok a (State s p e oldIndent r c)
-    in
-    parser (State src pos end (col - backset) row col) cok_ eok_ cerr eerr
+  Parser <| \(State src pos end oldIndent row col) ->
+    case parser (State src pos end (col - backset) row col) of
+      Cok a (State s p e _ r c) -> Cok a (State s p e oldIndent r c)
+      Eok a (State s p e _ r c) -> Eok a (State s p e oldIndent r c)
+      --Cerr r c t -> Cerr r c t
+      --Eerr r c t -> Eerr r c t
+      x -> x
 
 
 
 -- CONTEXT
 
 
-inContext : (x -> Row -> Col -> y) -> Parser z y start -> Parser z x a -> Parser z y a
+inContext : (x -> Row -> Col -> y) -> Parser y start -> Parser x a -> Parser y a
 inContext addContext (Parser parserStart) (Parser parserA) =
-  Parser <| \((State _ _ _ _ row col) as state) cok eok cerr eerr ->
-    let
-      cerrA r c tx = cerr row col (addContext (tx r c))
-      eerrA r c tx = eerr row col (addContext (tx r c))
+  Parser <| \((State _ _ _ _ row col) as state) ->
+    case parserStart state of
+      Cok _ s ->
+        case parserA s of
+          Cok a s_ -> Cok a s_
+          Eok a s_ -> Cok a s_
+          Cerr r c tx -> Cerr row col (addContext (tx r c))
+          Eerr r c tx -> Cerr row col (addContext (tx r c))
+      Eok _ s ->
+        case parserA s of
+          Cok a s_ -> Cok a s_
+          Eok a s_ -> Eok a s_
+          Cerr r c tx -> Cerr row col (addContext (tx r c))
+          Eerr r c tx -> Eerr row col (addContext (tx r c))
+      Cerr r c t -> Cerr r c t
+      Eerr r c t -> Eerr r c t
 
-      cokS _ s = parserA s cok cok cerrA cerrA
-      eokS _ s = parserA s cok eok cerrA eerrA
-    in
-    parserStart state cokS eokS cerr eerr
 
-
-specialize : (x -> Row -> Col -> y) -> Parser z x a -> Parser z y a
+specialize : (x -> Row -> Col -> y) -> Parser x a -> Parser y a
 specialize addContext (Parser parser) =
-  Parser <| \((State _ _ _ _ row col) as state) cok eok cerr eerr ->
-    let
-      cerr_ r c tx = cerr row col (addContext (tx r c))
-      eerr_ r c tx = eerr row col (addContext (tx r c))
-    in
-    parser state cok eok cerr_ eerr_
+  Parser <| \((State _ _ _ _ row col) as state) ->
+    case parser state of
+      Cok a s -> Cok a s
+      Eok a s -> Eok a s
+      Cerr r c tx -> Cerr row col (addContext (tx r c))
+      Eerr r c tx -> Eerr row col (addContext (tx r c))
 
 
 
 -- SYMBOLS
 
 
-word1 : Int -> (Row -> Col -> x) -> Parser z x ()
+word1 : Int -> (Row -> Col -> x) -> Parser x ()
 word1 word toError =
-  Parser <| \(State src pos end indent row col) cok _ _ eerr ->
+  Parser <| \(State src pos end indent row col) ->
     if pos < end && unsafeIndex src pos == word then
       let newState = State src (pos + 1) end indent row (col + 1) in
-      cok () newState
+      Cok () newState
     else
-      eerr row col toError
+      Eerr row col toError
 
 
-word2 : Int -> Int -> (Row -> Col -> x) -> Parser z x ()
+word2 : Int -> Int -> (Row -> Col -> x) -> Parser x ()
 word2 w1 w2 toError =
-  Parser <| \(State src pos end indent row col) cok _ _ eerr ->
+  Parser <| \(State src pos end indent row col) ->
     let
       pos1 = pos + 1
     in
     if pos1 < end && unsafeIndex src pos == w1 && unsafeIndex src pos1 == w2 then
       let newState = State src (pos + 2) end indent row (col + 2) in
-      cok () newState
+      Cok () newState
     else
-      eerr row col toError
+      Eerr row col toError
 
 
 

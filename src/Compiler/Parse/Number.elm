@@ -37,16 +37,16 @@ type Number
   | CFloat EF.TFloat
 
 
-number : (P.Row -> P.Col -> x) -> (E.Number -> P.Row -> P.Col -> x) -> P.Parser z x Number
+number : (P.Row -> P.Col -> x) -> (E.Number -> P.Row -> P.Col -> x) -> P.Parser x Number
 number toExpectation toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if pos >= end then
-      eerr row col toExpectation
+      P.Eerr row col toExpectation
 
     else
       let word = P.unsafeIndex src pos in
       if not (isDecimalDigit word) then
-        eerr row col toExpectation
+        P.Eerr row col toExpectation
 
       else
         let
@@ -61,7 +61,7 @@ number toExpectation toError =
               let
                 newCol = col + newPos - pos
               in
-              cerr row newCol (toError problem)
+              P.Cerr row newCol (toError problem)
 
             OkInt newPos n ->
               let
@@ -69,7 +69,7 @@ number toExpectation toError =
                 integer = CInt n
                 newState = P.State src newPos end indent row newCol
               in
-              cok integer newState
+              P.Cok integer newState
 
             OkFloat newPos ->
               let
@@ -78,7 +78,7 @@ number toExpectation toError =
                 float = CFloat copy
                 newState = P.State src newPos end indent row newCol
               in
-              cok float newState
+              P.Cok float newState
 
 
 
@@ -277,18 +277,18 @@ stepHex word acc =
 -- PRECEDENCE
 
 
-precedence : (P.Row -> P.Col -> x) -> P.Parser z x Binop.Precedence
+precedence : (P.Row -> P.Col -> x) -> P.Parser x Binop.Precedence
 precedence toExpectation =
-  P.Parser <| \(P.State src pos end indent row col) cok _ _ eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if pos >= end then
-      eerr row col toExpectation
+      P.Eerr row col toExpectation
 
     else
       let word = P.unsafeIndex src pos in
       if isDecimalDigit word then
-        cok
+        P.Cok
           (Binop.Precedence (word - 0x30 {-0-}))
           (P.State src (pos + 1) end indent row (col + 1))
 
       else
-        eerr row col toExpectation
+        P.Eerr row col toExpectation

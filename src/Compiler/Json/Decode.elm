@@ -162,7 +162,7 @@ string =
         err (Expecting region TString)
 
 
-customString : P.Parser (Either x a) x a -> (Row -> Col -> x) -> Decoder z x a
+customString : P.Parser x a -> (Row -> Col -> x) -> Decoder z x a
 customString parser toBadEnd =
   Decoder <| \(A.At region ast) ok err ->
     case ast of
@@ -220,16 +220,16 @@ nonEmptyList decoder x =
 -- OBJECTS
 
 
-type KeyDecoder z x comparable =
-  KeyDecoder (P.Parser z x comparable) (Row -> Col -> x)
+type KeyDecoder x comparable =
+  KeyDecoder (P.Parser x comparable) (Row -> Col -> x)
 
 
-dict : KeyDecoder (Either x comparable) x comparable -> Decoder z x a -> Decoder z x (Map.Map comparable a)
+dict : KeyDecoder x comparable -> Decoder z x a -> Decoder z x (Map.Map comparable a)
 dict keyDecoder valueDecoder =
   fmap Map.fromList <| pairs keyDecoder valueDecoder
 
 
-pairs : KeyDecoder (Either x comparable) x comparable -> Decoder z x a -> Decoder z x (TList (comparable, a))
+pairs : KeyDecoder x comparable -> Decoder z x a -> Decoder z x (TList (comparable, a))
 pairs keyDecoder valueDecoder =
   Decoder <| \(A.At region ast) ok err ->
     case ast of
@@ -240,7 +240,7 @@ pairs keyDecoder valueDecoder =
         err (Expecting region TObject)
 
 
-pairsHelp : KeyDecoder (Either x comparable) x comparable -> Decoder z x a -> (TList (comparable, a) -> z) -> (Problem x -> z) -> TList (P.Snippet, AST) -> TList (comparable, a) -> z
+pairsHelp : KeyDecoder x comparable -> Decoder z x a -> (TList (comparable, a) -> z) -> (Problem x -> z) -> TList (P.Snippet, AST) -> TList (comparable, a) -> z
 pairsHelp ((KeyDecoder keyParser toBadEnd) as keyDecoder) ((Decoder decodeA) as valueDecoder) ok err kvs revs =
   case kvs of
     [] ->
@@ -400,8 +400,8 @@ type AST_
 -- PARSE
 
 
-type alias Parser z a =
-  P.Parser z ParseError a
+type alias Parser a =
+  P.Parser ParseError a
 
 
 type ParseError
@@ -430,7 +430,7 @@ type StringProblem
 -- PARSE AST
 
 
-pFile : Parser z AST
+pFile : Parser AST
 pFile =
   P.bind spaces <| \_ ->
   P.bind pValue <| \value ->
@@ -438,7 +438,7 @@ pFile =
   P.return value
 
 
-pValue : Parser z AST
+pValue : Parser AST
 pValue =
   P.addLocation <|
   P.oneOf Start
@@ -456,7 +456,7 @@ pValue =
 -- OBJECT
 
 
-pObject : Parser z AST_
+pObject : Parser AST_
 pObject =
   P.bind (P.word1 0x7B {- { -} Start) <| \_ ->
   P.bind spaces <| \_ ->
@@ -469,7 +469,7 @@ pObject =
     ]
 
 
-pObjectHelp : TList (P.Snippet, AST) -> Parser z AST_
+pObjectHelp : TList (P.Snippet, AST) -> Parser AST_
 pObjectHelp revEntries =
   P.oneOf ObjectEnd
     [
@@ -484,7 +484,7 @@ pObjectHelp revEntries =
     ]
 
 
-pField : Parser z (P.Snippet, AST)
+pField : Parser (P.Snippet, AST)
 pField =
   P.bind (pString ObjectField) <| \key ->
   P.bind spaces <| \_ ->
@@ -498,7 +498,7 @@ pField =
 -- ARRAY
 
 
-pArray : Parser z AST_
+pArray : Parser AST_
 pArray =
   P.bind (P.word1 0x5B {-[-} Start) <| \_ ->
   P.bind spaces <| \_ ->
@@ -511,7 +511,7 @@ pArray =
     ]
 
 
-pArrayHelp : Int -> TList AST -> Parser z AST_
+pArrayHelp : Int -> TList AST -> Parser AST_
 pArrayHelp len revEntries =
   P.oneOf ArrayEnd
     [
@@ -530,9 +530,9 @@ pArrayHelp len revEntries =
 -- STRING
 
 
-pString : (Row -> Col -> ParseError) -> Parser z P.Snippet
+pString : (Row -> Col -> ParseError) -> Parser P.Snippet
 pString start =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if pos < end && P.unsafeIndex src pos == 0x22 {-"-} then
 
       let
@@ -550,13 +550,13 @@ pString start =
             snp = P.Snippet src off len row col1
             newState = P.State src newPos end indent newRow newCol
           in
-          cok snp newState
+          P.Cok snp newState
 
         BadString problem ->
-          cerr newRow newCol (StringProblem problem)
+          P.Cerr newRow newCol (StringProblem problem)
 
     else
-      eerr row col start
+      P.Eerr row col start
 
 
 type StringStatus
@@ -625,21 +625,21 @@ isHex word =
 -- SPACES
 
 
-spaces : Parser z ()
+spaces : Parser ()
 spaces =
-  P.Parser <| \((P.State src pos end indent row col) as state) cok eok _ _ ->
+  P.Parser <| \((P.State src pos end indent row col) as state) ->
     let
       (newPos, newRow, newCol) =
         eatSpaces src pos end row col
     in
     if pos == newPos then
-      eok () state
+      P.Eok () state
     else
       let
         newState =
           P.State src newPos end indent newRow newCol
       in
-      cok () newState
+      P.Cok () newState
 
 
 eatSpaces : String -> Int -> Int -> Row -> Col -> (Int, Row, Col)
@@ -661,16 +661,16 @@ eatSpaces src pos end row col =
 -- INTS
 
 
-pInt : Parser z AST_
+pInt : Parser AST_
 pInt =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if pos >= end then
-      eerr row col Start
+      P.Eerr row col Start
 
     else
       let word = P.unsafeIndex src pos in
       if not (isDecimalDigit word) then
-        eerr row col Start
+        P.Eerr row col Start
 
       else if word == 0x30 {-0-} then
 
@@ -681,13 +681,13 @@ pInt =
         if pos1 < end then
           let word1 = P.unsafeIndex src pos1 in
           if isDecimalDigit word1 then
-            cerr row (col + 1) NoLeadingZeros
+            P.Cerr row (col + 1) NoLeadingZeros
           else if word1 == 0x2E {-.-} then
-            cerr row (col + 1) NoFloats
+            P.Cerr row (col + 1) NoFloats
           else
-            cok (Int 0) newState
+            P.Cok (Int 0) newState
         else
-          cok (Int 0) newState
+          P.Cok (Int 0) newState
 
       else
         let
@@ -702,10 +702,10 @@ pInt =
               newState =
                 P.State src newPos end indent row (col + len)
             in
-            cok (Int n) newState
+            P.Cok (Int n) newState
 
           BadIntEnd ->
-            cerr row (col + len) NoFloats
+            P.Cerr row (col + len) NoFloats
 
 
 type IntStatus = GoodInt | BadIntEnd

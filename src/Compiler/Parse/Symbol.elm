@@ -25,26 +25,26 @@ type BadOperator
   | BadHasType
 
 
-operator : (P.Row -> P.Col -> x) -> (BadOperator -> P.Row -> P.Col -> x) -> P.Parser z x Name.Name
+operator : (P.Row -> P.Col -> x) -> (BadOperator -> P.Row -> P.Col -> x) -> P.Parser x Name.Name
 operator toExpectation toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let newPos = chompOps src pos end in
     if pos == newPos then
-      eerr row col toExpectation
+      P.Eerr row col toExpectation
 
     else
       case Name.fromPtr src pos newPos of
-        "."  -> eerr row col (toError BadDot)
-        "|"  -> cerr row col (toError BadPipe)
-        "->" -> cerr row col (toError BadArrow)
-        "="  -> cerr row col (toError BadEquals)
-        ":"  -> cerr row col (toError BadHasType)
+        "."  -> P.Eerr row col (toError BadDot)
+        "|"  -> P.Cerr row col (toError BadPipe)
+        "->" -> P.Cerr row col (toError BadArrow)
+        "="  -> P.Cerr row col (toError BadEquals)
+        ":"  -> P.Cerr row col (toError BadHasType)
         op   ->
           let
             newCol = col + newPos - pos
             newState = P.State src newPos end indent row newCol
           in
-          cok op newState
+          P.Cok op newState
 
 
 chompOps : String -> Int -> Int -> Int

@@ -149,7 +149,7 @@ bComparable =
 -- PARSER
 
 
-parser : P.Parser z ( Row, Col ) Version
+parser : P.Parser ( Row, Col ) Version
 parser =
     P.bind numberParser <|
         \major ->
@@ -164,12 +164,12 @@ parser =
                                             P.return (Version major minor patch)
 
 
-numberParser : P.Parser z ( Row, Col ) Int
+numberParser : P.Parser ( Row, Col ) Int
 numberParser =
     P.Parser <|
-        \(P.State src pos end indent row col) cok _ _ eerr ->
+        \(P.State src pos end indent row col) ->
             if pos >= end then
-                eerr row col Tuple.pair
+                P.Eerr row col Tuple.pair
 
             else
                 let
@@ -181,7 +181,7 @@ numberParser =
                         newState =
                             P.State src (pos + 1) end indent row (col + 1)
                     in
-                    cok 0 newState
+                    P.Cok 0 newState
 
                 else if isDigit word then
                     let
@@ -191,10 +191,10 @@ numberParser =
                         newState =
                             P.State src newPos end indent row (col + (newPos - pos))
                     in
-                    cok total newState
+                    P.Cok total newState
 
                 else
-                    eerr row col Tuple.pair
+                    P.Eerr row col Tuple.pair
 
 
 chompWord16 : String -> Int -> Int -> Int -> ( Int, Int )

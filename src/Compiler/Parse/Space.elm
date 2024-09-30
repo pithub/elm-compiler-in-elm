@@ -23,17 +23,17 @@ import Compiler.Reporting.Error.Syntax as E
 -- SPACE PARSING
 
 
-type alias Parser z x a =
-  P.Parser z x (a, A.Position)
+type alias Parser x a =
+  P.Parser x (a, A.Position)
 
 
 
 -- CHOMP
 
 
-chomp : (E.Space -> P.Row -> P.Col -> x) -> P.Parser z x ()
+chomp : (E.Space -> P.Row -> P.Col -> x) -> P.Parser x ()
 chomp toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       ((status, newPos), (newRow, newCol)) = eatSpaces src pos end row col
     in
@@ -42,47 +42,47 @@ chomp toError =
         let
           newState = P.State src newPos end indent newRow newCol
         in
-        cok () newState
+        P.Cok () newState
 
-      HasTab               -> cerr newRow newCol (toError E.HasTab)
-      EndlessMultiComment  -> cerr newRow newCol (toError E.EndlessMultiComment)
+      HasTab               -> P.Cerr newRow newCol (toError E.HasTab)
+      EndlessMultiComment  -> P.Cerr newRow newCol (toError E.EndlessMultiComment)
 
 
 
 -- CHECKS -- to be called right after a `chomp`
 
 
-checkIndent : A.Position -> (P.Row -> P.Col -> x) -> P.Parser z x ()
+checkIndent : A.Position -> (P.Row -> P.Col -> x) -> P.Parser x ()
 checkIndent (A.Position endRow endCol) toError =
-  P.Parser <| \((P.State _ _ _ indent _ col) as state) _ eok _ eerr ->
+  P.Parser <| \((P.State _ _ _ indent _ col) as state) ->
     if col > indent && col > 1
-    then eok () state
-    else eerr endRow endCol toError
+    then P.Eok () state
+    else P.Eerr endRow endCol toError
 
 
-checkAligned : (Int -> P.Row -> P.Col -> x) -> P.Parser z x ()
+checkAligned : (Int -> P.Row -> P.Col -> x) -> P.Parser x ()
 checkAligned toError =
-  P.Parser <| \((P.State _ _ _ indent row col) as state) _ eok _ eerr ->
+  P.Parser <| \((P.State _ _ _ indent row col) as state) ->
     if col == indent
-    then eok () state
-    else eerr row col (toError indent)
+    then P.Eok () state
+    else P.Eerr row col (toError indent)
 
 
-checkFreshLine : (P.Row -> P.Col -> x) -> P.Parser z x ()
+checkFreshLine : (P.Row -> P.Col -> x) -> P.Parser x ()
 checkFreshLine toError =
-  P.Parser <| \((P.State _ _ _ _ row col) as state) _ eok _ eerr ->
+  P.Parser <| \((P.State _ _ _ _ row col) as state) ->
     if col == 1
-    then eok () state
-    else eerr row col toError
+    then P.Eok () state
+    else P.Eerr row col toError
 
 
 
 -- CHOMP AND CHECK
 
 
-chompAndCheckIndent : (E.Space -> P.Row -> P.Col -> x) -> (P.Row -> P.Col -> x) -> P.Parser z x ()
+chompAndCheckIndent : (E.Space -> P.Row -> P.Col -> x) -> (P.Row -> P.Col -> x) -> P.Parser x ()
 chompAndCheckIndent toSpaceError toIndentError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       ((status, newPos), (newRow, newCol)) = eatSpaces src pos end row col
     in
@@ -94,13 +94,13 @@ chompAndCheckIndent toSpaceError toIndentError =
           let
             newState = P.State src newPos end indent newRow newCol
           in
-          cok () newState
+          P.Cok () newState
 
         else
-          cerr row col toIndentError
+          P.Cerr row col toIndentError
 
-      HasTab               -> cerr newRow newCol (toSpaceError E.HasTab)
-      EndlessMultiComment  -> cerr newRow newCol (toSpaceError E.EndlessMultiComment)
+      HasTab               -> P.Cerr newRow newCol (toSpaceError E.HasTab)
+      EndlessMultiComment  -> P.Cerr newRow newCol (toSpaceError E.EndlessMultiComment)
 
 
 
@@ -232,9 +232,9 @@ eatMultiCommentHelp src pos end row col openComments =
 -- DOCUMENTATION COMMENT
 
 
-docComment : (P.Row -> P.Col -> x) -> (E.Space -> P.Row -> P.Col -> x) -> P.Parser z x Src.Comment
+docComment : (P.Row -> P.Col -> x) -> (E.Space -> P.Row -> P.Col -> x) -> P.Parser x Src.Comment
 docComment toExpectation toSpaceError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       pos3 = pos + 3
     in
@@ -258,9 +258,9 @@ docComment toExpectation toSpaceError =
             comment = Src.Comment snippet
             newState = P.State src newPos end indent newRow newCol
           in
-          cok comment newState
+          P.Cok comment newState
 
-        MultiTab -> cerr newRow newCol (toSpaceError E.HasTab)
-        MultiEndless -> cerr row col (toSpaceError E.EndlessMultiComment)
+        MultiTab -> P.Cerr newRow newCol (toSpaceError E.HasTab)
+        MultiEndless -> P.Cerr row col (toSpaceError E.EndlessMultiComment)
     else
-      eerr row col toExpectation
+      P.Eerr row col toExpectation
