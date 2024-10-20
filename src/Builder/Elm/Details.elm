@@ -832,7 +832,7 @@ downloadPackage cache manager pkg vsn =
               --else IO.return <| Left <| Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
 
 
-endpointDecoder : D.Decoder z e (String, String)
+endpointDecoder : D.Decoder e (String, String)
 endpointDecoder =
   D.bind (D.field "url" D.string) <| \url ->
   D.bind (D.field "hash" D.string) <| \hash ->

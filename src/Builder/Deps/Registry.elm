@@ -82,7 +82,7 @@ addEntry (KnownVersions _ vs) count =
   count + 1 + MList.length vs
 
 
-allPkgsDecoder : D.Decoder z () (Map.Map Pkg.Comparable KnownVersions)
+allPkgsDecoder : D.Decoder () (Map.Map Pkg.Comparable KnownVersions)
 allPkgsDecoder =
   let
     keyDecoder =
@@ -139,7 +139,7 @@ addNew (name, version) versions =
 -- NEW PACKAGE DECODER
 
 
-newPkgDecoder : D.Decoder z () (Pkg.Name, V.Version)
+newPkgDecoder : D.Decoder () (Pkg.Name, V.Version)
 newPkgDecoder =
   D.customString newPkgParser bail
 
@@ -177,7 +177,7 @@ getVersionsE name (Registry _ versions) =
 -- POST
 
 
-post : Http.Manager -> String -> D.Decoder (Either (D.Error x) v) x v -> (v -> IO a c d e f g h z) -> IO a c d e f g h (Either Exit.RegistryProblem z)
+post : Http.Manager -> String -> D.Decoder x v -> (v -> IO a c d e f g h z) -> IO a c d e f g h (Either Exit.RegistryProblem z)
 post manager path decoder callback =
   let
     url = Website.route path []

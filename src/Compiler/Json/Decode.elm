@@ -44,11 +44,13 @@ import Extra.Class.Monad as Monad
 -- RUNNERS
 
 
-fromByteString : Decoder (Either (Error x) a) x a -> String -> Either (Error x) a
+fromByteString : Decoder x a -> String -> Either (Error x) a
 fromByteString (Decoder decode) src =
   case P.fromByteString pFile BadEnd src of
     Right ast ->
-      decode ast Right (Left << DecodeProblem src)
+      case decode ast of
+        Dok a -> Right a
+        Derr p -> Left (DecodeProblem src p)
 
     Left problem ->
       Left (ParseProblem src problem)
@@ -58,14 +60,13 @@ fromByteString (Decoder decode) src =
 -- DECODERS
 
 
-type Decoder z x a =
-  Decoder
-  (
-    AST
-    -> (a -> z)
-    -> (Problem x -> z)
-    -> z
-  )
+type Decoder x a =
+  Decoder (AST -> DStep x a)
+
+
+type DStep x a
+  = Dok a
+  | Derr (Problem x)
 
 
 
@@ -103,47 +104,43 @@ type DecodeExpectation
 -- INSTANCES
 
 
-fmap : Functor.Fmap a (Decoder z x a) b (Decoder z x b)
+fmap : Functor.Fmap a (Decoder x a) b (Decoder x b)
 fmap func (Decoder decodeA) =
-  Decoder <| \ast ok err ->
-    let
-      ok_ a = ok (func a)
-    in
-    decodeA ast ok_ err
+  Decoder <| \ast ->
+    case decodeA ast of
+      Dok a -> Dok (func a)
+      Derr p -> Derr p
 
 
-pure : Applicative.Pure a (Decoder z x a)
+pure : Applicative.Pure a (Decoder x a)
 pure = return
 
-andMap : Applicative.AndMap (Decoder z x a) (Decoder z x (a -> b)) (Decoder z x b)
+andMap : Applicative.AndMap (Decoder x a) (Decoder x (a -> b)) (Decoder x b)
 andMap (Decoder decodeArg) (Decoder decodeFunc) =
-  Decoder <| \ast ok err ->
-    let
-      okF func =
-        let
-          okA arg = ok (func arg)
-        in
-        decodeArg ast okA err
-    in
-    decodeFunc ast okF err
+  Decoder <| \ast ->
+    case decodeFunc ast of
+      Dok func ->
+        case decodeArg ast of
+          Dok arg -> Dok (func arg)
+          Derr p -> Derr p
+      Derr p -> Derr p
 
 
-return : Monad.Return a (Decoder z x a)
+return : Monad.Return a (Decoder x a)
 return a =
-  Decoder <| \_ ok _ ->
-    ok a
+  Decoder <| \_ ->
+    Dok a
 
-bind : Monad.Bind a (Decoder z x a) (Decoder z x b)
+bind : Monad.Bind a (Decoder x a) (Decoder x b)
 bind (Decoder decodeA) callback =
-  Decoder <| \ast ok err ->
-    let
-      ok_ a =
+  Decoder <| \ast ->
+    case decodeA ast of
+      Dok a ->
         case callback a of
-          Decoder decodeB -> decodeB ast ok err
-    in
-    decodeA ast ok_ err
+          Decoder decodeB -> decodeB ast
+      Derr p -> Derr p
 
-andThen : Monad.AndThen a (Decoder z x a) (Decoder z x b)
+andThen : Monad.AndThen a (Decoder x a) (Decoder x b)
 andThen = Monad.andThen bind
 
 
@@ -151,64 +148,62 @@ andThen = Monad.andThen bind
 -- STRINGS
 
 
-string : Decoder z x Json.TString
+string : Decoder x Json.TString
 string =
-  Decoder <| \(A.At region ast) ok err ->
+  Decoder <| \(A.At region ast) ->
     case ast of
       String snippet ->
-        ok (Json.fromSnippet snippet)
+        Dok (Json.fromSnippet snippet)
 
       _ ->
-        err (Expecting region TString)
+        Derr (Expecting region TString)
 
 
-customString : P.Parser x a -> (Row -> Col -> x) -> Decoder z x a
+customString : P.Parser x a -> (Row -> Col -> x) -> Decoder x a
 customString parser toBadEnd =
-  Decoder <| \(A.At region ast) ok err ->
+  Decoder <| \(A.At region ast) ->
     case ast of
       String snippet ->
         case P.fromSnippet parser toBadEnd snippet of
-          Right a -> ok a
-          Left  x -> err (Failure region x)
+          Right a -> Dok a
+          Left  x -> Derr (Failure region x)
 
       _ ->
-        err (Expecting region TString)
+        Derr (Expecting region TString)
 
 
 
 -- LISTS
 
 
-list : Decoder z x a -> Decoder z x (TList a)
+list : Decoder x a -> Decoder x (TList a)
 list decoder =
-  Decoder <| \(A.At region ast) ok err ->
+  Decoder <| \(A.At region ast) ->
     case ast of
       Array asts ->
-        listHelp decoder ok err 0 asts []
+        listHelp decoder 0 asts []
 
       _ ->
-        err (Expecting region TArray)
+        Derr (Expecting region TArray)
 
 
-listHelp : Decoder b x a -> (TList a -> b) -> (Problem x -> b) -> Int -> TList AST -> TList a -> b
-listHelp ((Decoder decodeA) as decoder) ok err i asts revs =
+listHelp : Decoder x a -> Int -> TList AST -> TList a -> DStep x (TList a)
+listHelp ((Decoder decodeA) as decoder) i asts revs =
   case asts of
     [] ->
-      ok (MList.reverse revs)
+      Dok (MList.reverse revs)
 
     ast::asts_ ->
-      let
-        ok_ value = listHelp decoder ok err (i+1) asts_ (value::revs)
-        err_ prob = err (Index i prob)
-      in
-      decodeA ast ok_ err_
+      case decodeA ast of
+        Dok value -> listHelp decoder (i+1) asts_ (value::revs)
+        Derr prob -> Derr (Index i prob)
 
 
 
 -- NON-EMPTY LISTS
 
 
-nonEmptyList : Decoder z x a -> x -> Decoder z x (NE.TList a)
+nonEmptyList : Decoder x a -> x -> Decoder x (NE.TList a)
 nonEmptyList decoder x =
   bind (list decoder) <| \values ->
   case values of
@@ -224,41 +219,39 @@ type KeyDecoder x comparable =
   KeyDecoder (P.Parser x comparable) (Row -> Col -> x)
 
 
-dict : KeyDecoder x comparable -> Decoder z x a -> Decoder z x (Map.Map comparable a)
+dict : KeyDecoder x comparable -> Decoder x a -> Decoder x (Map.Map comparable a)
 dict keyDecoder valueDecoder =
   fmap Map.fromList <| pairs keyDecoder valueDecoder
 
 
-pairs : KeyDecoder x comparable -> Decoder z x a -> Decoder z x (TList (comparable, a))
+pairs : KeyDecoder x comparable -> Decoder x a -> Decoder x (TList (comparable, a))
 pairs keyDecoder valueDecoder =
-  Decoder <| \(A.At region ast) ok err ->
+  Decoder <| \(A.At region ast) ->
     case ast of
       Object kvs ->
-        pairsHelp keyDecoder valueDecoder ok err kvs []
+        pairsHelp keyDecoder valueDecoder kvs []
 
       _ ->
-        err (Expecting region TObject)
+        Derr (Expecting region TObject)
 
 
-pairsHelp : KeyDecoder x comparable -> Decoder z x a -> (TList (comparable, a) -> z) -> (Problem x -> z) -> TList (P.Snippet, AST) -> TList (comparable, a) -> z
-pairsHelp ((KeyDecoder keyParser toBadEnd) as keyDecoder) ((Decoder decodeA) as valueDecoder) ok err kvs revs =
+pairsHelp : KeyDecoder x comparable -> Decoder x a -> TList (P.Snippet, AST) -> TList (comparable, a) -> DStep x (TList (comparable, a))
+pairsHelp ((KeyDecoder keyParser toBadEnd) as keyDecoder) ((Decoder decodeA) as valueDecoder) kvs revs =
   case kvs of
     [] ->
-      ok (MList.reverse revs)
+      Dok (MList.reverse revs)
 
     (snippet, ast) :: kvs_ ->
       case P.fromSnippet keyParser toBadEnd snippet of
         Left x ->
-          err (Failure (snippetToRegion snippet) x)
+          Derr (Failure (snippetToRegion snippet) x)
 
         Right key ->
-          let
-            ok_ value = pairsHelp keyDecoder valueDecoder ok err kvs_ ((key,value)::revs)
-            err_ prob =
+          case decodeA ast of
+            Dok value -> pairsHelp keyDecoder valueDecoder kvs_ ((key,value)::revs)
+            Derr prob ->
               let (P.Snippet fptr off len _ _) = snippet in
-              err (Field (String.slice off (off + len) fptr) prob)
-          in
-          decodeA ast ok_ err_
+              Derr (Field (String.slice off (off + len) fptr) prob)
 
 
 snippetToRegion : P.Snippet -> A.Region
@@ -270,24 +263,24 @@ snippetToRegion (P.Snippet _ _ len row col) =
 -- FIELDS
 
 
-field : String -> Decoder z x a -> Decoder z x a
+field : String -> Decoder x a -> Decoder x a
 field key (Decoder decodeA) =
-  Decoder <| \(A.At region ast) ok err ->
+  Decoder <| \(A.At region ast) ->
     case ast of
       Object kvs ->
         case findField key kvs of
           Just value ->
-            let
-              err_ prob =
-                err (Field key prob)
-            in
-            decodeA value ok err_
+            case decodeA value of
+              --Dok a -> Dok a
+              Derr prob ->
+                Derr (Field key prob)
+              x -> x
 
           Nothing ->
-            err (Expecting region (TObjectWith key))
+            Derr (Expecting region (TObjectWith key))
 
       _ ->
-        err (Expecting region TObject)
+        Derr (Expecting region TObject)
 
 
 findField : String -> TList (P.Snippet, AST) -> Maybe AST
@@ -306,33 +299,33 @@ findField key pairs_ =
 -- ONE OF
 
 
-oneOf : TList (Decoder z x a) -> Decoder z x a
+oneOf : TList (Decoder x a) -> Decoder x a
 oneOf decoders =
-  Decoder <| \ast ok err ->
+  Decoder <| \ast ->
     case decoders of
       Decoder decodeA :: decoders_ ->
-        let
-          err_ e =
-            oneOfHelp ast ok err decoders_ e []
-        in
-        decodeA ast ok err_
+        case decodeA ast of
+          --Dok a -> Dok a
+          Derr e ->
+            oneOfHelp ast decoders_ e []
+          x -> x
 
       [] ->
         Debug.todo "Ran into (Json.Decode.oneOf [])"
 
 
-oneOfHelp : AST -> (a -> b) -> (Problem x -> b) -> TList (Decoder b x a) -> Problem x -> TList (Problem x) -> b
-oneOfHelp ast ok err decoders p ps =
+oneOfHelp : AST -> TList (Decoder x a) -> Problem x -> TList (Problem x) -> DStep x a
+oneOfHelp ast decoders p ps =
   case decoders of
     Decoder decodeA :: decoders_ ->
-      let
-        err_ p_ =
-          oneOfHelp ast ok err decoders_ p_ (p::ps)
-      in
-      decodeA ast ok err_
+      case decodeA ast of
+        --Dok a -> Dok a
+        Derr p_ ->
+          oneOfHelp ast decoders_ p_ (p::ps)
+        x -> x
 
     [] ->
-      err (oneOfError [] p ps)
+      Derr (oneOfError [] p ps)
 
 
 oneOfError : TList (Problem x) -> Problem x -> TList (Problem x) -> Problem x
@@ -349,23 +342,22 @@ oneOfError problems prob ps =
 -- FAILURE
 
 
-failure : x -> Decoder z x a
+failure : x -> Decoder x a
 failure x =
-  Decoder <| \(A.At region _) _ err ->
-    err (Failure region x)
+  Decoder <| \(A.At region _) ->
+    Derr (Failure region x)
 
 
 
 -- ERRORS
 
 
-mapError : (x -> y) -> Decoder z x a -> Decoder z y a
+mapError : (x -> y) -> Decoder x a -> Decoder y a
 mapError func (Decoder decodeA) =
-  Decoder <| \ast ok err ->
-    let
-      err_ prob = err (mapErrorHelp func prob)
-    in
-    decodeA ast ok err_
+  Decoder <| \ast ->
+    case decodeA ast of
+      Dok a -> Dok a
+      Derr prob -> Derr (mapErrorHelp func prob)
 
 
 mapErrorHelp : (x -> y) -> Problem x -> Problem y

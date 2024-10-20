@@ -370,7 +370,7 @@ bComparable =
 -- JSON
 
 
-decoder : D.Decoder z ( Row, Col ) Name
+decoder : D.Decoder ( Row, Col ) Name
 decoder =
     D.customString parser Tuple.pair
 
