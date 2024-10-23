@@ -19,11 +19,11 @@ import Extra.Type.Maybe as ME
 -- RESULT
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
-createInitialEnv : ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> TList Src.Import -> TResult z i w Env.Env
+createInitialEnv : ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> TList Src.Import -> TResult i w Env.Env
 createInitialEnv home ifaces imports =
     MResult.bind (MResult.foldM (addImport ifaces) emptyState (toSafeImports home imports)) <|
         \(State vs ts cs bs qvs qts qcs) ->
@@ -104,7 +104,7 @@ isNormal (Src.Import (A.At _ name) maybeAlias _) =
 -- ADD IMPORTS
 
 
-addImport : Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> TResult z i w State
+addImport : Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> TResult i w State
 addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing_) =
     let
         (I.Interface pkg defs unions aliases binops) =
@@ -244,7 +244,7 @@ addExposedValue :
     -> Map.Map Name.Name I.Binop
     -> State
     -> Src.Exposed
-    -> TResult z i w State
+    -> TResult i w State
 addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
     case exposed of
         Src.Lower (A.At region name) ->

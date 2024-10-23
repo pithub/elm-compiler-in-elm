@@ -23,8 +23,8 @@ import Extra.Type.Map as Map
 -- RESULTS
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 type alias Bindings =
@@ -35,23 +35,23 @@ type alias Bindings =
 -- VERIFY
 
 
-verify : Error.DuplicatePatternContext -> TResult z DupsDict w a -> TResult z i w ( a, Bindings )
+verify : Error.DuplicatePatternContext -> TResult DupsDict w a -> TResult i w ( a, Bindings )
 verify context (CResult k) =
     CResult <|
-        \info warnings bad good ->
-            k Dups.none
-                warnings
-                (\_ warnings1 errors ->
-                    bad info warnings1 errors
-                )
-                (\bindings warnings1 value ->
+        \info warnings ->
+            case k Dups.none warnings of
+                MResult.Rbad _ warnings1 errors ->
+                    MResult.Rbad info warnings1 errors
+
+                MResult.Rgood bindings warnings1 value ->
                     case Dups.detect (Error.DuplicatePattern context) bindings of
                         CResult k1 ->
-                            k1 ()
-                                ()
-                                (\() () errs -> bad info warnings1 errs)
-                                (\() () dict -> good info warnings1 ( value, dict ))
-                )
+                            case k1 () () of
+                                MResult.Rbad () () errs ->
+                                    MResult.Rbad info warnings1 errs
+
+                                MResult.Rgood () () dict ->
+                                    MResult.Rgood info warnings1 ( value, dict )
 
 
 
@@ -62,7 +62,7 @@ type alias DupsDict =
     Dups.Dict_ A.Region
 
 
-canonicalize : Env.Env -> Src.Pattern -> TResult z DupsDict w Can.Pattern
+canonicalize : Env.Env -> Src.Pattern -> TResult DupsDict w Can.Pattern
 canonicalize env (A.At region pattern) =
     MResult.fmap (A.At region) <|
         case pattern of
@@ -113,7 +113,7 @@ canonicalize env (A.At region pattern) =
                 MResult.ok (Can.PInt int)
 
 
-canonicalizeCtor : Env.Env -> A.Region -> Name.Name -> TList Src.Pattern -> Env.Ctor -> TResult z DupsDict w Can.Pattern_
+canonicalizeCtor : Env.Env -> A.Region -> Name.Name -> TList Src.Pattern -> Env.Ctor -> TResult DupsDict w Can.Pattern_
 canonicalizeCtor env region name patterns ctor =
     case ctor of
         Env.Ctor home tipe union index args ->
@@ -138,7 +138,7 @@ canonicalizeCtor env region name patterns ctor =
             MResult.throw (Error.PatternHasRecordCtor region name)
 
 
-canonicalizeTuple : A.Region -> Env.Env -> TList Src.Pattern -> TResult z DupsDict w (Maybe Can.Pattern)
+canonicalizeTuple : A.Region -> Env.Env -> TList Src.Pattern -> TResult DupsDict w (Maybe Can.Pattern)
 canonicalizeTuple tupleRegion env extras =
     case extras of
         [] ->
@@ -151,7 +151,7 @@ canonicalizeTuple tupleRegion env extras =
             MResult.throw <| Error.TupleLargerThanThree tupleRegion
 
 
-canonicalizeList : Env.Env -> TList Src.Pattern -> TResult z DupsDict w (TList Can.Pattern)
+canonicalizeList : Env.Env -> TList Src.Pattern -> TResult DupsDict w (TList Can.Pattern)
 canonicalizeList env list =
     case list of
         [] ->
@@ -167,19 +167,19 @@ canonicalizeList env list =
 -- LOG BINDINGS
 
 
-logVar : Name.Name -> A.Region -> a -> TResult z DupsDict w a
+logVar : Name.Name -> A.Region -> a -> TResult DupsDict w a
 logVar name region value =
     CResult <|
-        \bindings warnings _ ok ->
-            ok (Dups.insert name region region bindings) warnings value
+        \bindings warnings ->
+            MResult.Rgood (Dups.insert name region region bindings) warnings value
 
 
-logFields : TList (A.Located Name.Name) -> a -> TResult z DupsDict w a
+logFields : TList (A.Located Name.Name) -> a -> TResult DupsDict w a
 logFields fields value =
     let
         addField dict (A.At region name) =
             Dups.insert name region region dict
     in
     CResult <|
-        \bindings warnings _ ok ->
-            ok (MList.foldl addField bindings fields) warnings value
+        \bindings warnings ->
+            MResult.Rgood (MList.foldl addField bindings fields) warnings value

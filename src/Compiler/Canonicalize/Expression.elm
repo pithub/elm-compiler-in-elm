@@ -31,8 +31,8 @@ import Extra.Type.Map as Map
 -- RESULTS
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 type alias FreeLocals =
@@ -52,7 +52,7 @@ type Uses
 -- CANONICALIZE
 
 
-canonicalize : Env.Env -> Src.Expr -> TResult z FreeLocals (TList W.Warning) Can.Expr
+canonicalize : Env.Env -> Src.Expr -> TResult FreeLocals (TList W.Warning) Can.Expr
 canonicalize env (A.At region expression) =
     MResult.fmap (A.At region) <|
         case expression of
@@ -169,7 +169,7 @@ canonicalize env (A.At region expression) =
 -- CANONICALIZE TUPLE EXTRAS
 
 
-canonicalizeTupleExtras : A.Region -> Env.Env -> TList Src.Expr -> TResult z FreeLocals (TList W.Warning) (Maybe Can.Expr)
+canonicalizeTupleExtras : A.Region -> Env.Env -> TList Src.Expr -> TResult FreeLocals (TList W.Warning) (Maybe Can.Expr)
 canonicalizeTupleExtras region env extras =
     case extras of
         [] ->
@@ -186,7 +186,7 @@ canonicalizeTupleExtras region env extras =
 -- CANONICALIZE IF BRANCH
 
 
-canonicalizeIfBranch : Env.Env -> ( Src.Expr, Src.Expr ) -> TResult z FreeLocals (TList W.Warning) ( Can.Expr, Can.Expr )
+canonicalizeIfBranch : Env.Env -> ( Src.Expr, Src.Expr ) -> TResult FreeLocals (TList W.Warning) ( Can.Expr, Can.Expr )
 canonicalizeIfBranch env ( condition, branch ) =
     MResult.ok Tuple.pair
         |> MResult.andMap (canonicalize env condition)
@@ -197,7 +197,7 @@ canonicalizeIfBranch env ( condition, branch ) =
 -- CANONICALIZE CASE BRANCH
 
 
-canonicalizeCaseBranch : Env.Env -> ( Src.Pattern, Src.Expr ) -> TResult z FreeLocals (TList W.Warning) Can.CaseBranch
+canonicalizeCaseBranch : Env.Env -> ( Src.Pattern, Src.Expr ) -> TResult FreeLocals (TList W.Warning) Can.CaseBranch
 canonicalizeCaseBranch env ( pattern, expr ) =
     directUsage <|
         MResult.bind
@@ -217,7 +217,7 @@ canonicalizeCaseBranch env ( pattern, expr ) =
 -- CANONICALIZE BINOPS
 
 
-canonicalizeBinops : A.Region -> Env.Env -> TList ( Src.Expr, A.Located Name.Name ) -> Src.Expr -> TResult z FreeLocals (TList W.Warning) Can.Expr
+canonicalizeBinops : A.Region -> Env.Env -> TList ( Src.Expr, A.Located Name.Name ) -> Src.Expr -> TResult FreeLocals (TList W.Warning) Can.Expr
 canonicalizeBinops overallRegion env ops final =
     let
         canonicalizeHelp ( expr, A.At region op ) =
@@ -238,7 +238,7 @@ type Step
     | Error Env.Binop Env.Binop
 
 
-runBinopStepper : A.Region -> Step -> TResult z FreeLocals w Can.Expr
+runBinopStepper : A.Region -> Step -> TResult FreeLocals w Can.Expr
 runBinopStepper overallRegion step =
     case step of
         Done expr ->
@@ -299,7 +299,7 @@ toBinop (Env.Binop op home name annotation _ _) left right =
 -- CANONICALIZE LET
 
 
-canonicalizeLet : A.Region -> Env.Env -> TList (A.Located Src.Def) -> Src.Expr -> TResult z FreeLocals (TList W.Warning) Can.Expr
+canonicalizeLet : A.Region -> Env.Env -> TList (A.Located Src.Def) -> Src.Expr -> TResult FreeLocals (TList W.Warning) Can.Expr
 canonicalizeLet letRegion env defs body =
     directUsage <|
         MResult.bind
@@ -394,7 +394,7 @@ type Binding
     | Destruct Can.Pattern Can.Expr
 
 
-addDefNodes : Env.Env -> TList Node -> A.Located Src.Def -> TResult z FreeLocals (TList W.Warning) (TList Node)
+addDefNodes : Env.Env -> TList Node -> A.Located Src.Def -> TResult FreeLocals (TList W.Warning) (TList Node)
 addDefNodes env nodes (A.At _ def) =
     case def of
         Src.Define ((A.At _ name) as aname) srcArgs body maybeType ->
@@ -449,15 +449,14 @@ addDefNodes env nodes (A.At _ def) =
             <|
                 \( cpattern, _ ) ->
                     CResult <|
-                        \fs ws bad good ->
+                        \fs ws ->
                             case canonicalize env body of
                                 CResult k ->
-                                    k Map.empty
-                                        ws
-                                        (\freeLocals warnings errors ->
-                                            bad (Map.unionWith combineUses freeLocals fs) warnings errors
-                                        )
-                                        (\freeLocals warnings cbody ->
+                                    case k Map.empty ws of
+                                        MResult.Rbad freeLocals warnings errors ->
+                                            MResult.Rbad (Map.unionWith combineUses freeLocals fs) warnings errors
+
+                                        MResult.Rgood freeLocals warnings cbody ->
                                             let
                                                 names =
                                                     getPatternNames [] pattern
@@ -468,18 +467,17 @@ addDefNodes env nodes (A.At _ def) =
                                                 node =
                                                     ( Destruct cpattern cbody, name, Map.keys freeLocals )
                                             in
-                                            good
+                                            MResult.Rgood
                                                 (Map.unionWith combineUses fs freeLocals)
                                                 warnings
                                                 (MList.foldl (addEdge [ name ]) (node :: nodes) names)
-                                        )
 
 
-logLetLocals : TList arg -> FreeLocals -> value -> TResult z FreeLocals w value
+logLetLocals : TList arg -> FreeLocals -> value -> TResult FreeLocals w value
 logLetLocals args letLocals value =
     CResult <|
-        \freeLocals warnings _ good ->
-            good
+        \freeLocals warnings ->
+            MResult.Rgood
                 (Map.unionWith combineUses freeLocals <|
                     case args of
                         [] ->
@@ -551,7 +549,7 @@ gatherTypedArgs :
     -> Can.Type
     -> Index.ZeroBased
     -> TList ( Can.Pattern, Can.Type )
-    -> TResult z Pattern.DupsDict w ( TList ( Can.Pattern, Can.Type ), Can.Type )
+    -> TResult Pattern.DupsDict w ( TList ( Can.Pattern, Can.Type ), Can.Type )
 gatherTypedArgs env name srcArgs tipe index revTypedArgs =
     case srcArgs of
         [] ->
@@ -579,7 +577,7 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
 -- DETECT CYCLES
 
 
-detectCycles : A.Region -> TList (Graph.SCC Binding) -> Can.Expr -> TResult z i w Can.Expr
+detectCycles : A.Region -> TList (Graph.SCC Binding) -> Can.Expr -> TResult i w Can.Expr
 detectCycles letRegion sccs body =
     case sccs of
         [] ->
@@ -606,7 +604,7 @@ detectCycles letRegion sccs body =
                         )
 
 
-checkCycle : TList Binding -> TList Can.Def -> TResult z i w (TList Can.Def)
+checkCycle : TList Binding -> TList Can.Def -> TResult i w (TList Can.Def)
 checkCycle bindings defs =
     case bindings of
         [] ->
@@ -669,11 +667,11 @@ getDefName def =
 -- LOG VARIABLE USES
 
 
-logVar : Name.Name -> a -> TResult z FreeLocals w a
+logVar : Name.Name -> a -> TResult FreeLocals w a
 logVar name value =
     CResult <|
-        \freeLocals warnings _ good ->
-            good (Map.insertWith combineUses name oneDirectUse freeLocals) warnings value
+        \freeLocals warnings ->
+            MResult.Rgood (Map.insertWith combineUses name oneDirectUse freeLocals) warnings value
 
 
 oneDirectUse : Uses
@@ -698,17 +696,16 @@ delayUse (Uses direct delayed) =
 verifyBindings :
     W.Context
     -> Pattern.Bindings
-    -> TResult z FreeLocals (TList W.Warning) value
-    -> TResult z info (TList W.Warning) ( value, FreeLocals )
+    -> TResult FreeLocals (TList W.Warning) value
+    -> TResult info (TList W.Warning) ( value, FreeLocals )
 verifyBindings context bindings (CResult k) =
     CResult <|
-        \info warnings bad good ->
-            k Map.empty
-                warnings
-                (\_ warnings1 err ->
-                    bad info warnings1 err
-                )
-                (\freeLocals warnings1 value ->
+        \info warnings ->
+            case k Map.empty warnings of
+                MResult.Rbad _ warnings1 err ->
+                    MResult.Rbad info warnings1 err
+
+                MResult.Rgood freeLocals warnings1 value ->
                     let
                         outerFreeLocals =
                             Map.difference freeLocals bindings
@@ -723,8 +720,7 @@ verifyBindings context bindings (CResult k) =
                                 Map.foldlWithKey (addUnusedWarning context) warnings1 <|
                                     Map.difference bindings freeLocals
                     in
-                    good info warnings2 ( value, outerFreeLocals )
-                )
+                    MResult.Rgood info warnings2 ( value, outerFreeLocals )
 
 
 addUnusedWarning : W.Context -> TList W.Warning -> Name.Name -> A.Region -> TList W.Warning
@@ -732,39 +728,39 @@ addUnusedWarning context warnings name region =
     W.UnusedVariable region context name :: warnings
 
 
-directUsage : TResult z () w ( expr, FreeLocals ) -> TResult z FreeLocals w expr
+directUsage : TResult () w ( expr, FreeLocals ) -> TResult FreeLocals w expr
 directUsage (CResult k) =
     CResult <|
-        \freeLocals warnings bad good ->
-            k ()
-                warnings
-                (\() ws es -> bad freeLocals ws es)
-                (\() ws ( value, newFreeLocals ) ->
-                    good (Map.unionWith combineUses freeLocals newFreeLocals) ws value
-                )
+        \freeLocals warnings ->
+            case k () warnings of
+                MResult.Rbad () ws es ->
+                    MResult.Rbad freeLocals ws es
+
+                MResult.Rgood () ws ( value, newFreeLocals ) ->
+                    MResult.Rgood (Map.unionWith combineUses freeLocals newFreeLocals) ws value
 
 
-delayedUsage : TResult z () w ( expr, FreeLocals ) -> TResult z FreeLocals w expr
+delayedUsage : TResult () w ( expr, FreeLocals ) -> TResult FreeLocals w expr
 delayedUsage (CResult k) =
     CResult <|
-        \freeLocals warnings bad good ->
-            k ()
-                warnings
-                (\() ws es -> bad freeLocals ws es)
-                (\() ws ( value, newFreeLocals ) ->
+        \freeLocals warnings ->
+            case k () warnings of
+                MResult.Rbad () ws es ->
+                    MResult.Rbad freeLocals ws es
+
+                MResult.Rgood () ws ( value, newFreeLocals ) ->
                     let
                         delayedLocals =
                             Map.map delayUse newFreeLocals
                     in
-                    good (Map.unionWith combineUses freeLocals delayedLocals) ws value
-                )
+                    MResult.Rgood (Map.unionWith combineUses freeLocals delayedLocals) ws value
 
 
 
 -- FIND VARIABLE
 
 
-findVar : A.Region -> Env.Env -> Name.Name -> TResult z FreeLocals w Can.Expr_
+findVar : A.Region -> Env.Env -> Name.Name -> TResult FreeLocals w Can.Expr_
 findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
     case Map.lookup name vs of
         Just var ->
@@ -790,7 +786,7 @@ findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
             MResult.throw (Error.NotFoundVar region Nothing name (toPossibleNames vs qvs))
 
 
-findVarQual : A.Region -> Env.Env -> Name.Name -> Name.Name -> TResult z FreeLocals w Can.Expr_
+findVarQual : A.Region -> Env.Env -> Name.Name -> Name.Name -> TResult FreeLocals w Can.Expr_
 findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
     case Map.lookup prefix qvs of
         Just qualified ->

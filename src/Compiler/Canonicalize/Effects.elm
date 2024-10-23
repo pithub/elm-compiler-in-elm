@@ -22,8 +22,8 @@ import Extra.Type.Map as Map
 -- RESULT
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 
@@ -35,7 +35,7 @@ canonicalize :
     -> TList (A.Located Src.Value)
     -> Map.Map Name.Name union
     -> Src.Effects
-    -> TResult z i w Can.Effects
+    -> TResult i w Can.Effects
 canonicalize env values unions effects =
     case effects of
         Src.NoEffects ->
@@ -60,19 +60,19 @@ canonicalize env values unions effects =
                         Src.CCmd cmdType ->
                             MResult.ok Can.CCmd
                                 |> MResult.andMap (verifyEffectType cmdType unions)
-                                |> MResult.discard (verifyManager region dict "cmdMap")
+                                |> MResult.discardFirst (verifyManager region dict "cmdMap")
 
                         Src.CSub subType ->
                             MResult.ok Can.CSub
                                 |> MResult.andMap (verifyEffectType subType unions)
-                                |> MResult.discard (verifyManager region dict "subMap")
+                                |> MResult.discardFirst (verifyManager region dict "subMap")
 
                         Src.Fx cmdType subType ->
                             MResult.ok Can.Fx
                                 |> MResult.andMap (verifyEffectType cmdType unions)
                                 |> MResult.andMap (verifyEffectType subType unions)
-                                |> MResult.discard (verifyManager region dict "cmdMap")
-                                |> MResult.discard (verifyManager region dict "subMap")
+                                |> MResult.discardFirst (verifyManager region dict "cmdMap")
+                                |> MResult.discardFirst (verifyManager region dict "subMap")
                     )
 
 
@@ -80,7 +80,7 @@ canonicalize env values unions effects =
 -- CANONICALIZE PORT
 
 
-canonicalizePort : Env.Env -> Src.Port -> TResult z i w ( Name.Name, Can.Port )
+canonicalizePort : Env.Env -> Src.Port -> TResult i w ( Name.Name, Can.Port )
 canonicalizePort env (Src.Port (A.At region portName) tipe) =
     MResult.bind (Type.toAnnotation env tipe) <|
         \(Can.Forall freeVars ctipe) ->
@@ -140,7 +140,7 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
 -- VERIFY MANAGER
 
 
-verifyEffectType : A.Located Name.Name -> Map.Map Name.Name a -> TResult z i w Name.Name
+verifyEffectType : A.Located Name.Name -> Map.Map Name.Name a -> TResult i w Name.Name
 verifyEffectType (A.At region name) unions =
     if Map.member name unions then
         MResult.ok name
@@ -154,7 +154,7 @@ toNameRegion (A.At _ (Src.Value (A.At region name) _ _ _)) =
     ( name, region )
 
 
-verifyManager : A.Region -> Map.Map Name.Name A.Region -> Name.Name -> TResult z i w A.Region
+verifyManager : A.Region -> Map.Map Name.Name A.Region -> Name.Name -> TResult i w A.Region
 verifyManager tagRegion values name =
     case Map.lookup name values of
         Just region ->

@@ -19,15 +19,15 @@ import Extra.Type.Map as Map
 -- RESULT
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 
 -- TO ANNOTATION
 
 
-toAnnotation : Env.Env -> Src.Type -> TResult z i w Can.Annotation
+toAnnotation : Env.Env -> Src.Type -> TResult i w Can.Annotation
 toAnnotation env srcType =
     MResult.bind (canonicalize env srcType) <|
         \tipe ->
@@ -38,7 +38,7 @@ toAnnotation env srcType =
 -- CANONICALIZE TYPES
 
 
-canonicalize : Env.Env -> Src.Type -> TResult z i w Can.Type
+canonicalize : Env.Env -> Src.Type -> TResult i w Can.Type
 canonicalize env (A.At typeRegion tipe) =
     case tipe of
         Src.TVar x ->
@@ -84,7 +84,7 @@ canonicalize env (A.At typeRegion tipe) =
                     )
 
 
-canonicalizeFields : Env.Env -> TList ( A.Located Name.Name, Src.Type ) -> TList ( A.Located Name.Name, TResult z i w Can.FieldType )
+canonicalizeFields : Env.Env -> TList ( A.Located Name.Name, Src.Type ) -> TList ( A.Located Name.Name, TResult i w Can.FieldType )
 canonicalizeFields env fields =
     let
         len =
@@ -100,7 +100,7 @@ canonicalizeFields env fields =
 -- CANONICALIZE TYPE
 
 
-canonicalizeType : Env.Env -> A.Region -> Name.Name -> TList Src.Type -> Env.Type -> TResult z i w Can.Type
+canonicalizeType : Env.Env -> A.Region -> Name.Name -> TList Src.Type -> Env.Type -> TResult i w Can.Type
 canonicalizeType env region name args info =
     MResult.bind (MResult.traverseList (canonicalize env) args) <|
         \cargs ->
@@ -114,7 +114,7 @@ canonicalizeType env region name args info =
                         Can.TType home name cargs
 
 
-checkArity : Int -> A.Region -> Name.Name -> TList (A.Located arg) -> answer -> TResult z i w answer
+checkArity : Int -> A.Region -> Name.Name -> TList (A.Located arg) -> answer -> TResult i w answer
 checkArity expected region name args answer =
     let
         actual =

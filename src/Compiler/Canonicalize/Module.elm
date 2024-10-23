@@ -28,15 +28,15 @@ import Extra.Type.Map as Map
 -- RESULT
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 
 -- MODULES
 
 
-canonicalize : Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> TResult z i (TList W.Warning) Can.Module
+canonicalize : Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> TResult i (TList W.Warning) Can.Module
 canonicalize pkg ifaces ((Src.Module _ exports docs imports values _ _ binops effects) as modul) =
     let
         home =
@@ -77,14 +77,14 @@ canonicalizeBinop (A.At _ (Src.Infix op associativity precedence func)) =
 --
 
 
-canonicalizeValues : Env.Env -> TList (A.Located Src.Value) -> TResult z i (TList W.Warning) Can.Decls
+canonicalizeValues : Env.Env -> TList (A.Located Src.Value) -> TResult i (TList W.Warning) Can.Decls
 canonicalizeValues env values =
     MResult.bind (MResult.traverseList (toNodeOne env) values) <|
         \nodes ->
             detectCycles (Graph.stronglyConnComp nodes)
 
 
-detectCycles : TList (Graph.SCC NodeTwo) -> TResult z i w Can.Decls
+detectCycles : TList (Graph.SCC NodeTwo) -> TResult i w Can.Decls
 detectCycles sccs =
     case sccs of
         [] ->
@@ -106,7 +106,7 @@ detectCycles sccs =
                                     MResult.fmap (Can.DeclareRec d ds) <| detectCycles otherSccs
 
 
-detectBadCycles : Graph.SCC Can.Def -> TResult z i w Can.Def
+detectBadCycles : Graph.SCC Can.Def -> TResult i w Can.Def
 detectBadCycles scc =
     case scc of
         Graph.AcyclicSCC def ->
@@ -158,7 +158,7 @@ type alias NodeTwo =
     ( Can.Def, Name.Name, TList Name.Name )
 
 
-toNodeOne : Env.Env -> A.Located Src.Value -> TResult z i (TList W.Warning) NodeOne
+toNodeOne : Env.Env -> A.Located Src.Value -> TResult i (TList W.Warning) NodeOne
 toNodeOne env (A.At _ (Src.Value ((A.At _ name) as aname) srcArgs body maybeType)) =
     case maybeType of
         Nothing ->
@@ -236,7 +236,7 @@ canonicalizeExports :
     -> Map.Map Name.Name binop
     -> Can.Effects
     -> A.Located Src.Exposing
-    -> TResult z i w Can.Exports
+    -> TResult i w Can.Exports
 canonicalizeExports values unions aliases binops effects (A.At region exposing_) =
     case exposing_ of
         Src.Open ->
@@ -264,7 +264,7 @@ checkExposed :
     -> Map.Map Name.Name binop
     -> Can.Effects
     -> Src.Exposed
-    -> TResult z i w (Dups.Dict_ (A.Located Can.Export))
+    -> TResult i w (Dups.Dict_ (A.Located Can.Export))
 checkExposed values unions aliases binops effects exposed =
     case exposed of
         Src.Lower (A.At region name) ->
@@ -334,6 +334,6 @@ checkPorts effects name =
             Just []
 
 
-ok : Name.Name -> A.Region -> Can.Export -> TResult z i w (Dups.Dict_ (A.Located Can.Export))
+ok : Name.Name -> A.Region -> Can.Export -> TResult i w (Dups.Dict_ (A.Located Can.Export))
 ok name region export =
     MResult.ok <| Dups.one name region (A.At region export)

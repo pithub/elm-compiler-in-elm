@@ -33,8 +33,8 @@ import Extra.Type.Map as Map
 -- RESULT
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 
@@ -168,7 +168,7 @@ type Binop
 -- VARIABLE -- ADD LOCALS
 
 
-addLocals : Map.Map Name.Name A.Region -> Env -> TResult z i w Env
+addLocals : Map.Map Name.Name A.Region -> Env -> TResult i w Env
 addLocals names (Env home vars ts cs bs qvs qts qcs) =
     MResult.bind
         (Map.mergeA
@@ -190,7 +190,7 @@ addLocalLeft _ region =
     Local region
 
 
-addLocalBoth : Name.Name -> A.Region -> Var -> TResult z i w Var
+addLocalBoth : Name.Name -> A.Region -> Var -> TResult i w Var
 addLocalBoth name region var =
     case var of
         Foreign _ _ ->
@@ -210,7 +210,7 @@ addLocalBoth name region var =
 -- FIND TYPE
 
 
-findType : A.Region -> Env -> Name.Name -> TResult z i w Type
+findType : A.Region -> Env -> Name.Name -> TResult i w Type
 findType region (Env _ _ ts _ _ _ qts _) name =
     case Map.lookup name ts of
         Just (Specific _ tipe) ->
@@ -223,7 +223,7 @@ findType region (Env _ _ ts _ _ _ qts _) name =
             MResult.throw (Error.NotFoundType region Nothing name (toPossibleNames ts qts))
 
 
-findTypeQual : A.Region -> Env -> Name.Name -> Name.Name -> TResult z i w Type
+findTypeQual : A.Region -> Env -> Name.Name -> Name.Name -> TResult i w Type
 findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
     case Map.lookup prefix qts of
         Just qualified ->
@@ -245,7 +245,7 @@ findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
 -- FIND CTOR
 
 
-findCtor : A.Region -> Env -> Name.Name -> TResult z i w Ctor
+findCtor : A.Region -> Env -> Name.Name -> TResult i w Ctor
 findCtor region (Env _ _ _ cs _ _ _ qcs) name =
     case Map.lookup name cs of
         Just (Specific _ ctor) ->
@@ -258,7 +258,7 @@ findCtor region (Env _ _ _ cs _ _ _ qcs) name =
             MResult.throw (Error.NotFoundVariant region Nothing name (toPossibleNames cs qcs))
 
 
-findCtorQual : A.Region -> Env -> Name.Name -> Name.Name -> TResult z i w Ctor
+findCtorQual : A.Region -> Env -> Name.Name -> Name.Name -> TResult i w Ctor
 findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
     case Map.lookup prefix qcs of
         Just qualified ->
@@ -280,7 +280,7 @@ findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
 -- FIND BINOP
 
 
-findBinop : A.Region -> Env -> Name.Name -> TResult z i w Binop
+findBinop : A.Region -> Env -> Name.Name -> TResult i w Binop
 findBinop region (Env _ _ _ _ binops _ _ _) name =
     case Map.lookup name binops of
         Just (Specific _ binop) ->

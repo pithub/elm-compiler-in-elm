@@ -44,12 +44,12 @@ type alias ToError =
     Name.Name -> A.Region -> A.Region -> Error.Error
 
 
-detect : ToError -> Dict_ a -> TResult z i w Error.Error (Map.Map Name.Name a)
+detect : ToError -> Dict_ a -> TResult i w Error.Error (Map.Map Name.Name a)
 detect toError dict =
     MResult.traverseWithKey (detectHelp toError) dict
 
 
-detectHelp : ToError -> Name.Name -> OneOrMore.OneOrMore (Info a) -> TResult z i w Error.Error a
+detectHelp : ToError -> Name.Name -> OneOrMore.OneOrMore (Info a) -> TResult i w Error.Error a
 detectHelp toError name values =
     case values of
         OneOrMore.One (Info _ value) ->
@@ -67,7 +67,7 @@ detectHelp toError name values =
 -- CHECK FIELDS
 
 
-checkFields : TList ( A.Located Name.Name, a ) -> TResult z i w Error.Error (Map.Map Name.Name a)
+checkFields : TList ( A.Located Name.Name, a ) -> TResult i w Error.Error (Map.Map Name.Name a)
 checkFields fields =
     detect Error.DuplicateField (MList.foldr addField none fields)
 
@@ -77,7 +77,7 @@ addField ( A.At region name, value ) dups =
     Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
 
 
-checkFields_ : (A.Region -> a -> b) -> TList ( A.Located Name.Name, a ) -> TResult z i w Error.Error (Map.Map Name.Name b)
+checkFields_ : (A.Region -> a -> b) -> TList ( A.Located Name.Name, a ) -> TResult i w Error.Error (Map.Map Name.Name b)
 checkFields_ toValue fields =
     detect Error.DuplicateField (MList.foldr (addField_ toValue) none fields)
 

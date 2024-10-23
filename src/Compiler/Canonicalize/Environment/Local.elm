@@ -20,8 +20,8 @@ import Extra.Type.Map as Map
 -- RESULT
 
 
-type alias TResult z i w a =
-    MResult.TResult z i w Error.Error a
+type alias TResult i w a =
+    MResult.TResult i w Error.Error a
 
 
 type alias Unions =
@@ -32,7 +32,7 @@ type alias Aliases =
     Map.Map Name.Name Can.Alias
 
 
-add : Src.Module -> Env.Env -> TResult z i w ( Env.Env, Unions, Aliases )
+add : Src.Module -> Env.Env -> TResult i w ( Env.Env, Unions, Aliases )
 add module_ env =
     MResult.bind (addTypes module_ env) <|
         \env2 ->
@@ -44,7 +44,7 @@ add module_ env =
 -- ADD VARS
 
 
-addVars : Src.Module -> Env.Env -> TResult z i w Env.Env
+addVars : Src.Module -> Env.Env -> TResult i w Env.Env
 addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
     MResult.bind (collectVars module_) <|
         \topLevelVars ->
@@ -56,7 +56,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
             MResult.ok <| Env.Env home vs2 ts cs bs qvs qts qcs
 
 
-collectVars : Src.Module -> TResult z i w (Map.Map Name.Name Env.Var)
+collectVars : Src.Module -> TResult i w (Map.Map Name.Name Env.Var)
 collectVars (Src.Module _ _ _ _ values _ _ _ effects) =
     let
         addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
@@ -97,7 +97,7 @@ toEffectDups effects =
 -- ADD TYPES
 
 
-addTypes : Src.Module -> Env.Env -> TResult z i w Env.Env
+addTypes : Src.Module -> Env.Env -> TResult i w Env.Env
 addTypes (Src.Module _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
     let
         addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) =
@@ -116,7 +116,7 @@ addTypes (Src.Module _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs
                     addAliases aliases (Env.Env home vs ts1 cs bs qvs qts qcs)
 
 
-addUnion : ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> TResult z i w (Env.Exposed Env.Type)
+addUnion : ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> TResult i w (Env.Exposed Env.Type)
 addUnion home types ((A.At _ (Src.Union (A.At _ name) _ _)) as union) =
     MResult.bind (checkUnionFreeVars union) <|
         \arity ->
@@ -131,7 +131,7 @@ addUnion home types ((A.At _ (Src.Union (A.At _ name) _ _)) as union) =
 -- ADD TYPE ALIASES
 
 
-addAliases : TList (A.Located Src.Alias) -> Env.Env -> TResult z i w Env.Env
+addAliases : TList (A.Located Src.Alias) -> Env.Env -> TResult i w Env.Env
 addAliases aliases env =
     let
         nodes =
@@ -143,7 +143,7 @@ addAliases aliases env =
     MResult.foldM addAlias env sccs
 
 
-addAlias : Env.Env -> Graph.SCC (A.Located Src.Alias) -> TResult z i w Env.Env
+addAlias : Env.Env -> Graph.SCC (A.Located Src.Alias) -> TResult i w Env.Env
 addAlias ((Env.Env home vs ts cs bs qvs qts qcs) as env) scc =
     case scc of
         Graph.AcyclicSCC ((A.At _ (Src.Alias (A.At _ name) _ tipe)) as alias) ->
@@ -211,7 +211,7 @@ getEdges edges (A.At _ tipe) =
 -- CHECK FREE VARIABLES
 
 
-checkUnionFreeVars : A.Located Src.Union -> TResult z i w Int
+checkUnionFreeVars : A.Located Src.Union -> TResult i w Int
 checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
     let
         addArg (A.At region arg) dict =
@@ -235,7 +235,7 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
                         Error.TypeVarsUnboundInUnion unionRegion name (MList.map A.toValue args) unbound unbounds
 
 
-checkAliasFreeVars : A.Located Src.Alias -> TResult z i w (TList Name.Name)
+checkAliasFreeVars : A.Located Src.Alias -> TResult i w (TList Name.Name)
 checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
     let
         addArg (A.At region arg) dict =
@@ -300,7 +300,7 @@ addFreeVars freeVars (A.At region tipe) =
 -- ADD CTORS
 
 
-addCtors : Src.Module -> Env.Env -> TResult z i w ( Env.Env, Unions, Aliases )
+addCtors : Src.Module -> Env.Env -> TResult i w ( Env.Env, Unions, Aliases )
 addCtors (Src.Module _ _ _ _ _ unions aliases _ _) ((Env.Env home vs ts cs bs qvs qts qcs) as env) =
     MResult.bind (MResult.traverseList (canonicalizeUnion env) unions) <|
         \unionInfo ->
@@ -333,7 +333,7 @@ type alias CtorDups =
 -- CANONICALIZE ALIAS
 
 
-canonicalizeAlias : Env.Env -> A.Located Src.Alias -> TResult z i w ( ( Name.Name, Can.Alias ), CtorDups )
+canonicalizeAlias : Env.Env -> A.Located Src.Alias -> TResult i w ( ( Name.Name, Can.Alias ), CtorDups )
 canonicalizeAlias ((Env.Env home _ _ _ _ _ _ _) as env) (A.At _ (Src.Alias (A.At region name) args tipe)) =
     let
         vars =
@@ -371,7 +371,7 @@ toRecordCtor home name vars fields =
 -- CANONICALIZE UNION
 
 
-canonicalizeUnion : Env.Env -> A.Located Src.Union -> TResult z i w ( ( Name.Name, Can.Union ), CtorDups )
+canonicalizeUnion : Env.Env -> A.Located Src.Union -> TResult i w ( ( Name.Name, Can.Union ), CtorDups )
 canonicalizeUnion ((Env.Env home _ _ _ _ _ _ _) as env) (A.At _ (Src.Union (A.At _ name) avars ctors)) =
     MResult.bind (Index.indexedTraverse MResult.pure MResult.liftA2 (canonicalizeCtor env) ctors) <|
         \cctors ->
@@ -391,7 +391,7 @@ canonicalizeUnion ((Env.Env home _ _ _ _ _ _ _) as env) (A.At _ (Src.Union (A.At
                 )
 
 
-canonicalizeCtor : Env.Env -> Index.ZeroBased -> ( A.Located Name.Name, TList Src.Type ) -> TResult z i w (A.Located Can.Ctor)
+canonicalizeCtor : Env.Env -> Index.ZeroBased -> ( A.Located Name.Name, TList Src.Type ) -> TResult i w (A.Located Can.Ctor)
 canonicalizeCtor env index ( A.At region ctor, tipes ) =
     MResult.bind (MResult.traverseList (Type.canonicalize env) tipes) <|
         \ctipes ->
