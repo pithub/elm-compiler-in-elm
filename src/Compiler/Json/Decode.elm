@@ -505,24 +505,24 @@ pArray =
   P.oneOf Start
     [ P.bind (pValue) <| \entry ->
       P.bind spaces <| \_ ->
-      pArrayHelp 1 [entry]
+      P.loop pArrayHelp (1, [entry])
     , P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
       P.return (Array [])
     ]
 
 
-pArrayHelp : Int -> TList AST -> Parser AST_
-pArrayHelp len revEntries =
+pArrayHelp : (Int, TList AST) -> Parser (P.Step (Int, TList AST) AST_)
+pArrayHelp (len, revEntries) =
   P.oneOf ArrayEnd
     [
       P.bind (P.word1 0x2C {-,-} ArrayEnd) <| \_ ->
       P.bind spaces <| \_ ->
       P.bind pValue <| \entry ->
       P.bind spaces <| \_ ->
-      pArrayHelp (len + 1) (entry::revEntries)
+      P.return (P.Loop (len + 1, entry::revEntries))
     ,
       P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
-      P.return (Array (MList.reverse revEntries))
+      P.return (P.Done (Array (MList.reverse revEntries)))
     ]
 
 
