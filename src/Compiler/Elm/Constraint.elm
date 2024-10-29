@@ -176,13 +176,13 @@ parser : P.Parser Error Constraint
 parser =
   P.bind parseVersion <| \lower ->
   P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-  P.bind (parseOp) <| \loOp ->
+  P.bind parseOp <| \loOp ->
   P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
   P.bind (P.word1 0x76 {-v-} BadFormat) <| \_ ->
   P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-  P.bind (parseOp) <| \hiOp ->
+  P.bind parseOp <| \hiOp ->
   P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
-  P.bind (parseVersion) <| \higher ->
+  P.bind parseVersion <| \higher ->
   P.Parser <| \((P.State _ _ _ _ row col) as state) ->
     if V.toComparable lower < V.toComparable higher
     then P.Eok (Range lower loOp hiOp higher) state

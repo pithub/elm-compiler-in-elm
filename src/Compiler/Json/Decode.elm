@@ -453,7 +453,7 @@ pObject =
   P.bind (P.word1 0x7B {- { -} Start) <| \_ ->
   P.bind spaces <| \_ ->
   P.oneOf ObjectField
-    [ P.bind (pField) <| \entry ->
+    [ P.bind pField <| \entry ->
       P.bind spaces <| \_ ->
       P.loop pObjectHelp [entry]
     , P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
@@ -482,7 +482,7 @@ pField =
   P.bind spaces <| \_ ->
   P.bind (P.word1 0x3A {-:-} ObjectColon) <| \_ ->
   P.bind spaces <| \_ ->
-  P.bind (pValue) <| \value ->
+  P.bind pValue <| \value ->
   P.return (key, value)
 
 
@@ -495,7 +495,7 @@ pArray =
   P.bind (P.word1 0x5B {-[-} Start) <| \_ ->
   P.bind spaces <| \_ ->
   P.oneOf Start
-    [ P.bind (pValue) <| \entry ->
+    [ P.bind pValue <| \entry ->
       P.bind spaces <| \_ ->
       P.loop pArrayHelp (1, [entry])
     , P.bind (P.word1 0x5D {-]-} ArrayEnd) <| \_ ->
