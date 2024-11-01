@@ -432,20 +432,20 @@ exposing_ =
       P.return Src.Open
     , P.bind chompExposed <| \exposed ->
       P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd) <| \_ ->
-      exposingHelp [exposed]
+      P.loop exposingHelp [exposed]
     ]
 
 
-exposingHelp : TList Src.Exposed -> P.Parser E.Exposing Src.Exposing
+exposingHelp : TList Src.Exposed -> P.Parser E.Exposing (P.Step (TList Src.Exposed) Src.Exposing)
 exposingHelp revExposed =
   P.oneOf E.ExposingEnd
     [ P.bind (P.word1 0x2C {-,-} E.ExposingEnd) <| \_ ->
       P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue) <| \_ ->
       P.bind chompExposed <| \exposed ->
       P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd) <| \_ ->
-      exposingHelp (exposed::revExposed)
+      P.return (P.Loop (exposed::revExposed))
     , P.bind (P.word1 0x29 {-)-} E.ExposingEnd) <| \_ ->
-      P.return (Src.Explicit (MList.reverse revExposed))
+      P.return (P.Done (Src.Explicit (MList.reverse revExposed)))
     ]
 
 
