@@ -75,7 +75,7 @@ chompModule projectType =
   P.bind chompHeader <| \header ->
   P.bind (chompImports (if isCore projectType then [] else Imports.defaults)) <| \imports ->
   P.bind (if isKernel projectType then chompInfixes [] else P.return []) <| \infixes ->
-  P.bind (P.specialize E.Declarations <| chompDecls []) <| \decls ->
+  P.bind (P.specialize E.Declarations <| chompDecls) <| \decls ->
   P.return (Module header imports infixes decls)
 
 
@@ -197,14 +197,20 @@ freshLine toFreshLineError =
 -- CHOMP DECLARATIONS
 
 
-chompDecls : TList Decl.Decl -> P.Parser E.Decl (TList Decl.Decl)
-chompDecls decls =
+chompDecls : P.Parser E.Decl (TList Decl.Decl)
+chompDecls =
   P.bind Decl.declaration <| \(decl, _) ->
+  P.loop chompDeclsHelp [decl]
+
+
+chompDeclsHelp : TList Decl.Decl -> P.Parser E.Decl (P.Step (TList Decl.Decl) (TList Decl.Decl))
+chompDeclsHelp decls =
   P.oneOfWithFallback
     [ P.bind (Space.checkFreshLine E.DeclStart) <| \_ ->
-      chompDecls (decl::decls)
+      P.bind Decl.declaration <| \(decl, _) ->
+      P.return (P.Loop (decl::decls))
     ]
-    (MList.reverse (decl::decls))
+    (P.Done (MList.reverse decls))
 
 
 chompInfixes : TList (A.Located Src.Infix) -> P.Parser E.Module (TList (A.Located Src.Infix))
