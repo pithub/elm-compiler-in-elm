@@ -18,10 +18,8 @@ module Compiler.Reporting.Result exposing
 import Compiler.Data.OneOrMore as OneOrMore
 import Compiler.Reporting.Warning as Warning
 import Extra.Class.Applicative as Applicative
-import Extra.Class.Foldable as Foldable
 import Extra.Class.Functor as Functor
 import Extra.Class.Monad as Monad
-import Extra.Class.Traversable as Traversable
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
@@ -134,32 +132,6 @@ andThen =
 -- PERF add INLINE to these?
 
 
-foldM : Foldable.FoldlM a (TList a) b (TResult i w e b)
-foldM =
-  MList.foldlM return bind
-
-
-traverseList : Traversable.Traverse a (TList a) (TResult i w e b) (TResult i w e (TList b))
-traverseList =
-  MList.traverse pure liftA2
-
-
-sequenceAMap : Traversable.SequenceA (Map.Map comparable (TResult i w e a)) (TResult i w e (Map.Map comparable a))
-sequenceAMap =
-  Map.sequenceA pure liftA2
-
-
-traverseMap : Traversable.Traverse a (Map.Map comparable a) (TResult i w e b) (TResult i w e (Map.Map comparable b))
-traverseMap =
-  Map.traverse pure liftA2
-
-
-traverseWithKey : (comparable -> a -> TResult i w e b) -> Map.Map comparable a -> TResult i w e (Map.Map comparable b)
-traverseWithKey =
-  Map.traverseWithKey pure liftA2
-
-
-
 -- LOOP
 
 
@@ -182,6 +154,80 @@ loopHelp callback i w state =
         Rbad i1 w1 e -> Rbad i1 w1 e
         Rgood i1 w1 (Loop newState) -> loopHelp callback i1 w1 newState
         Rgood i1 w1 (Done a) -> Rgood i1 w1 a
+
+
+
+-- FOLD AND TRAVERSAL
+
+
+foldM : (b -> a -> TResult i w e b) -> b -> TList a -> TResult i w e b
+foldM callback zero list =
+  loop (foldMHelp callback) (list, zero)
+
+
+foldMHelp : (b -> a -> TResult i w e b) -> (TList a, b) -> TResult i w e (Step (TList a, b) b)
+foldMHelp callback (list, result) =
+  case list of
+    [] ->
+      return (Done result)
+    a::rest ->
+      fmap (\b -> Loop (rest, b)) (callback result a)
+
+
+traverseList : (a -> TResult i w e b) -> TList a -> TResult i w e (TList b)
+traverseList callback list =
+  loop (traverseListHelp callback) (list, [])
+
+
+traverseListHelp : (a -> TResult i w e b) -> (TList a, TList b) -> TResult i w e (Step (TList a, TList b) (TList b))
+traverseListHelp callback (list, result) =
+  case list of
+    [] ->
+      return (Done (MList.reverse result))
+    a::rest ->
+      fmap (\b -> Loop (rest, b::result)) (callback a)
+
+
+sequenceAMap : Map.Map comparable (TResult i w e a) -> TResult i w e (Map.Map comparable a)
+sequenceAMap map =
+  loop sequenceAMapHelp (Map.toList map, Map.empty)
+
+
+sequenceAMapHelp : (TList (comparable, TResult i w e a), Map.Map comparable a) -> TResult i w e (Step (TList (comparable, TResult i w e a), Map.Map comparable a) (Map.Map comparable a))
+sequenceAMapHelp (pairs, result) =
+  case pairs of
+    [] ->
+      return (Done result)
+    (k, r)::rest ->
+      fmap (\a -> Loop (rest, Map.insert k a result)) r
+
+
+traverseMap : (a -> TResult i w e b) -> Map.Map comparable a -> TResult i w e (Map.Map comparable b)
+traverseMap callback map =
+  loop (traverseMapHelp callback) (Map.toList map, Map.empty)
+
+
+traverseMapHelp : (a -> TResult i w e b) -> (TList (comparable, a), Map.Map comparable b) -> TResult i w e (Step (TList (comparable, a), Map.Map comparable b) (Map.Map comparable b))
+traverseMapHelp callback (pairs, result) =
+  case pairs of
+    [] ->
+      return (Done result)
+    (k, a)::rest ->
+      fmap (\b -> Loop (rest, Map.insert k b result)) (callback a)
+
+
+traverseWithKey : (comparable -> a -> TResult i w e b) -> Map.Map comparable a -> TResult i w e (Map.Map comparable b)
+traverseWithKey callback map =
+  loop (traverseWithKeyHelp callback) (Map.toList map, Map.empty)
+
+
+traverseWithKeyHelp : (comparable -> a -> TResult i w e b) -> (TList (comparable, a), Map.Map comparable b) -> TResult i w e (Step (TList (comparable, a), Map.Map comparable b) (Map.Map comparable b))
+traverseWithKeyHelp callback (pairs, result) =
+  case pairs of
+    [] ->
+      return (Done result)
+    (k, a)::rest ->
+      fmap (\b -> Loop (rest, Map.insert k b result)) (callback k a)
 
 
 
