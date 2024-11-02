@@ -31,7 +31,7 @@ type alias Cycle =
   Set.Set Name.Name
 
 
-optimize : Cycle -> Can.Expr -> Names.Tracker z Opt.Expr
+optimize : Cycle -> Can.Expr -> Names.Tracker Opt.Expr
 optimize cycle (A.At region expression) =
   case expression of
     Can.VarLocal name ->
@@ -178,7 +178,7 @@ optimize cycle (A.At region expression) =
 -- UPDATE
 
 
-optimizeUpdate : Cycle -> Can.FieldUpdate -> Names.Tracker z Opt.Expr
+optimizeUpdate : Cycle -> Can.FieldUpdate -> Names.Tracker Opt.Expr
 optimizeUpdate cycle (Can.FieldUpdate _ expr) =
   optimize cycle expr
 
@@ -187,7 +187,7 @@ optimizeUpdate cycle (Can.FieldUpdate _ expr) =
 -- DEFINITION
 
 
-optimizeDef : Cycle -> Can.Def -> Opt.Expr -> Names.Tracker z Opt.Expr
+optimizeDef : Cycle -> Can.Def -> Opt.Expr -> Names.Tracker Opt.Expr
 optimizeDef cycle def body =
   case def of
     Can.Def (A.At _ name) args expr ->
@@ -197,7 +197,7 @@ optimizeDef cycle def body =
       optimizeDefHelp cycle name (MList.map Tuple.first typedArgs) expr body
 
 
-optimizeDefHelp : Cycle -> Name.Name -> TList Can.Pattern -> Can.Expr -> Opt.Expr -> Names.Tracker z Opt.Expr
+optimizeDefHelp : Cycle -> Name.Name -> TList Can.Pattern -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
 optimizeDefHelp cycle name args expr body =
   Names.bind (optimize cycle expr) <| \oexpr ->
   case args of
@@ -214,18 +214,18 @@ optimizeDefHelp cycle name args expr body =
 -- DESTRUCTURING
 
 
-destructArgs : TList Can.Pattern -> Names.Tracker z (TList Name.Name, TList Opt.Destructor)
+destructArgs : TList Can.Pattern -> Names.Tracker (TList Name.Name, TList Opt.Destructor)
 destructArgs args =
   Names.bind (Names.fmap MList.unzip <| MList.traverse Names.pure Names.liftA2 destruct args) <| \(argNames, destructorLists) ->
   Names.return (argNames, MList.concat destructorLists)
 
 
-destructCase : Name.Name -> Can.Pattern -> Names.Tracker z (TList Opt.Destructor)
+destructCase : Name.Name -> Can.Pattern -> Names.Tracker (TList Opt.Destructor)
 destructCase rootName pattern =
   Names.fmap MList.reverse <| destructHelp (Opt.Root rootName) pattern []
 
 
-destruct : Can.Pattern -> Names.Tracker z (Name.Name, TList Opt.Destructor)
+destruct : Can.Pattern -> Names.Tracker (Name.Name, TList Opt.Destructor)
 destruct ((A.At _ ptrn) as pattern) =
   case ptrn of
     Can.PVar name ->
@@ -241,7 +241,7 @@ destruct ((A.At _ ptrn) as pattern) =
       Names.pure (name, MList.reverse revDs)
 
 
-destructHelp : Opt.Path -> Can.Pattern -> TList Opt.Destructor -> Names.Tracker z (TList Opt.Destructor)
+destructHelp : Opt.Path -> Can.Pattern -> TList Opt.Destructor -> Names.Tracker (TList Opt.Destructor)
 destructHelp path (A.At region pattern) revDs =
   case pattern of
     Can.PAnything ->
@@ -320,7 +320,7 @@ destructHelp path (A.At region pattern) revDs =
               MList.foldlM Names.return Names.bind (destructCtorArg (Opt.Root name)) (Opt.Destructor name path :: revDs) args
 
 
-destructTwo : Opt.Path -> Can.Pattern -> Can.Pattern -> TList Opt.Destructor -> Names.Tracker z (TList Opt.Destructor)
+destructTwo : Opt.Path -> Can.Pattern -> Can.Pattern -> TList Opt.Destructor -> Names.Tracker (TList Opt.Destructor)
 destructTwo path a b revDs =
   case path of
     Opt.Root _ ->
@@ -334,7 +334,7 @@ destructTwo path a b revDs =
         destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path :: revDs)
 
 
-destructCtorArg : Opt.Path -> TList Opt.Destructor -> Can.PatternCtorArg -> Names.Tracker z (TList Opt.Destructor)
+destructCtorArg : Opt.Path -> TList Opt.Destructor -> Can.PatternCtorArg -> Names.Tracker (TList Opt.Destructor)
 destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
   destructHelp (Opt.Index index path) arg revDs
 
@@ -343,7 +343,7 @@ destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
 -- TAIL CALL
 
 
-optimizePotentialTailCallDef : Cycle -> Can.Def -> Names.Tracker z Opt.Def
+optimizePotentialTailCallDef : Cycle -> Can.Def -> Names.Tracker Opt.Def
 optimizePotentialTailCallDef cycle def =
   case def of
     Can.Def (A.At _ name) args expr ->
@@ -353,14 +353,14 @@ optimizePotentialTailCallDef cycle def =
       optimizePotentialTailCall cycle name (MList.map Tuple.first typedArgs) expr
 
 
-optimizePotentialTailCall : Cycle -> Name.Name -> TList Can.Pattern -> Can.Expr -> Names.Tracker z Opt.Def
+optimizePotentialTailCall : Cycle -> Name.Name -> TList Can.Pattern -> Can.Expr -> Names.Tracker Opt.Def
 optimizePotentialTailCall cycle name args expr =
   Names.bind (destructArgs args) <| \(argNames, destructors) ->
   Names.fmap (toTailDef name argNames destructors) <|
     optimizeTail cycle name argNames expr
 
 
-optimizeTail : Cycle -> Name.Name -> TList Name.Name -> Can.Expr -> Names.Tracker z Opt.Expr
+optimizeTail : Cycle -> Name.Name -> TList Name.Name -> Can.Expr -> Names.Tracker Opt.Expr
 optimizeTail cycle rootName argNames ((A.At _ expression) as locExpr) =
   case expression of
     Can.Call func args ->
