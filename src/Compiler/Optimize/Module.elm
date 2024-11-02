@@ -182,21 +182,26 @@ addToGraph name node fields (Opt.LocalGraph main nodes fieldCounts) =
 
 addDecls : ModuleName.Canonical -> Annotations -> Can.Decls -> Opt.LocalGraph -> TResult i (TList W.Warning) Opt.LocalGraph
 addDecls home annotations decls graph =
+  MResult.loop (addDeclsHelp home annotations) (decls, graph)
+
+
+addDeclsHelp : ModuleName.Canonical -> Annotations -> (Can.Decls, Opt.LocalGraph) -> TResult i (TList W.Warning) (MResult.Step (Can.Decls, Opt.LocalGraph) Opt.LocalGraph)
+addDeclsHelp home annotations (decls, graph) =
   case decls of
     Can.Declare def subDecls ->
-      MResult.andThen (addDecls home annotations subDecls) <| addDef home annotations def graph
+      MResult.fmap (\g -> MResult.Loop (subDecls, g)) (addDef home annotations def graph)
 
     Can.DeclareRec d ds subDecls ->
       let defs = d::ds in
       case findMain defs of
         Nothing ->
-          addDecls home annotations subDecls (addRecDefs home defs graph)
+          MResult.return (MResult.Loop (subDecls, addRecDefs home defs graph))
 
         Just region ->
           MResult.throw <| E.BadCycle region (defToName d) (MList.map defToName ds)
 
     Can.SaveTheEnvironment ->
-      MResult.ok graph
+      MResult.return (MResult.Done graph)
 
 
 findMain : TList Can.Def -> Maybe A.Region
