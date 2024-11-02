@@ -103,12 +103,17 @@ setEnv env (State _ a b) = State env a b
 
 solve : Env -> Int -> Pools -> State -> Type.Constraint -> IO State
 solve env rank pools state constraint =
+  IO.loop solveHelp ((env, rank), (pools, state), (constraint, identity))
+
+
+solveHelp : ((Env, Int), (Pools, State), (Type.Constraint, IO State -> IO State)) -> IO (IO.Step ((Env, Int), (Pools, State), (Type.Constraint, IO State -> IO State)) State)
+solveHelp ((env, rank), (pools, state), (constraint, cont)) =
   case constraint of
     Type.CTrue ->
-      IO.return state
+      IO.fmap IO.Done <| cont <| IO.return state
 
     Type.CSaveTheEnvironment ->
-      IO.return (setEnv env state)
+      IO.fmap IO.Done <| cont <| IO.return (setEnv env state)
 
     Type.CEqual region category tipe expectation ->
       IO.bind (typeToVariable rank pools tipe) <| \actual ->
@@ -117,11 +122,11 @@ solve env rank pools state constraint =
       case answer of
         Unify.COk vars ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return state
+          IO.fmap IO.Done <| cont <| IO.return state
 
         Unify.CErr vars actualType expectedType ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return <| addError state <|
+          IO.fmap IO.Done <| cont <| IO.return <| addError state <|
             Error.BadExpr region category actualType <|
               Error.typeReplace expectation expectedType
 
@@ -132,11 +137,11 @@ solve env rank pools state constraint =
       case answer of
         Unify.COk vars ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return state
+          IO.fmap IO.Done <| cont <| IO.return state
 
         Unify.CErr vars actualType expectedType ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return <| addError state <|
+          IO.fmap IO.Done <| cont <| IO.return <| addError state <|
             Error.BadExpr region (Error.Local name) actualType <|
               Error.typeReplace expectation expectedType
 
@@ -147,11 +152,11 @@ solve env rank pools state constraint =
       case answer of
         Unify.COk vars ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return state
+          IO.fmap IO.Done <| cont <| IO.return state
 
         Unify.CErr vars actualType expectedType ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return <| addError state <|
+          IO.fmap IO.Done <| cont <| IO.return <| addError state <|
             Error.BadExpr region (Error.Foreign name) actualType <|
               Error.typeReplace expectation expectedType
 
@@ -162,27 +167,27 @@ solve env rank pools state constraint =
       case answer of
         Unify.COk vars ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return state
+          IO.fmap IO.Done <| cont <| IO.return state
 
         Unify.CErr vars actualType expectedType ->
           IO.bind (introduce rank pools vars) <| \_ ->
-          IO.return <| addError state <|
+          IO.fmap IO.Done <| cont <| IO.return <| addError state <|
             Error.BadPattern region category actualType
               (Error.ptypeReplace expectation expectedType)
 
     Type.CAnd constraints ->
-      IO.foldlMList (solve env rank pools) state constraints
+      IO.fmap IO.Done <| cont <| IO.foldlMList (solve env rank pools) state constraints
 
     Type.CLet [] flexs _ headerCon Type.CTrue ->
       IO.bind (introduce rank pools flexs) <| \_ ->
-      solve env rank pools state headerCon
+      IO.return <| IO.Loop ((env, rank), (pools, state), (headerCon, cont))
 
     Type.CLet [] [] header headerCon subCon ->
       IO.bind (solve env rank pools state headerCon) <| \state1 ->
       IO.bind (IO.traverseMap (A.traverse IO.fmap (typeToVariable rank pools)) header) <| \locals ->
       let newEnv = Map.union env (Map.map A.toValue locals) in
-      IO.bind (solve newEnv rank pools state1 subCon) <| \state2 ->
-      IO.foldlMList occurs state2 <| Map.toList locals
+      IO.return <| IO.Loop ((newEnv, rank), (pools, state1), (subCon, IO.andThen (\state2 ->
+      IO.foldlMList occurs state2 <| Map.toList locals) >> cont))
 
     Type.CLet rigids flexs header headerCon subCon ->
       -- work in the next pool to localize header
@@ -217,9 +222,9 @@ solve env rank pools state constraint =
 
       let newEnv = Map.union env (Map.map A.toValue locals)
           tempState = State savedEnv finalMark errors in
-      IO.bind (solve newEnv rank nextPools tempState subCon) <| \newState ->
+      IO.return <| IO.Loop ((newEnv, rank), (nextPools, tempState), (subCon, IO.andThen (\newState ->
 
-      IO.foldlMList occurs newState (Map.toList locals)
+      IO.foldlMList occurs newState (Map.toList locals)) >> cont))
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
