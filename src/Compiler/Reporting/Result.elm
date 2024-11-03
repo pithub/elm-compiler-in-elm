@@ -11,6 +11,7 @@ module Compiler.Reporting.Result exposing
   , return, bind, andThen
   , Step(..), loop
   , foldM, traverseList, sequenceAMap, traverseMap, traverseWithKey
+  , mergeA, mapMissing, zipWithAMatched
   )
 
 
@@ -181,3 +182,86 @@ loopHelp callback i w state =
         Rbad i1 w1 e -> Rbad i1 w1 e
         Rgood i1 w1 (Loop newState) -> loopHelp callback i1 w1 newState
         Rgood i1 w1 (Done a) -> Rgood i1 w1 a
+
+
+
+-- MERGE
+
+
+mergeA
+  : (comparable -> a -> TResult i w e (Maybe c))
+  -> (comparable -> b -> TResult i w e (Maybe c))
+  -> (comparable -> a -> b -> TResult i w e (Maybe c))
+  -> Map.Map comparable a
+  -> Map.Map comparable b
+  -> TResult i w e (Map.Map comparable c)
+mergeA missA missB zipAB ma mb =
+  bind (loop (mergeAHelp1 missA missB zipAB) (Map.toList mb, (Map.toList ma, Map.empty))) <| \ (leftovers, intermediateResult) ->
+  loop (mergeAHelp2 missA) (leftovers, intermediateResult)
+
+
+mergeAHelp1
+  : (comparable -> a -> TResult i w e (Maybe c))
+  -> (comparable -> b -> TResult i w e (Maybe c))
+  -> (comparable -> a -> b -> TResult i w e (Maybe c))
+  -> (TList (comparable, b), (TList (comparable, a), Map.Map comparable c ))
+  -> TResult i w e (Step (TList (comparable, b), (TList (comparable, a), Map.Map comparable c)) (TList (comparable, a), Map.Map comparable c))
+mergeAHelp1 missA missB zipAB (pairsB, ((pairsA, map) as state)) =
+  case pairsB of
+    [] ->
+      return (Done state)
+
+    (kB,b)::restB ->
+      case pairsA of
+        [] ->
+          fmap (\mc -> Loop (loop1 kB mc restB pairsA map)) (missB kB b)
+        (kA,a)::restA ->
+          if kA < kB then
+            fmap (\mc -> Loop (loop1 kA mc pairsB restA map)) (missA kA a)
+          else if kA > kB then
+            fmap (\mc -> Loop (loop1 kB mc restB pairsA map)) (missB kB b)
+          else
+            fmap (\mc -> Loop (loop1 kA mc restB restA map)) (zipAB kA a b)
+
+
+mergeAHelp2
+  : (comparable -> a -> TResult i w e (Maybe c))
+  -> (TList (comparable, a), Map.Map comparable c)
+  -> TResult i w e (Step (TList (comparable, a), Map.Map comparable c) (Map.Map comparable c))
+mergeAHelp2 missA (pairsA, map) =
+  case pairsA of
+    [] ->
+      return (Done map)
+
+    (k,a)::rest ->
+      fmap (\mc -> Loop (loop2 k mc rest map)) (missA k a)
+
+
+loop1
+  : comparable -> Maybe c
+  -> TList (comparable, b) -> TList (comparable, a) -> Map.Map comparable c
+  -> (TList (comparable, b), (TList (comparable, a), Map.Map comparable c))
+loop1 k mc pairsB pairsA map =
+  ( pairsB, loop2 k mc pairsA map )
+
+
+loop2
+  : comparable -> Maybe c
+  -> TList (comparable, a) -> Map.Map comparable c
+  -> (TList (comparable, a), Map.Map comparable c)
+loop2 k mc pairsA map =
+  ( pairsA
+  , ( case mc of
+        Just c -> Map.insert k c map
+        Nothing -> map
+    )
+  )
+
+mapMissing : (comparable -> a -> b) -> comparable -> a -> TResult i w e (Maybe b)
+mapMissing f k a =
+  pure (Just (f k a))
+
+
+zipWithAMatched : (comparable -> a -> b -> TResult i w e c) -> comparable -> a -> b -> TResult i w e (Maybe c)
+zipWithAMatched f k a b =
+  fmap Just (f k a b)

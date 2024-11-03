@@ -141,10 +141,10 @@ type Binop =
 addLocals : Map.Map Name.Name A.Region -> Env -> TResult i w Env
 addLocals names (Env home vars ts cs bs qvs qts qcs) =
   MResult.bind
-    (Map.mergeA MResult.pure MResult.liftA2
-      (Map.mapMissing MResult.pure addLocalLeft)
-      (Map.mapMissing MResult.pure (\_ homes -> homes))
-      (Map.zipWithAMatched MResult.fmap addLocalBoth)
+    (MResult.mergeA
+      (MResult.mapMissing addLocalLeft)
+      (MResult.mapMissing (\_ homes -> homes))
+      (MResult.zipWithAMatched addLocalBoth)
       names
       vars) <| \newVars ->
 
