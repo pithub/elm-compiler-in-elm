@@ -17,6 +17,7 @@ module Compiler.Parse.Primitives exposing
   , PStep(..)
   , fmap
   , return, bind
+  , Step(..), loop
   )
 
 
@@ -129,6 +130,40 @@ oowfHelp state parsers fallback =
         --Cerr r c t -> Cerr r c t
         Eerr _ _ _ -> oowfHelp state parsers_ fallback
         x -> x
+
+
+
+-- LOOP
+
+
+type Step state a
+  = Loop state
+  | Done a
+
+
+loop : (state -> Parser x (Step state a)) -> state -> Parser x a
+loop callback loopState =
+  Parser <| \state ->
+    loopHelp callback state loopState Eok Eerr
+
+
+loopHelp
+  : (state -> Parser x (Step state a))
+  -> State
+  -> state
+  -> (a -> State -> PStep x a)
+  -> (Row -> Col -> (Row -> Col -> x) -> PStep x a)
+  -> PStep x a
+loopHelp callback state loopState eok eerr =
+  case callback loopState of
+    Parser parser ->
+      case parser state of
+        Cok (Loop newLoopState) newState -> loopHelp callback newState newLoopState Cok Cerr
+        Cok (Done a) newState -> Cok a newState
+        Eok (Loop newLoopState) newState -> loopHelp callback newState newLoopState eok eerr
+        Eok (Done a) newState -> eok a newState
+        Cerr r c t -> Cerr r c t
+        Eerr r c t -> eerr r c t
 
 
 
