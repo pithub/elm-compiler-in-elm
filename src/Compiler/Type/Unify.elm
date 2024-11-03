@@ -109,7 +109,7 @@ bind (Unify ka) callback =
 register : IO t Type.Variable -> Unify t z Type.Variable
 register mkVar =
   Unify <| \vars ok _ ->
-    IO.bind (mkVar) <| \var ->
+    IO.bind mkVar <| \var ->
     ok (var::vars) var
 
 

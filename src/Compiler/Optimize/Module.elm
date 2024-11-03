@@ -27,15 +27,15 @@ import Extra.Type.Set as Set
 -- OPTIMIZE
 
 
-type alias TResult z i w a =
-  MResult.TResult z i w E.Error a
+type alias TResult i w a =
+  MResult.TResult i w E.Error a
 
 
 type alias Annotations =
   Map.Map Name.Name Can.Annotation
 
 
-optimize : Annotations -> Can.Module -> TResult z i (TList W.Warning) Opt.LocalGraph
+optimize : Annotations -> Can.Module -> TResult i (TList W.Warning) Opt.LocalGraph
 optimize annotations (Can.Module home _ _ decls unions aliases _ effects) =
   addDecls home annotations decls <|
     addEffects home effects <|
@@ -180,23 +180,28 @@ addToGraph name node fields (Opt.LocalGraph main nodes fieldCounts) =
 -- ADD DECLS
 
 
-addDecls : ModuleName.Canonical -> Annotations -> Can.Decls -> Opt.LocalGraph -> TResult z i (TList W.Warning) Opt.LocalGraph
+addDecls : ModuleName.Canonical -> Annotations -> Can.Decls -> Opt.LocalGraph -> TResult i (TList W.Warning) Opt.LocalGraph
 addDecls home annotations decls graph =
+  MResult.loop (addDeclsHelp home annotations) (decls, graph)
+
+
+addDeclsHelp : ModuleName.Canonical -> Annotations -> (Can.Decls, Opt.LocalGraph) -> TResult i (TList W.Warning) (MResult.Step (Can.Decls, Opt.LocalGraph) Opt.LocalGraph)
+addDeclsHelp home annotations (decls, graph) =
   case decls of
     Can.Declare def subDecls ->
-      MResult.andThen (addDecls home annotations subDecls) <| addDef home annotations def graph
+      MResult.fmap (\g -> MResult.Loop (subDecls, g)) (addDef home annotations def graph)
 
     Can.DeclareRec d ds subDecls ->
       let defs = d::ds in
       case findMain defs of
         Nothing ->
-          addDecls home annotations subDecls (addRecDefs home defs graph)
+          MResult.return (MResult.Loop (subDecls, addRecDefs home defs graph))
 
         Just region ->
           MResult.throw <| E.BadCycle region (defToName d) (MList.map defToName ds)
 
     Can.SaveTheEnvironment ->
-      MResult.ok graph
+      MResult.return (MResult.Done graph)
 
 
 findMain : TList Can.Def -> Maybe A.Region
@@ -225,7 +230,7 @@ defToName def =
 -- ADD DEFS
 
 
-addDef : ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> TResult z i (TList W.Warning) Opt.LocalGraph
+addDef : ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> TResult i (TList W.Warning) Opt.LocalGraph
 addDef home annotations def graph =
   case def of
     Can.Def (A.At region name) args body ->
@@ -237,7 +242,7 @@ addDef home annotations def graph =
       addDefHelp region annotations home name (MList.map Tuple.first typedArgs) body graph
 
 
-addDefHelp : A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> TList Can.Pattern -> Can.Expr -> Opt.LocalGraph -> TResult z i w Opt.LocalGraph
+addDefHelp : A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> TList Can.Pattern -> Can.Expr -> Opt.LocalGraph -> TResult i w Opt.LocalGraph
 addDefHelp region annotations home name args body ((Opt.LocalGraph _ nodes fieldCounts) as graph) =
   if name /= Name.l_main then
     MResult.ok (addDefNode home name args body Set.empty graph)

@@ -54,7 +54,7 @@ io work =
 eio : (x -> y) -> IO s (Either x a) -> Task z s y a
 eio func work =
   Task <| \ok err ->
-    IO.bind (work) <| \result ->
+    IO.bind work <| \result ->
     case result of
       Right a -> ok a
       Left x -> err (func x)
