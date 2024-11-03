@@ -77,13 +77,13 @@ letPort : Name.Name -> Can.Port -> IO t Type.Constraint -> IO t Type.Constraint
 letPort name port_ makeConstraint =
   case port_ of
     Can.Incoming freeVars _ srcType ->
-      IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k _ -> Type.nameToRigid k) freeVars) <| \vars ->
+      IO.bind (IO.traverseWithKey (\k _ -> Type.nameToRigid k) freeVars) <| \vars ->
       IO.bind (Instantiate.fromSrcType (Map.map Type.VarN vars) srcType) <| \tipe ->
       let header = Map.singleton name (A.At A.zero tipe) in
       IO.fmap (Type.CLet (Map.elems vars) [] header Type.CTrue) <| makeConstraint
 
     Can.Outgoing freeVars _ srcType ->
-      IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k _ -> Type.nameToRigid k) freeVars) <| \vars ->
+      IO.bind (IO.traverseWithKey (\k _ -> Type.nameToRigid k) freeVars) <| \vars ->
       IO.bind (Instantiate.fromSrcType (Map.map Type.VarN vars) srcType) <| \tipe ->
       let header = Map.singleton name (A.At A.zero tipe) in
       IO.fmap (Type.CLet (Map.elems vars) [] header Type.CTrue) <| makeConstraint

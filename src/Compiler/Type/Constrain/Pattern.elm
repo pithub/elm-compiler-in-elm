@@ -73,7 +73,7 @@ add (A.At region pattern) expectation state =
           listType = T.AppN ModuleName.list Name.list [entryType] in
 
       IO.bind
-        (MList.foldlM IO.return IO.bind (addEntry region entryType) state (Index.indexedMap Tuple.pair patterns)) <| \(State headers vars revCons) ->
+        (IO.foldlMList (addEntry region entryType) state (Index.indexedMap Tuple.pair patterns)) <| \(State headers vars revCons) ->
 
       let listCon = T.CPattern region E.PList listType expectation in
       IO.return <| State headers (entryVar::vars) (listCon::revCons)
@@ -97,7 +97,7 @@ add (A.At region pattern) expectation state =
       IO.bind T.mkFlexVar <| \extVar ->
       let extType = T.VarN extVar in
 
-      IO.bind (MList.traverse IO.pure IO.liftA2 (\field -> IO.fmap (Tuple.pair field) <| T.mkFlexVar) fields) <| \fieldVars ->
+      IO.bind (IO.traverseList (\field -> IO.fmap (Tuple.pair field) <| T.mkFlexVar) fields) <| \fieldVars ->
       let fieldTypes = Map.fromList (MList.map (Tuple.mapSecond T.VarN) fieldVars)
           recordType = T.RecordN fieldTypes extType
 
@@ -214,12 +214,12 @@ simpleAdd pattern patternType state =
 
 addCtor : A.Region -> ModuleName.Canonical -> Name.Name -> TList Name.Name -> Name.Name -> TList Can.PatternCtorArg -> E.PExpected T.Type -> State -> IO t State
 addCtor region home typeName typeVarNames ctorName args expectation state =
-  IO.bind (MList.traverse IO.pure IO.liftA2 (\var -> IO.fmap (Tuple.pair var) <| T.nameToFlex var) typeVarNames) <| \varPairs ->
+  IO.bind (IO.traverseList (\var -> IO.fmap (Tuple.pair var) <| T.nameToFlex var) typeVarNames) <| \varPairs ->
   let typePairs = MList.map (Tuple.mapSecond T.VarN) varPairs
       freeVarDict = Map.fromList typePairs in
 
   IO.bind
-    (MList.foldlM IO.return IO.bind (addCtorArg region ctorName freeVarDict) state args) <| \(State headers vars revCons) ->
+    (IO.foldlMList (addCtorArg region ctorName freeVarDict) state args) <| \(State headers vars revCons) ->
 
   let ctorType = T.AppN home typeName (MList.map Tuple.second typePairs)
       ctorCon = T.CPattern region (E.PCtor ctorName) ctorType expectation in

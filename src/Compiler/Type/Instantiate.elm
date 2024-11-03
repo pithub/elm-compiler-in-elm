@@ -9,7 +9,6 @@ import Compiler.AST.Canonical as Can
 import Compiler.Data.Name as Name
 import Compiler.Type.Type as Type
 import Extra.System.IO.Pure as IO
-import Extra.Type.List as MList
 import Extra.Type.Map as Map
 import Extra.Type.Maybe as MMaybe
 import Extra.Type.Tuple as MTuple
@@ -38,10 +37,10 @@ fromSrcType freeVars sourceType =
       IO.return (Map.ex freeVars name)
 
     Can.TType home name args ->
-      IO.fmap (Type.AppN home name) <| MList.traverse IO.pure IO.liftA2 (fromSrcType freeVars) args
+      IO.fmap (Type.AppN home name) <| IO.traverseList (fromSrcType freeVars) args
 
     Can.TAlias home name args aliasedType ->
-      IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap (fromSrcType freeVars)) args) <| \targs ->
+      IO.bind (IO.traverseList (MTuple.traverseSecond IO.fmap (fromSrcType freeVars)) args) <| \targs ->
       IO.fmap (Type.AliasN home name targs) <|
         case aliasedType of
           Can.Filled realType ->
@@ -61,7 +60,7 @@ fromSrcType freeVars sourceType =
 
     Can.TRecord fields maybeExt ->
       IO.pure Type.RecordN
-        |> IO.andMap (Map.traverse IO.pure IO.liftA2 (fromSrcFieldType freeVars) fields)
+        |> IO.andMap (IO.traverseMap (fromSrcFieldType freeVars) fields)
         |> IO.andMap
           (case maybeExt of
             Nothing ->
