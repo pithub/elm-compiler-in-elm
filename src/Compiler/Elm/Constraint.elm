@@ -172,7 +172,7 @@ type Error
   | InvalidRange V.Version V.Version
 
 
-parser : P.Parser z Error Constraint
+parser : P.Parser Error Constraint
 parser =
   P.bind parseVersion <| \lower ->
   P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
@@ -183,18 +183,18 @@ parser =
   P.bind (parseOp) <| \hiOp ->
   P.bind (P.word1 0x20 {- -} BadFormat) <| \_ ->
   P.bind (parseVersion) <| \higher ->
-  P.Parser <| \((P.State _ _ _ _ row col) as state) _ eok _ eerr ->
+  P.Parser <| \((P.State _ _ _ _ row col) as state) ->
     if V.toComparable lower < V.toComparable higher
-    then eok (Range lower loOp hiOp higher) state
-    else eerr row col (\_ _ -> InvalidRange lower higher)
+    then P.Eok (Range lower loOp hiOp higher) state
+    else P.Eerr row col (\_ _ -> InvalidRange lower higher)
 
 
-parseVersion : P.Parser z Error V.Version
+parseVersion : P.Parser Error V.Version
 parseVersion =
   P.specialize (\(r,c) _ _ -> BadFormat r c) V.parser
 
 
-parseOp : P.Parser z Error Op
+parseOp : P.Parser Error Op
 parseOp =
   P.bind (P.word1 0x3C {-<-} BadFormat) <| \_ ->
   P.oneOfWithFallback

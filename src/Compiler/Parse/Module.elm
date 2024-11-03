@@ -70,12 +70,12 @@ type Module =
     {- decls -} (TList Decl.Decl)
 
 
-chompModule : ProjectType -> P.Parser z E.Module Module
+chompModule : ProjectType -> P.Parser E.Module Module
 chompModule projectType =
   P.bind chompHeader <| \header ->
   P.bind (chompImports (if isCore projectType then [] else Imports.defaults)) <| \imports ->
   P.bind (if isKernel projectType then chompInfixes [] else P.return []) <| \infixes ->
-  P.bind (P.specialize E.Declarations <| chompDecls []) <| \decls ->
+  P.bind (P.specialize E.Declarations <| chompDecls) <| \decls ->
   P.return (Module header imports infixes decls)
 
 
@@ -187,7 +187,7 @@ addComment maybeComment (A.At _ name) comments =
 -- FRESH LINES
 
 
-freshLine : (P.Row -> P.Col -> E.Module) -> P.Parser z E.Module ()
+freshLine : (P.Row -> P.Col -> E.Module) -> P.Parser E.Module ()
 freshLine toFreshLineError =
   P.bind (Space.chomp E.ModuleSpace) <| \_ ->
   Space.checkFreshLine toFreshLineError
@@ -197,17 +197,23 @@ freshLine toFreshLineError =
 -- CHOMP DECLARATIONS
 
 
-chompDecls : TList Decl.Decl -> P.Parser z E.Decl (TList Decl.Decl)
-chompDecls decls =
+chompDecls : P.Parser E.Decl (TList Decl.Decl)
+chompDecls =
   P.bind Decl.declaration <| \(decl, _) ->
+  P.loop chompDeclsHelp [decl]
+
+
+chompDeclsHelp : TList Decl.Decl -> P.Parser E.Decl (P.Step (TList Decl.Decl) (TList Decl.Decl))
+chompDeclsHelp decls =
   P.oneOfWithFallback
     [ P.bind (Space.checkFreshLine E.DeclStart) <| \_ ->
-      chompDecls (decl::decls)
+      P.bind Decl.declaration <| \(decl, _) ->
+      P.return (P.Loop (decl::decls))
     ]
-    (MList.reverse (decl::decls))
+    (P.Done (MList.reverse decls))
 
 
-chompInfixes : TList (A.Located Src.Infix) -> P.Parser z E.Module (TList (A.Located Src.Infix))
+chompInfixes : TList (A.Located Src.Infix) -> P.Parser E.Module (TList (A.Located Src.Infix))
 chompInfixes infixes =
   P.oneOfWithFallback
     [ P.bind Decl.infix_ <| \binop ->
@@ -220,7 +226,7 @@ chompInfixes infixes =
 -- MODULE DOC COMMENT
 
 
-chompModuleDocCommentSpace : P.Parser z E.Module (Either A.Region Src.Comment)
+chompModuleDocCommentSpace : P.Parser E.Module (Either A.Region Src.Comment)
 chompModuleDocCommentSpace =
   P.bind (P.addLocation (freshLine E.FreshLine)) <| \(A.At region ()) ->
   P.oneOfWithFallback
@@ -247,7 +253,7 @@ type Effects
   | Manager A.Region Src.Manager
 
 
-chompHeader : P.Parser z E.Module (Maybe Header)
+chompHeader : P.Parser E.Module (Maybe Header)
 chompHeader =
   P.bind (freshLine E.FreshLine) <| \_ ->
   P.bind P.getPosition <| \start ->
@@ -304,7 +310,7 @@ chompHeader =
     Nothing
 
 
-chompManager : P.Parser z E.Module Src.Manager
+chompManager : P.Parser E.Module Src.Manager
 chompManager =
   P.bind (P.word1 0x7B {- { -} E.Effect) <| \_ ->
   P.bind spaces_em <| \_ ->
@@ -340,7 +346,7 @@ chompManager =
     ]
 
 
-chompCommand : P.Parser z E.Module (A.Located Name.Name)
+chompCommand : P.Parser E.Module (A.Located Name.Name)
 chompCommand =
   P.bind (Keyword.command_ E.Effect) <| \_ ->
   P.bind spaces_em <| \_ ->
@@ -349,7 +355,7 @@ chompCommand =
   P.addLocation (Var.upper E.Effect)
 
 
-chompSubscription : P.Parser z E.Module (A.Located Name.Name)
+chompSubscription : P.Parser E.Module (A.Located Name.Name)
 chompSubscription =
   P.bind (Keyword.subscription_ E.Effect) <| \_ ->
   P.bind spaces_em <| \_ ->
@@ -358,7 +364,7 @@ chompSubscription =
   P.addLocation (Var.upper E.Effect)
 
 
-spaces_em : P.Parser z E.Module ()
+spaces_em : P.Parser E.Module ()
 spaces_em =
   Space.chompAndCheckIndent E.ModuleSpace E.Effect
 
@@ -367,7 +373,7 @@ spaces_em =
 -- IMPORTS
 
 
-chompImports : TList Src.Import -> P.Parser z E.Module (TList Src.Import)
+chompImports : TList Src.Import -> P.Parser E.Module (TList Src.Import)
 chompImports is =
   P.oneOfWithFallback
     [ P.bind chompImport <| \i ->
@@ -376,7 +382,7 @@ chompImports is =
     (MList.reverse is)
 
 
-chompImport : P.Parser z E.Module Src.Import
+chompImport : P.Parser E.Module Src.Import
 chompImport =
   P.bind (Keyword.import_ E.ImportStart) <| \_ ->
   P.bind (Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName) <| \_ ->
@@ -393,7 +399,7 @@ chompImport =
     ]
 
 
-chompAs : A.Located Name.Name -> P.Parser z E.Module Src.Import
+chompAs : A.Located Name.Name -> P.Parser E.Module Src.Import
 chompAs name =
   P.bind (Keyword.as_ E.ImportAs) <| \_ ->
   P.bind (Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias) <| \_ ->
@@ -408,7 +414,7 @@ chompAs name =
     ]
 
 
-chompExposing : A.Located Name.Name -> Maybe Name.Name -> P.Parser z E.Module Src.Import
+chompExposing : A.Located Name.Name -> Maybe Name.Name -> P.Parser E.Module Src.Import
 chompExposing name maybeAlias =
   P.bind (Keyword.exposing_ E.ImportExposing) <| \_ ->
   P.bind (Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingList) <| \_ ->
@@ -421,7 +427,7 @@ chompExposing name maybeAlias =
 -- LISTING
 
 
-exposing_ : P.Parser z E.Exposing Src.Exposing
+exposing_ : P.Parser E.Exposing Src.Exposing
 exposing_ =
   P.bind (P.word1 0x28 {-(-} E.ExposingStart) <| \_ ->
   P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue) <| \_ ->
@@ -432,24 +438,24 @@ exposing_ =
       P.return Src.Open
     , P.bind chompExposed <| \exposed ->
       P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd) <| \_ ->
-      exposingHelp [exposed]
+      P.loop exposingHelp [exposed]
     ]
 
 
-exposingHelp : TList Src.Exposed -> P.Parser z E.Exposing Src.Exposing
+exposingHelp : TList Src.Exposed -> P.Parser E.Exposing (P.Step (TList Src.Exposed) Src.Exposing)
 exposingHelp revExposed =
   P.oneOf E.ExposingEnd
     [ P.bind (P.word1 0x2C {-,-} E.ExposingEnd) <| \_ ->
       P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue) <| \_ ->
       P.bind chompExposed <| \exposed ->
       P.bind (Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd) <| \_ ->
-      exposingHelp (exposed::revExposed)
+      P.return (P.Loop (exposed::revExposed))
     , P.bind (P.word1 0x29 {-)-} E.ExposingEnd) <| \_ ->
-      P.return (Src.Explicit (MList.reverse revExposed))
+      P.return (P.Done (Src.Explicit (MList.reverse revExposed)))
     ]
 
 
-chompExposed : P.Parser z E.Exposing Src.Exposed
+chompExposed : P.Parser E.Exposing Src.Exposed
 chompExposed =
   P.bind P.getPosition <| \start ->
   P.oneOf E.ExposingValue
@@ -468,7 +474,7 @@ chompExposed =
     ]
 
 
-privacy : P.Parser z E.Exposing Src.Privacy
+privacy : P.Parser E.Exposing Src.Privacy
 privacy =
   P.oneOfWithFallback
     [ P.bind (P.word1 0x28 {-(-} E.ExposingTypePrivacy) <| \_ ->

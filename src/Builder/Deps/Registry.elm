@@ -144,7 +144,7 @@ newPkgDecoder =
   D.customString newPkgParser bail
 
 
-newPkgParser : P.Parser z () (Pkg.Name, V.Version)
+newPkgParser : P.Parser () (Pkg.Name, V.Version)
 newPkgParser =
   P.bind (P.specialize (\_ _ _ -> ()) Pkg.parser) <| \pkg ->
   P.bind (P.word1 0x40 {-@-} bail) <| \_ ->

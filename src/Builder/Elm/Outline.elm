@@ -365,7 +365,7 @@ moduleDecoder =
   D.mapError (\(a,b) -> Exit.OP_BadModuleName a b) ModuleName.decoder
 
 
-headerKeyDecoder : D.KeyDecoder z Exit.OutlineProblem Json.TString
+headerKeyDecoder : D.KeyDecoder Exit.OutlineProblem Json.TString
 headerKeyDecoder =
   D.KeyDecoder
     (boundParser 20 Exit.OP_BadModuleHeaderTooLong)
@@ -376,16 +376,16 @@ headerKeyDecoder =
 -- BOUND PARSER
 
 
-boundParser : Int -> x -> P.Parser z x Json.TString
+boundParser : Int -> x -> P.Parser x Json.TString
 boundParser bound tooLong =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       len = end - pos
       newCol = col + len
     in
     if len < bound
-    then cok (Json.fromPtr src pos end) (P.State src end end indent row newCol)
-    else cerr row newCol (\_ _ -> tooLong)
+    then P.Cok (Json.fromPtr src pos end) (P.State src end end indent row newCol)
+    else P.Cerr row newCol (\_ _ -> tooLong)
 
 
 

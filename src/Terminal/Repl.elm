@@ -462,7 +462,7 @@ toDeclPosition src decl r c =
   (row, col)
 
 
-annotation : P.Parser z () N.Name
+annotation : P.Parser () N.Name
 annotation =
   let
     err _ _ = ()

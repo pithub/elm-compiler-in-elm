@@ -261,7 +261,7 @@ projectDistance given possibility =
 -- PARSER
 
 
-parser : P.Parser z ( P.Row, P.Col ) Name
+parser : P.Parser ( P.Row, P.Col ) Name
 parser =
     P.bind (parseName isAlphaOrDigit isAlphaOrDigit) <|
         \author ->
@@ -272,12 +272,12 @@ parser =
                             P.return (Name author project)
 
 
-parseName : (Int -> Bool) -> (Int -> Bool) -> P.Parser z ( P.Row, P.Col ) Utf8.Utf8
+parseName : (Int -> Bool) -> (Int -> Bool) -> P.Parser ( P.Row, P.Col ) Utf8.Utf8
 parseName isGoodStart isGoodInner =
     P.Parser <|
-        \(P.State src pos end indent row col) cok _ cerr eerr ->
+        \(P.State src pos end indent row col) ->
             if pos >= end then
-                eerr row col Tuple.pair
+                P.Eerr row col Tuple.pair
 
             else
                 let
@@ -285,7 +285,7 @@ parseName isGoodStart isGoodInner =
                         P.unsafeIndex src pos
                 in
                 if not (isGoodStart word) then
-                    eerr row col Tuple.pair
+                    P.Eerr row col Tuple.pair
 
                 else
                     let
@@ -303,10 +303,10 @@ parseName isGoodStart isGoodInner =
                             newState =
                                 P.State src newPos end indent row newCol
                         in
-                        cok (Utf8.fromPtr src pos newPos) newState
+                        P.Cok (Utf8.fromPtr src pos newPos) newState
 
                     else
-                        cerr row newCol Tuple.pair
+                        P.Cerr row newCol Tuple.pair
 
 
 isLower : Int -> Bool
@@ -380,7 +380,7 @@ encode name =
     E.chars (toChars name)
 
 
-keyDecoder : (Row -> Col -> x) -> D.KeyDecoder z x Comparable
+keyDecoder : (Row -> Col -> x) -> D.KeyDecoder x Comparable
 keyDecoder toError =
     let
         keyParser =

@@ -84,7 +84,7 @@ fromByteString pkg foreigns bytes =
       Nothing
 
 
-parser : Pkg.Name -> Foreigns -> P.Parser z () Content
+parser : Pkg.Name -> Foreigns -> P.Parser () Content
 parser pkg foreigns =
   P.bind (P.word2 0x2F 0x2A {-/*-} toError) <| \_ ->
   P.bind (Space.chomp ignoreError) <| \_ ->
@@ -109,17 +109,17 @@ ignoreError _ _ _ =
 -- PARSE CHUNKS
 
 
-parseChunks : VarTable -> Enums -> Fields -> P.Parser z () (TList Chunk)
+parseChunks : VarTable -> Enums -> Fields -> P.Parser () (TList Chunk)
 parseChunks vtable enums fields =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       ( ( chunks, newPos ), ( newRow, newCol ) ) =
         chompChunks vtable enums fields src pos end row col pos []
     in
     if newPos == end then
-      cok chunks (P.State src newPos end indent newRow newCol)
+      P.Cok chunks (P.State src newPos end indent newRow newCol)
     else
-      cerr row col toError
+      P.Cerr row col toError
 
 
 chompChunks : VarTable -> Enums -> Fields -> String -> Int -> Int -> P.Row -> P.Col -> Int -> TList Chunk -> ( ( TList Chunk, Int ), ( P.Row, P.Col ) )

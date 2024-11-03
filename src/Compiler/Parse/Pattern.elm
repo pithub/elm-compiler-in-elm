@@ -23,7 +23,7 @@ import Extra.Type.List as MList exposing (TList)
 -- TERM
 
 
-term : P.Parser z E.Pattern Src.Pattern
+term : P.Parser E.Pattern Src.Pattern
 term =
   P.bind P.getPosition <| \start ->
   P.oneOf E.PStart
@@ -34,7 +34,7 @@ term =
     ]
 
 
-termHelp : A.Position -> P.Parser z E.Pattern Src.Pattern
+termHelp : A.Position -> P.Parser E.Pattern Src.Pattern
 termHelp start =
   P.oneOf E.PStart
     [
@@ -62,11 +62,11 @@ termHelp start =
           P.return (A.at start end (Src.PInt int))
 
         Number.CFloat float ->
-          P.Parser <| \(P.State _ _ _ _ row col) _ _ cerr _ ->
+          P.Parser <| \(P.State _ _ _ _ row col) ->
             let
               width = Utf8.size float
             in
-            cerr row (col - width) (E.PFloat width)
+            P.Cerr row (col - width) (E.PFloat width)
     ,
       P.bind (String.string E.PStart E.PString) <| \str ->
       P.addEnd start (Src.PStr str)
@@ -80,11 +80,11 @@ termHelp start =
 -- WILDCARD
 
 
-wildcard : P.Parser z E.Pattern ()
+wildcard : P.Parser E.Pattern ()
 wildcard =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     if pos == end || P.unsafeIndex src pos /= 0x5F {- _ -} then
-      eerr row col E.PStart
+      P.Eerr row col E.PStart
     else
       let
         newPos = pos + 1
@@ -92,17 +92,17 @@ wildcard =
       in
       if Var.getInnerWidth src newPos end > 0 then
         let (badPos, badCol) = Var.chompInnerChars src newPos end newCol in
-        cerr row col (E.PWildcardNotVar (Name.fromPtr src pos badPos) (badCol - col))
+        P.Cerr row col (E.PWildcardNotVar (Name.fromPtr src pos badPos) (badCol - col))
       else
         let newState = P.State src newPos end indent row newCol in
-        cok () newState
+        P.Cok () newState
 
 
 
 -- RECORDS
 
 
-record : A.Position -> P.Parser z E.Pattern Src.Pattern
+record : A.Position -> P.Parser E.Pattern Src.Pattern
 record start =
   P.inContext E.PRecord (P.word1 0x7B {- { -} E.PStart) <|
     P.bind (Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentOpen) <| \_ ->
@@ -115,7 +115,7 @@ record start =
       ]
 
 
-recordHelp : A.Position -> TList (A.Located Name.Name) -> P.Parser z E.PRecord Src.Pattern
+recordHelp : A.Position -> TList (A.Located Name.Name) -> P.Parser E.PRecord Src.Pattern
 recordHelp start vars =
   P.oneOf E.PRecordEnd
     [ P.bind (P.word1 0x2C {-,-} E.PRecordEnd) <| \_ ->
@@ -132,7 +132,7 @@ recordHelp start vars =
 -- TUPLES
 
 
-tuple : A.Position -> P.Parser z E.Pattern Src.Pattern
+tuple : A.Position -> P.Parser E.Pattern Src.Pattern
 tuple start =
   P.inContext E.PTuple (P.word1 0x28 {-(-} E.PStart) <|
     P.bind (Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr1) <| \_ ->
@@ -145,7 +145,7 @@ tuple start =
       ]
 
 
-tupleHelp : A.Position -> Src.Pattern -> TList Src.Pattern -> P.Parser z E.PTuple Src.Pattern
+tupleHelp : A.Position -> Src.Pattern -> TList Src.Pattern -> P.Parser E.PTuple Src.Pattern
 tupleHelp start firstPattern revPatterns =
   P.oneOf E.PTupleEnd
     [ P.bind (P.word1 0x2C {-,-} E.PTupleEnd) <| \_ ->
@@ -167,7 +167,7 @@ tupleHelp start firstPattern revPatterns =
 -- LIST
 
 
-list : A.Position -> P.Parser z E.Pattern Src.Pattern
+list : A.Position -> P.Parser E.Pattern Src.Pattern
 list start =
   P.inContext E.PList (P.word1 0x5B {-[-} E.PStart) <|
     P.bind (Space.chompAndCheckIndent E.PListSpace E.PListIndentOpen) <| \_ ->
@@ -180,7 +180,7 @@ list start =
       ]
 
 
-listHelp : A.Position -> TList Src.Pattern -> P.Parser z E.PList Src.Pattern
+listHelp : A.Position -> TList Src.Pattern -> P.Parser E.PList Src.Pattern
 listHelp start patterns =
   P.oneOf E.PListEnd
     [ P.bind (P.word1 0x2C {-,-} E.PListEnd) <| \_ ->
@@ -197,14 +197,14 @@ listHelp start patterns =
 -- EXPRESSION
 
 
-expression : Space.Parser z E.Pattern Src.Pattern
+expression : Space.Parser E.Pattern Src.Pattern
 expression =
   P.bind P.getPosition <| \start ->
   P.bind exprPart <| \ePart ->
   exprHelp start [] ePart
 
 
-exprHelp : A.Position -> TList Src.Pattern -> (Src.Pattern, A.Position) -> Space.Parser z E.Pattern Src.Pattern
+exprHelp : A.Position -> TList Src.Pattern -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
 exprHelp start revPatterns (pattern, end) =
   P.oneOfWithFallback
     [ P.bind (Space.checkIndent end E.PIndentStart) <| \_ ->
@@ -239,7 +239,7 @@ cons tl hd =
 -- EXPRESSION PART
 
 
-exprPart : Space.Parser z E.Pattern Src.Pattern
+exprPart : Space.Parser E.Pattern Src.Pattern
 exprPart =
   P.oneOf E.PStart
     [
@@ -254,7 +254,7 @@ exprPart =
     ]
 
 
-exprTermHelp : A.Region -> Var.Upper -> A.Position -> TList Src.Pattern -> Space.Parser z E.Pattern Src.Pattern
+exprTermHelp : A.Region -> Var.Upper -> A.Position -> TList Src.Pattern -> Space.Parser E.Pattern Src.Pattern
 exprTermHelp region upper start revArgs =
   P.bind P.getPosition <| \end ->
   P.bind (Space.chomp E.PSpace) <| \_ ->

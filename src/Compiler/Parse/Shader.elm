@@ -16,7 +16,7 @@ import Extra.Type.Map as Map
 -- SHADER
 
 
-shader : A.Position -> P.Parser z E.Expr Src.Expr
+shader : A.Position -> P.Parser E.Expr Src.Expr
 shader ((A.Position row col) as start) =
   P.bind parseBlock <| \block ->
   P.bind (parseGlsl row col block) <| \shdr ->
@@ -28,9 +28,9 @@ shader ((A.Position row col) as start) =
 -- BLOCK
 
 
-parseBlock : P.Parser z E.Expr String
+parseBlock : P.Parser E.Expr String
 parseBlock =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       pos6 = pos + 6
     in
@@ -54,13 +54,13 @@ parseBlock =
             block = String.slice off (off + len) src
             newState = P.State src (newPos + 2) end indent newRow (newCol + 2)
           in
-          cok block newState
+          P.Cok block newState
 
         Unending ->
-          cerr row col E.EndlessShader
+          P.Cerr row col E.EndlessShader
 
     else
-      eerr row col E.Start
+      P.Eerr row col E.Start
 
 
 type Status
@@ -90,7 +90,7 @@ eatShader src pos end row col =
 -- GLSL
 
 
-parseGlsl : P.Row -> P.Col -> String -> P.Parser z E.Expr Shader.Types
+parseGlsl : P.Row -> P.Col -> String -> P.Parser E.Expr Shader.Types
 parseGlsl _ _ _ =
   -- TODO: Parse.Shader.parseGlsl
   P.return <| Shader.Types Map.empty Map.empty Map.empty

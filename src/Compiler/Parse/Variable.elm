@@ -29,37 +29,37 @@ import Unicode as UChar
 -- LOCAL UPPER
 
 
-upper : (P.Row -> P.Col -> x) -> P.Parser z x Name.Name
+upper : (P.Row -> P.Col -> x) -> P.Parser x Name.Name
 upper toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ _ eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let (newPos, newCol) = chompUpper src pos end col in
     if pos == newPos then
-      eerr row col toError
+      P.Eerr row col toError
     else
       let name = Name.fromPtr src pos newPos in
-      cok name (P.State src newPos end indent row newCol)
+      P.Cok name (P.State src newPos end indent row newCol)
 
 
 
 -- LOCAL LOWER
 
 
-lower : (P.Row -> P.Col -> x) -> P.Parser z x Name.Name
+lower : (P.Row -> P.Col -> x) -> P.Parser x Name.Name
 lower toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ _ eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let (newPos, newCol) = chompLower src pos end col in
     if pos == newPos then
-      eerr row col toError
+      P.Eerr row col toError
     else
       let name = Name.fromPtr src pos newPos in
       if Set.member name reservedWords then
-        eerr row col toError
+        P.Eerr row col toError
       else
         let
           newState =
             P.State src newPos end indent row newCol
         in
-        cok name newState
+        P.Cok name newState
 
 
 reservedWords : Set.Set Name.Name  -- PERF try using a trie instead
@@ -80,14 +80,14 @@ reservedWords =
 -- MODULE NAME
 
 
-moduleName : (P.Row -> P.Col -> x) -> P.Parser z x Name.Name
+moduleName : (P.Row -> P.Col -> x) -> P.Parser x Name.Name
 moduleName toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let
       (pos1, col1) = chompUpper src pos end col
     in
     if pos == pos1 then
-      eerr row col toError
+      P.Eerr row col toError
     else
       let
         (status, newPos, newCol) = moduleNameHelp src pos1 end col1
@@ -98,10 +98,10 @@ moduleName toError =
             name = Name.fromPtr src pos newPos
             newState = P.State src newPos end indent row newCol
           in
-          cok name newState
+          P.Cok name newState
 
         Bad ->
-          cerr row newCol toError
+          P.Cerr row newCol toError
 
 
 type ModuleNameStatus
@@ -134,12 +134,12 @@ type Upper
   | Qualified Name.Name Name.Name
 
 
-foreignUpper : (P.Row -> P.Col -> x) -> P.Parser z x Upper
+foreignUpper : (P.Row -> P.Col -> x) -> P.Parser x Upper
 foreignUpper toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ _ eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let (upperStart, upperEnd, newCol) = foreignUpperHelp src pos end col in
     if upperStart == upperEnd then
-      eerr row newCol toError
+      P.Eerr row newCol toError
     else
       let
         newState = P.State src upperEnd end indent row newCol
@@ -151,7 +151,7 @@ foreignUpper toError =
             let home = Name.fromPtr src pos (upperStart - 1) in
             Qualified home name
       in
-      cok upperName newState
+      P.Cok upperName newState
 
 
 foreignUpperHelp : String -> Int -> Int -> P.Col -> (Int, Int, P.Col)
@@ -173,12 +173,12 @@ foreignUpperHelp src pos end col =
 -- FOREIGN ALPHA
 
 
-foreignAlpha : (P.Row -> P.Col -> x) -> P.Parser z x Src.Expr_
+foreignAlpha : (P.Row -> P.Col -> x) -> P.Parser x Src.Expr_
 foreignAlpha toError =
-  P.Parser <| \(P.State src pos end indent row col) cok _ _ eerr ->
+  P.Parser <| \(P.State src pos end indent row col) ->
     let ((alphaStart, alphaEnd), (newCol, varType)) = foreignAlphaHelp src pos end col in
     if alphaStart == alphaEnd then
-      eerr row newCol toError
+      P.Eerr row newCol toError
     else
       let
         newState = P.State src alphaEnd end indent row newCol
@@ -186,12 +186,12 @@ foreignAlpha toError =
       in
       if alphaStart == pos then
         if Set.member name reservedWords then
-          eerr row col toError
+          P.Eerr row col toError
         else
-          cok (Src.Var varType name) newState
+          P.Cok (Src.Var varType name) newState
       else
         let home = Name.fromPtr src pos (alphaStart - 1) in
-        cok (Src.VarQual varType home name) newState
+        P.Cok (Src.VarQual varType home name) newState
 
 
 foreignAlphaHelp : String -> Int -> Int -> P.Col -> ((Int, Int), (P.Col, Src.VarType))

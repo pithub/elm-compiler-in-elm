@@ -101,10 +101,10 @@ decoder =
 -- PARSER
 
 
-parser : P.Parser z ( Row, Col ) Raw
+parser : P.Parser ( Row, Col ) Raw
 parser =
     P.Parser <|
-        \(P.State src pos end indent row col) cok _ cerr eerr ->
+        \(P.State src pos end indent row col) ->
             let
                 ( isGood, newPos, newCol ) =
                     chompStart src pos end col
@@ -114,13 +114,13 @@ parser =
                     newState =
                         P.State src newPos end indent row newCol
                 in
-                cok (Utf8.fromPtr src pos newPos) newState
+                P.Cok (Utf8.fromPtr src pos newPos) newState
 
             else if col == newCol then
-                eerr row newCol Tuple.pair
+                P.Eerr row newCol Tuple.pair
 
             else
-                cerr row newCol Tuple.pair
+                P.Cerr row newCol Tuple.pair
 
 
 chompStart : String -> Int -> Int -> Col -> ( Bool, Int, Col )
