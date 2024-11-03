@@ -304,7 +304,7 @@ constrainIf rtv region branches final expected =
       (conditions, exprs) = MList.foldr (\(c,e) (cs,es) -> (c::cs,e::es)) ([],[final]) branches in
 
   IO.bind
-    (MList.traverse IO.pure IO.liftA2 (\c -> constrain rtv c boolExpect) conditions) <| \condCons ->
+    (IO.traverseList (\c -> constrain rtv c boolExpect) conditions) <| \condCons ->
 
   case expected of
     E.FromAnnotation name arity _ tipe ->
@@ -382,7 +382,7 @@ constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
 
 constrainRecord : RTV -> A.Region -> Map.Map Name.Name Can.Expr -> E.Expected Type.Type -> IO t Type.Constraint
 constrainRecord rtv region fields expected =
-  IO.bind (Map.traverse IO.pure IO.liftA2 (constrainField rtv) fields) <| \dict ->
+  IO.bind (IO.traverseMap (constrainField rtv) fields) <| \dict ->
 
   let getType (_, t, _) = t
       recordType = Type.RecordN (Map.map getType dict) Type.EmptyRecordN
@@ -409,7 +409,7 @@ constrainField rtv expr =
 constrainUpdate : RTV -> A.Region -> Name.Name -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> E.Expected Type.Type -> IO t Type.Constraint
 constrainUpdate rtv region name expr fields expected =
   IO.bind Type.mkFlexVar <| \extVar ->
-  IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (constrainUpdateField rtv region) fields) <| \fieldDict ->
+  IO.bind (IO.traverseWithKey (constrainUpdateField rtv region) fields) <| \fieldDict ->
 
   IO.bind Type.mkFlexVar <| \recordVar ->
   let recordType = Type.VarN recordVar
@@ -557,7 +557,7 @@ constrainDef rtv def bodyCon =
 
     Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
       let newNames = Map.difference freeVars rtv in
-      IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\n _ -> Type.nameToRigid n) newNames) <| \newRigids ->
+      IO.bind (IO.traverseWithKey (\n _ -> Type.nameToRigid n) newNames) <| \newRigids ->
       let newRtv = Map.union rtv (Map.map Type.VarN newRigids) in
 
       IO.bind
@@ -641,7 +641,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
 
         Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
           let newNames = Map.difference freeVars rtv in
-          IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\n _ -> Type.nameToRigid n) newNames) <| \newRigids ->
+          IO.bind (IO.traverseWithKey (\n _ -> Type.nameToRigid n) newNames) <| \newRigids ->
           let newRtv = Map.union rtv (Map.map Type.VarN newRigids) in
 
           IO.bind

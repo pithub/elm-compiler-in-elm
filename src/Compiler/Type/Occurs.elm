@@ -52,7 +52,7 @@ occursHelp seen var foundCycle =
         let newSeen = var :: seen in
         case term of
           Type.App1 _ _ args ->
-            MList.foldrM IO.return IO.bind (occursHelp newSeen) foundCycle args
+            IO.foldrMList (occursHelp newSeen) foundCycle args
 
           Type.Fun1 a b ->
             IO.andThen (occursHelp newSeen a) <|
@@ -63,7 +63,7 @@ occursHelp seen var foundCycle =
 
           Type.Record1 fields ext ->
             IO.andThen (occursHelp newSeen ext) <|
-              MList.foldrM IO.return IO.bind (occursHelp newSeen) foundCycle (Map.elems fields)
+              IO.foldrMList (occursHelp newSeen) foundCycle (Map.elems fields)
 
           Type.Unit1 ->
             IO.return foundCycle
@@ -80,7 +80,7 @@ occursHelp seen var foundCycle =
                     occursHelp newSeen c foundCycle
 
       Type.Alias _ _ args _ ->
-        MList.foldrM IO.return IO.bind (occursHelp (var::seen)) foundCycle (MList.map Tuple.second args)
+        IO.foldrMList (occursHelp (var::seen)) foundCycle (MList.map Tuple.second args)
 
       Type.Error ->
         IO.return foundCycle

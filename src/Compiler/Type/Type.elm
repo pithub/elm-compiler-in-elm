@@ -724,12 +724,12 @@ getVarNames var takenNames =
           addName 0 name var (RigidSuper super) takenNames
 
         Alias _ _ args _ ->
-          MList.foldrM IO.return IO.bind getVarNames takenNames (MList.map Tuple.second args)
+          IO.foldrMList getVarNames takenNames (MList.map Tuple.second args)
 
         Structure flatType ->
           case flatType of
             App1 _ _ args ->
-              MList.foldrM IO.return IO.bind getVarNames takenNames args
+              IO.foldrMList getVarNames takenNames args
 
             Fun1 arg body ->
               IO.andThen (getVarNames arg) <| getVarNames body takenNames
@@ -739,7 +739,7 @@ getVarNames var takenNames =
 
             Record1 fields extension ->
               IO.andThen (getVarNames extension) <|
-                MList.foldrM IO.return IO.bind getVarNames takenNames (Map.elems fields)
+                IO.foldrMList getVarNames takenNames (Map.elems fields)
 
             Unit1 ->
               IO.return takenNames

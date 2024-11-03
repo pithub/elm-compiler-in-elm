@@ -68,7 +68,7 @@ run constraint =
 
   case errors of
     [] ->
-      IO.fmap Right <| Map.traverse IO.pure IO.liftA2 Type.toAnnotation env
+      IO.fmap Right <| IO.traverseMap Type.toAnnotation env
 
     e::es ->
       IO.return <| Left (NE.CList e es)
@@ -171,7 +171,7 @@ solve env rank pools state constraint =
               (Error.ptypeReplace expectation expectedType)
 
     Type.CAnd constraints ->
-      MList.foldlM IO.return IO.bind (solve env rank pools) state constraints
+      IO.foldlMList (solve env rank pools) state constraints
 
     Type.CLet [] flexs _ headerCon Type.CTrue ->
       IO.bind (introduce rank pools flexs) <| \_ ->
@@ -179,10 +179,10 @@ solve env rank pools state constraint =
 
     Type.CLet [] [] header headerCon subCon ->
       IO.bind (solve env rank pools state headerCon) <| \state1 ->
-      IO.bind (Map.traverse IO.pure IO.liftA2 (A.traverse IO.fmap (typeToVariable rank pools)) header) <| \locals ->
+      IO.bind (IO.traverseMap (A.traverse IO.fmap (typeToVariable rank pools)) header) <| \locals ->
       let newEnv = Map.union env (Map.map A.toValue locals) in
       IO.bind (solve newEnv rank pools state1 subCon) <| \state2 ->
-      MList.foldlM IO.return IO.bind occurs state2 <| Map.toList locals
+      IO.foldlMList occurs state2 <| Map.toList locals
 
     Type.CLet rigids flexs header headerCon subCon ->
       -- work in the next pool to localize header
@@ -195,13 +195,13 @@ solve env rank pools state constraint =
 
       -- introduce variables
       let vars = rigids ++ flexs in
-      IO.bind (MList.forM_ IO.return IO.bind vars <| \var ->
+      IO.bind (IO.forMList_ vars <| \var ->
         UF.modify var <| \(Type.Descriptor content _ mark copy) ->
           Type.Descriptor content nextRank mark copy) <| \_ ->
       IO.bind (liftP <| MVector.write nextPools nextRank vars) <| \_ ->
 
       -- run solver in next pool
-      IO.bind (Map.traverse IO.pure IO.liftA2 (A.traverse IO.fmap (typeToVariable nextRank nextPools)) header) <| \locals ->
+      IO.bind (IO.traverseMap (A.traverse IO.fmap (typeToVariable nextRank nextPools)) header) <| \locals ->
       IO.bind (solve env nextRank nextPools state headerCon) <| \(State savedEnv mark errors) ->
 
       let youngMark = mark
@@ -213,13 +213,13 @@ solve env rank pools state constraint =
       IO.bind (liftP <| MVector.write nextPools nextRank []) <| \_ ->
 
       -- check that things went well
-      IO.bind (MList.mapM_ IO.return IO.bind isGeneric rigids) <| \_ ->
+      IO.bind (IO.mapMList_ isGeneric rigids) <| \_ ->
 
       let newEnv = Map.union env (Map.map A.toValue locals)
           tempState = State savedEnv finalMark errors in
       IO.bind (solve newEnv rank nextPools tempState subCon) <| \newState ->
 
-      MList.foldlM IO.return IO.bind occurs newState (Map.toList locals)
+      IO.foldlMList occurs newState (Map.toList locals)
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
@@ -308,14 +308,14 @@ generalize youngMark visitMark youngRank pools =
   -- get the ranks right for each entry.
   -- start at low ranks so that we only have to pass
   -- over the information once.
-  IO.bind (MList.imapM_ IO.return IO.bind
-    (\rank table -> MList.mapM_ IO.return IO.bind (adjustRank youngMark visitMark rank) table)
+  IO.bind (IO.imapMList_
+    (\rank table -> IO.mapMList_ (adjustRank youngMark visitMark rank) table)
     rankTable) <| \_ ->
 
   -- For variables that have rank lowerer than youngRank, register them in
   -- the appropriate old pool if they are not redundant.
-  IO.bind (MList.forM_ IO.return IO.bind (MList.init rankTable) <| \vars ->
-    MList.forM_ IO.return IO.bind vars <| \var ->
+  IO.bind (IO.forMList_ (MList.init rankTable) <| \vars ->
+    IO.forMList_ vars <| \var ->
       IO.bind (UF.redundant var) <| \isRedundant ->
       if isRedundant
         then IO.return ()
@@ -326,7 +326,7 @@ generalize youngMark visitMark youngRank pools =
   -- For variables with rank youngRank
   --   If rank < youngRank: register in oldPool
   --   otherwise generalize
-  MList.forM_ IO.return IO.bind (MList.last rankTable) <| \var ->
+  IO.forMList_ (MList.last rankTable) <| \var ->
     IO.bind (UF.redundant var) <| \isRedundant ->
     if isRedundant
       then IO.return ()
@@ -342,7 +342,7 @@ poolToRankTable youngMark youngRank youngInhabitants =
   IO.bind (liftP <| MVector.replicate (youngRank + 1) []) <| \mutableTable ->
 
   -- Sort the youngPool variables into buckets by rank.
-  IO.bind (MList.forM_ IO.return IO.bind youngInhabitants <| \var ->
+  IO.bind (IO.forMList_ youngInhabitants <| \var ->
     IO.bind (UF.get var) <| \(Type.Descriptor content rank _ copy) ->
     IO.bind (UF.set var (Type.Descriptor content rank youngMark copy)) <| \_ ->
     liftP <| MVector.modify mutableTable (\l -> var::l) rank) <| \_ ->
@@ -398,7 +398,7 @@ adjustRankContent youngMark visitMark groupRank content =
       Type.Structure flatType ->
         case flatType of
           Type.App1 _ _ args ->
-            MList.foldlM IO.return IO.bind (\rank arg -> IO.fmap (max rank) <| go arg) Type.outermostRank args
+            IO.foldlMList (\rank arg -> IO.fmap (max rank) <| go arg) Type.outermostRank args
 
           Type.Fun1 arg result ->
             IO.liftA2 max (go arg) (go result)
@@ -409,7 +409,7 @@ adjustRankContent youngMark visitMark groupRank content =
 
           Type.Record1 fields extension ->
             IO.bind (go extension) <| \extRank ->
-            Map.foldlM IO.return IO.bind (\rank field -> IO.fmap (max rank) <| go field) extRank fields
+            IO.foldlMMap (\rank field -> IO.fmap (max rank) <| go field) extRank fields
 
           Type.Unit1 ->
             -- THEORY: a unit never needs to get generalized
@@ -427,7 +427,7 @@ adjustRankContent youngMark visitMark groupRank content =
 
       Type.Alias _ _ args _ ->
         -- THEORY: anything in the realVar would be outermostRank
-        MList.foldlM IO.return IO.bind (\rank (_, argVar) -> IO.fmap (max rank) <| go argVar) Type.outermostRank args
+        IO.foldlMList (\rank (_, argVar) -> IO.fmap (max rank) <| go argVar) Type.outermostRank args
 
       Type.Error ->
         IO.return groupRank
@@ -440,7 +440,7 @@ adjustRankContent youngMark visitMark groupRank content =
 introduce : Int -> Pools -> (TList Type.Variable) -> IO ()
 introduce rank pools variables =
   IO.bind (liftP <| MVector.modify pools (\l -> variables++l) rank) <| \_ ->
-  MList.forM_ IO.return IO.bind variables <| \var ->
+  IO.forMList_ variables <| \var ->
     UF.modify var <| \(Type.Descriptor content _ mark copy) ->
       Type.Descriptor content rank mark copy
 
@@ -469,7 +469,7 @@ typeToVar rank pools aliasDict tipe =
       IO.return v
 
     Type.AppN home name args ->
-      IO.bind (MList.traverse IO.pure IO.liftA2 go args) <| \argVars ->
+      IO.bind (IO.traverseList go args) <| \argVars ->
       register rank pools (Type.Structure (Type.App1 home name argVars))
 
     Type.FunN a b ->
@@ -478,7 +478,7 @@ typeToVar rank pools aliasDict tipe =
       register rank pools (Type.Structure (Type.Fun1 aVar bVar))
 
     Type.AliasN home name args aliasType ->
-      IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
+      IO.bind (IO.traverseList (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
       IO.bind (typeToVar rank pools (Map.fromList argVars) aliasType) <| \aliasVar ->
       register rank pools (Type.Alias home name argVars aliasVar)
 
@@ -486,7 +486,7 @@ typeToVar rank pools aliasDict tipe =
       IO.return (Map.ex aliasDict name)
 
     Type.RecordN fields ext ->
-      IO.bind (Map.traverse IO.pure IO.liftA2 go fields) <| \fieldVars ->
+      IO.bind (IO.traverseMap go fields) <| \fieldVars ->
       IO.bind (go ext) <| \extVar ->
       register rank pools (Type.Structure (Type.Record1 fieldVars extVar))
 
@@ -537,7 +537,7 @@ srcTypeToVariable rank pools freeVars srcType =
     makeVar name _ =
       UF.fresh (Type.Descriptor (nameToContent name) rank Type.noMark Nothing)
   in
-    IO.bind (Map.traverseWithKey IO.pure IO.liftA2 makeVar freeVars) <| \flexVars ->
+    IO.bind (IO.traverseWithKey makeVar freeVars) <| \flexVars ->
     IO.bind (liftP <| MVector.modify pools (\l -> Map.elems flexVars ++ l) rank) <| \_ ->
     srcTypeToVar rank pools flexVars srcType
 
@@ -555,11 +555,11 @@ srcTypeToVar rank pools flexVars srcType =
       IO.return (Map.ex flexVars name)
 
     Can.TType home name args ->
-      IO.bind (MList.traverse IO.pure IO.liftA2 go args) <| \argVars ->
+      IO.bind (IO.traverseList go args) <| \argVars ->
       register rank pools (Type.Structure (Type.App1 home name argVars))
 
     Can.TRecord fields maybeExt ->
-      IO.bind (Map.traverse IO.pure IO.liftA2 (srcFieldTypeToVar rank pools flexVars) fields) <| \fieldVars ->
+      IO.bind (IO.traverseMap (srcFieldTypeToVar rank pools flexVars) fields) <| \fieldVars ->
       IO.bind
         (case maybeExt of
           Nothing -> register rank pools emptyRecord1
@@ -577,7 +577,7 @@ srcTypeToVar rank pools flexVars srcType =
       register rank pools (Type.Structure (Type.Tuple1 aVar bVar cVar))
 
     Can.TAlias home name args aliasType ->
-      IO.bind (MList.traverse IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
+      IO.bind (IO.traverseList (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
       IO.bind
         (case aliasType of
           Can.Holey tipe ->
@@ -654,7 +654,7 @@ makeCopyHelp maxRank pools variable =
             IO.return copy
 
           Type.Alias home name args realType ->
-            IO.bind (MList.mapM IO.pure IO.liftA2 (MTuple.traverseSecond IO.fmap (makeCopyHelp maxRank pools)) args) <| \newArgs ->
+            IO.bind (IO.traverseList (MTuple.traverseSecond IO.fmap (makeCopyHelp maxRank pools)) args) <| \newArgs ->
             IO.bind (makeCopyHelp maxRank pools realType) <| \newRealType ->
             IO.bind (UF.set copy <| makeDescriptor (Type.Alias home name newArgs newRealType)) <| \_ ->
             IO.return copy
@@ -697,7 +697,7 @@ restoreContent content =
     Type.Structure term ->
       case term of
         Type.App1 _ _ args ->
-          MList.mapM_ IO.return IO.bind restore args
+          IO.mapMList_ restore args
 
         Type.Fun1 arg result ->
           IO.bind (restore arg) <| \_ ->
@@ -707,7 +707,7 @@ restoreContent content =
           IO.return ()
 
         Type.Record1 fields ext ->
-          IO.bind (Map.mapM_ IO.return IO.bind restore fields) <| \_ ->
+          IO.bind (IO.mapMMap_ restore fields) <| \_ ->
           restore ext
 
         Type.Unit1 ->
@@ -721,7 +721,7 @@ restoreContent content =
             Just c  -> restore c
 
     Type.Alias _ _ args var ->
-      IO.bind (MList.mapM_ IO.return IO.bind (MTuple.traverseSecond IO.fmap restore) args) <| \_ ->
+      IO.bind (IO.mapMList_ (MTuple.traverseSecond IO.fmap restore) args) <| \_ ->
       restore var
 
     Type.Error ->
@@ -736,7 +736,7 @@ traverseFlatType : (Type.Variable -> IO Type.Variable) -> Type.FlatType -> IO Ty
 traverseFlatType f flatType =
   case flatType of
     Type.App1 home name args ->
-      IO.liftM (Type.App1 home name) (MList.traverse IO.pure IO.liftA2 f args)
+      IO.liftM (Type.App1 home name) (IO.traverseList f args)
 
     Type.Fun1 a b ->
       IO.liftM2 Type.Fun1 (f a) (f b)
@@ -745,7 +745,7 @@ traverseFlatType f flatType =
       IO.pure Type.EmptyRecord1
 
     Type.Record1 fields ext ->
-      IO.liftM2 Type.Record1 (Map.traverse IO.pure IO.liftA2 f fields) (f ext)
+      IO.liftM2 Type.Record1 (IO.traverseMap f fields) (f ext)
 
     Type.Unit1 ->
       IO.pure Type.Unit1

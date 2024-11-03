@@ -14,7 +14,7 @@ module Extra.System.MVector exposing
 
 import Extra.System.IO.Pure as IO
 import Extra.System.IORef as IORef exposing (IORef)
-import Extra.Type.List as MList exposing (TList)
+import Extra.Type.List exposing (TList)
 import Extra.Type.Map as Map exposing (Map)
 
 
@@ -44,7 +44,7 @@ grow ((MVector id len) as mv) n (( nextId, map, refState ) as state) =
             ( MVector nextId (len + n)
             , let
                 ( copy, nextRefState ) =
-                    Map.traverse IO.pure IO.liftA2 (\r -> IO.bind (IORef.read r) IORef.new) vec refState
+                    IO.traverseMap (\r -> IO.bind (IORef.read r) IORef.new) vec refState
               in
               ( nextId + 1
               , Map.insert nextId copy map
@@ -107,7 +107,7 @@ unsafeFreeze : MVector a -> IO a (TList a)
 unsafeFreeze (MVector id _) (( nextId, map, refState ) as state) =
     case Map.lookup id map of
         Just vec ->
-            liftResult nextId map <| MList.traverse IO.pure IO.liftA2 IORef.read (Map.elems vec) refState
+            liftResult nextId map <| IO.traverseList IORef.read (Map.elems vec) refState
 
         Nothing ->
             ( [], state )
