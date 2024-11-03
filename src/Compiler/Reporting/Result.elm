@@ -9,6 +9,7 @@ module Compiler.Reporting.Result exposing
   , fmap
   , pure, andMap, liftA2, discardFirst
   , return, bind, andThen
+  , Step(..), loop
   , foldM, traverseList, sequenceAMap, traverseMap, traverseWithKey
   )
 
@@ -155,3 +156,28 @@ traverseMap =
 traverseWithKey : (comparable -> a -> TResult i w e b) -> Map.Map comparable a -> TResult i w e (Map.Map comparable b)
 traverseWithKey =
   Map.traverseWithKey pure liftA2
+
+
+
+-- LOOP
+
+
+type Step state a
+  = Loop state
+  | Done a
+
+
+loop : (state -> TResult i w e (Step state a)) -> state -> TResult i w e a
+loop callback state =
+  CResult <| \i w ->
+    loopHelp callback i w state
+
+
+loopHelp : (state -> TResult i w e (Step state a)) -> i -> w -> state -> RStep i w e a
+loopHelp callback i w state =
+  case callback state of
+    CResult k ->
+      case k i w of
+        Rbad i1 w1 e -> Rbad i1 w1 e
+        Rgood i1 w1 (Loop newState) -> loopHelp callback i1 w1 newState
+        Rgood i1 w1 (Done a) -> Rgood i1 w1 a
