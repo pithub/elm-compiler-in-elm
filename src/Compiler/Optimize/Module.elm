@@ -351,7 +351,7 @@ addLink home link def links =
 -- ADD RECURSIVE DEFS
 
 
-addRecDef : Set.Set Name.Name -> State -> Can.Def -> Names.Tracker z State
+addRecDef : Set.Set Name.Name -> State -> Can.Def -> Names.Tracker State
 addRecDef cycle state def =
   case def of
     Can.Def (A.At _ name) args body ->
@@ -361,7 +361,7 @@ addRecDef cycle state def =
       addRecDefHelp cycle state name (MList.map Tuple.first args) body
 
 
-addRecDefHelp : Set.Set Name.Name -> State -> Name.Name -> TList Can.Pattern -> Can.Expr -> Names.Tracker z State
+addRecDefHelp : Set.Set Name.Name -> State -> Name.Name -> TList Can.Pattern -> Can.Expr -> Names.Tracker State
 addRecDefHelp cycle (State values funcs) name args body =
   case args of
     [] ->

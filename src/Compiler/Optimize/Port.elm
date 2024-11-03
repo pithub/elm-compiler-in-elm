@@ -21,7 +21,7 @@ import Extra.Type.Map as Map
 -- ENCODE
 
 
-toEncoder : Can.Type -> Names.Tracker z Opt.Expr
+toEncoder : Can.Type -> Names.Tracker Opt.Expr
 toEncoder tipe =
   case tipe of
     Can.TAlias _ _ args alias_ ->
@@ -82,7 +82,7 @@ toEncoder tipe =
 -- ENCODE HELPERS
 
 
-encodeMaybe : Can.Type -> Names.Tracker z Opt.Expr
+encodeMaybe : Can.Type -> Names.Tracker Opt.Expr
 encodeMaybe tipe =
   Names.bind (encode "null") <| \null ->
   Names.bind (toEncoder tipe) <| \encoder ->
@@ -91,21 +91,21 @@ encodeMaybe tipe =
     Opt.Call destruct [ null, encoder, Opt.VarLocal Name.dollar ]
 
 
-encodeList : Can.Type -> Names.Tracker z Opt.Expr
+encodeList : Can.Type -> Names.Tracker Opt.Expr
 encodeList tipe =
   Names.bind (encode "list") <| \list ->
   Names.bind (toEncoder tipe) <| \encoder ->
   Names.return <| Opt.Call list [ encoder ]
 
 
-encodeArray : Can.Type -> Names.Tracker z Opt.Expr
+encodeArray : Can.Type -> Names.Tracker Opt.Expr
 encodeArray tipe =
   Names.bind (encode "array") <| \array ->
   Names.bind (toEncoder tipe) <| \encoder ->
   Names.return <| Opt.Call array [ encoder ]
 
 
-encodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker z Opt.Expr
+encodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
 encodeTuple a b maybeC =
   let
     let_ arg index body =
@@ -140,7 +140,7 @@ encodeTuple a b maybeC =
 -- FLAGS DECODER
 
 
-toFlagsDecoder : Can.Type -> Names.Tracker z Opt.Expr
+toFlagsDecoder : Can.Type -> Names.Tracker Opt.Expr
 toFlagsDecoder tipe =
   case tipe of
     Can.TUnit ->
@@ -155,7 +155,7 @@ toFlagsDecoder tipe =
 -- DECODE
 
 
-toDecoder : Can.Type -> Names.Tracker z Opt.Expr
+toDecoder : Can.Type -> Names.Tracker Opt.Expr
 toDecoder tipe =
   case tipe of
     Can.TLambda _ _ ->
@@ -207,7 +207,7 @@ toDecoder tipe =
 -- DECODE MAYBE
 
 
-decodeMaybe : Can.Type -> Names.Tracker z Opt.Expr
+decodeMaybe : Can.Type -> Names.Tracker Opt.Expr
 decodeMaybe tipe =
   Names.bind (Names.registerGlobal ModuleName.maybe "Nothing") <| \nothing ->
   Names.bind (Names.registerGlobal ModuleName.maybe "Just") <| \just ->
@@ -230,7 +230,7 @@ decodeMaybe tipe =
 -- DECODE LIST
 
 
-decodeList : Can.Type -> Names.Tracker z Opt.Expr
+decodeList : Can.Type -> Names.Tracker Opt.Expr
 decodeList tipe =
   Names.bind (decode "list") <| \list ->
   Names.bind (toDecoder tipe) <| \decoder ->
@@ -241,7 +241,7 @@ decodeList tipe =
 -- DECODE ARRAY
 
 
-decodeArray : Can.Type -> Names.Tracker z Opt.Expr
+decodeArray : Can.Type -> Names.Tracker Opt.Expr
 decodeArray tipe =
   Names.bind (decode "array") <| \array ->
   Names.bind (toDecoder tipe) <| \decoder ->
@@ -252,13 +252,13 @@ decodeArray tipe =
 -- DECODE TUPLES
 
 
-decodeTuple0 : Names.Tracker z Opt.Expr
+decodeTuple0 : Names.Tracker Opt.Expr
 decodeTuple0 =
   Names.bind (decode "null") <| \null ->
   Names.return (Opt.Call null [ Opt.Unit ])
 
 
-decodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker z Opt.Expr
+decodeTuple : Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
 decodeTuple a b maybeC =
   Names.bind (decode "succeed") <| \succeed ->
   case maybeC of
@@ -279,7 +279,7 @@ toLocal index =
   Opt.VarLocal (Name.fromVarIndex index)
 
 
-indexAndThen : Int -> Can.Type -> Opt.Expr -> Names.Tracker z Opt.Expr
+indexAndThen : Int -> Can.Type -> Opt.Expr -> Names.Tracker Opt.Expr
 indexAndThen i tipe decoder =
   Names.bind (decode "andThen") <| \andThen ->
   Names.bind (decode "index") <| \index ->
@@ -295,7 +295,7 @@ indexAndThen i tipe decoder =
 -- DECODE RECORDS
 
 
-decodeRecord : Map.Map Name.Name Can.FieldType -> Names.Tracker z Opt.Expr
+decodeRecord : Map.Map Name.Name Can.FieldType -> Names.Tracker Opt.Expr
 decodeRecord fields =
   let
     toFieldExpr name _ =
@@ -309,7 +309,7 @@ decodeRecord fields =
     Names.registerFieldDict fields (Map.toList fields)
 
 
-fieldAndThen : Opt.Expr -> (Name.Name, Can.FieldType) -> Names.Tracker z Opt.Expr
+fieldAndThen : Opt.Expr -> (Name.Name, Can.FieldType) -> Names.Tracker Opt.Expr
 fieldAndThen decoder (key, Can.FieldType _ tipe) =
   Names.bind (decode "andThen") <| \andThen ->
   Names.bind (decode "field") <| \field ->
@@ -325,11 +325,11 @@ fieldAndThen decoder (key, Can.FieldType _ tipe) =
 -- GLOBALS HELPERS
 
 
-encode : Name.Name -> Names.Tracker z Opt.Expr
+encode : Name.Name -> Names.Tracker Opt.Expr
 encode name =
   Names.registerGlobal ModuleName.jsonEncode name
 
 
-decode : Name.Name -> Names.Tracker z Opt.Expr
+decode : Name.Name -> Names.Tracker Opt.Expr
 decode name =
   Names.registerGlobal ModuleName.jsonDecode name
