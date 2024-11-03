@@ -3,12 +3,11 @@ module Extra.Data.Graph exposing
     , stronglyConnComp
     )
 
--- Ported from https://hackage.haskell.org/package/containers-0.7/docs/Data-Graph.html
+-- Parts ported from https://hackage.haskell.org/package/containers-0.7/docs/Data-Graph.html
 
-import Array
 import Extra.Type.List as MList exposing (TList)
-import Extra.Type.Maybe as ME
-import Extra.Type.Set as Set
+import Extra.Type.Map as Map exposing (Map)
+import Extra.Type.Set as Set exposing (Set)
 
 
 
@@ -23,8 +22,8 @@ type SCC vertex
 stronglyConnComp : TList ( node, comparable, TList comparable ) -> TList (SCC node)
 stronglyConnComp edges0 =
     let
-        get_node scc_ =
-            case scc_ of
+        get_node scc =
+            case scc of
                 AcyclicSCC ( n, _, _ ) ->
                     AcyclicSCC n
 
@@ -42,220 +41,202 @@ stronglyConnCompR :
     -- nodes of the graph; such edges are ignored.
     -> TList (SCC ( node, comparable, TList comparable )) -- ^ Reverse topologically sorted
 stronglyConnCompR edges0 =
-    case edges0 of
-        [] ->
-            []
+    let
+        lt : ( node, comparable, TList comparable ) -> ( node, comparable, TList comparable ) -> Order
+        lt ( _, v, _ ) ( _, w, _ ) =
+            compare v w
 
-        _ ->
-            let
-                ( graph, vertex_fn, _ ) =
-                    graphFromEdges edges0
+        sorted : TList ( Int, ( node, comparable, TList comparable ) )
+        sorted =
+            MList.sortBy lt edges0 |> MList.indexedFrom 0
 
-                forest =
-                    scc graph
+        keyMap : Map comparable Vertex
+        keyMap =
+            MList.foldl
+                (\acc ( i, ( _, k, _ ) ) -> Map.insert k i acc)
+                Map.empty
+                sorted
 
-                decode (Node v ts) =
-                    case ts of
-                        [] ->
-                            if mentions_itself v then
-                                CyclicSCC [ vertex_fn v ]
+        nodeMap : Map Vertex ( node, comparable, TList comparable )
+        nodeMap =
+            Map.fromList sorted
 
-                            else
-                                AcyclicSCC (vertex_fn v)
+        getNode : Vertex -> ( node, comparable, TList comparable )
+        getNode vertex =
+            Map.ex nodeMap vertex
 
-                        _ ->
-                            CyclicSCC (vertex_fn v :: MList.foldr dec [] ts)
+        edges : TList ( Vertex, TList Vertex )
+        edges =
+            MList.mapMaybe
+                (\( _, from, neighbors ) ->
+                    Map.lookup from keyMap
+                        |> Maybe.map
+                            (\vertex ->
+                                ( vertex, MList.mapMaybe (\to -> Map.lookup to keyMap) neighbors )
+                            )
+                )
+                edges0
 
-                dec (Node v ts) vs =
-                    vertex_fn v :: MList.foldr dec vs ts
+        selfRefs : Set Vertex
+        selfRefs =
+            MList.foldl
+                (\acc ( from, neighbors ) ->
+                    if MList.elem from neighbors then
+                        Set.insert from acc
 
-                mentions_itself v =
-                    MList.elem v (unsafeGet v graph)
-            in
-            MList.map decode forest
+                    else
+                        acc
+                )
+                Set.empty
+                edges
+
+        graph : Graph
+        graph =
+            Map.fromList edges
+
+        components : TList (TList Vertex)
+        components =
+            sccs graph
+
+        toSCC : TList Vertex -> SCC ( node, comparable, TList comparable )
+        toSCC component =
+            case component of
+                [ vertex ] ->
+                    if Set.member vertex selfRefs then
+                        CyclicSCC [ getNode vertex ]
+
+                    else
+                        AcyclicSCC (getNode vertex)
+
+                _ ->
+                    CyclicSCC (MList.map getNode component)
+    in
+    MList.map toSCC components
 
 
 
--- GRAPHS
+-- KOSARAJU'S ALGORITHM
 
 
 type alias Vertex =
-    -- | Abstract representation of vertices.
     Int
 
 
 type alias Graph =
-    -- | Adjacency list representation of a graph, mapping each vertex to its
-    -- list of successors.
-    Array.Array (TList Vertex)
+    Map Vertex (TList Vertex)
 
 
-type alias Bounds =
-    ( Vertex, Vertex )
+type VisitTask
+    = CheckVisited Vertex
+    | Output Vertex
 
 
-type alias Edge =
-    ( Vertex, Vertex )
+sccs : Graph -> TList (TList Vertex)
+sccs graph =
+    assign (reverse graph) (visit graph)
 
 
-bounds : Graph -> Bounds
-bounds g =
-    ( 0, Array.length g - 1 )
-
-
-vertices : Graph -> TList Vertex
-vertices graph =
-    MList.range 0 (Array.length graph - 1)
-
-
-edges : Graph -> TList Edge
-edges g =
-    g |> Array.toIndexedList |> MList.concatMap (\( v, ws ) -> MList.map (\w -> ( v, w )) ws)
-
-
-buildG : ( Vertex, Vertex ) -> TList Edge -> Graph
-buildG ( start, end ) edges_ =
-    MList.foldl (\a ( v, s ) -> Array.set v (s :: unsafeGet v a) a) (Array.repeat (end - start + 1) []) edges_
-
-
-transposeG : Graph -> Graph
-transposeG g =
-    buildG (bounds g) (reverseE g)
-
-
-reverseE : Graph -> TList Edge
-reverseE g =
-    g |> edges |> MList.map (\( v, w ) -> ( w, v ))
-
-
-graphFromEdges :
-    TList ( node, comparable, TList comparable )
-    ->
-        ( Graph
-        , Vertex -> ( node, comparable, TList comparable )
-        , comparable -> Maybe Vertex
-        )
-graphFromEdges edges0 =
+visit : Graph -> TList Vertex
+visit graph =
     let
-        max_v : Int
-        max_v =
-            MList.length edges0 - 1
+        check : TList Vertex -> TList VisitTask
+        check vertices =
+            MList.map CheckVisited vertices
 
-        sorted_edges =
-            MList.sortBy lt edges0
-
-        graph =
-            sorted_edges |> MList.map (\( _, _, ks ) -> ME.mapMaybe key_vertex ks) |> Array.fromList
-
-        key_map =
-            sorted_edges |> MList.map (\( _, k, _ ) -> k) |> Array.fromList
-
-        vertex_map =
-            sorted_edges |> Array.fromList
-
-        lt ( _, k1, _ ) ( _, k2, _ ) =
-            compare k1 k2
-
-        -- key_vertex : key -> Maybe Vertex
-        --  returns Nothing for non-interesting vertices
-        key_vertex k =
-            let
-                findVertex a b =
-                    if a > b then
-                        Nothing
-
-                    else
-                        let
-                            mid =
-                                a + (b - a) // 2
-                        in
-                        case compare k (unsafeGet mid key_map) of
-                            LT ->
-                                findVertex a (mid - 1)
-
-                            EQ ->
-                                Just mid
-
-                            GT ->
-                                findVertex (mid + 1) b
-            in
-            findVertex 0 max_v
-    in
-    ( graph, \v -> unsafeGet v vertex_map, key_vertex )
-
-
-unsafeGet : Int -> Array.Array a -> a
-unsafeGet index array =
-    case Array.get index array of
-        Just value ->
-            value
-
-        Nothing ->
-            Debug.todo "Array.get failed"
-
-
-
--- DEPTH FIRST SEARCH
-
-
-dff : Graph -> TList (Tree Vertex)
-dff g =
-    dfs g (vertices g)
-
-
-dfs : Graph -> TList Vertex -> TList (Tree Vertex)
-dfs g vs0 =
-    let
-        go : Set.Set Vertex -> TList Vertex -> ( Set.Set Vertex, TList (Tree Vertex) )
-        go visited vertexes =
-            case vertexes of
+        go : TList VisitTask -> Set Vertex -> TList Vertex -> ( Set Vertex, TList Vertex )
+        go tasks visited output =
+            case tasks of
                 [] ->
-                    ( visited, [] )
+                    ( visited, output )
 
-                v :: vs ->
-                    if Set.member v visited then
-                        go visited vs
+                (CheckVisited vertex) :: rest ->
+                    if Set.member vertex visited then
+                        go rest visited output
 
                     else
                         let
-                            ( visited1, as_ ) =
-                                go (Set.insert v visited) (unsafeGet v g)
+                            neighbors =
+                                Map.lookup vertex graph |> Maybe.withDefault []
 
-                            ( visited2, bs_ ) =
-                                go visited1 vs
+                            newTasks =
+                                check neighbors ++ (Output vertex :: rest)
+
+                            newVisited =
+                                Set.insert vertex visited
                         in
-                        ( visited2, Node v as_ :: bs_ )
+                        go newTasks newVisited output
+
+                (Output vertex) :: rest ->
+                    go rest visited (vertex :: output)
     in
-    go Set.empty vs0 |> Tuple.second
+    go (check (Map.keys graph)) Set.empty [] |> Tuple.second
 
 
+reverse : Graph -> Graph
+reverse originalGraph =
+    let
+        addReversedEdge : Vertex -> Vertex -> Graph -> Graph
+        addReversedEdge from to graph =
+            Map.alter (\neighbors -> Just (from :: Maybe.withDefault [] neighbors)) to graph
 
--- ALGORITHMS
+        addReversedEdges : Graph -> Vertex -> TList Vertex -> Graph
+        addReversedEdges graph from tos =
+            MList.foldl (\acc to -> addReversedEdge from to acc) graph tos
 
-
-postorder : Tree a -> TList a -> TList a
-postorder (Node a ts) =
-    postorderF ts << (::) a
-
-
-postorderF : TList (Tree a) -> TList a -> TList a
-postorderF ts =
-    MList.foldr (<<) identity <| MList.map postorder ts
-
-
-postOrd : Graph -> TList Vertex
-postOrd g =
-    postorderF (dff g) []
-
-
-scc : Graph -> TList (Tree Vertex)
-scc g =
-    dfs g (MList.reverse (postOrd (transposeG g)))
+        addAllReversedEdges : Graph -> Graph
+        addAllReversedEdges graph =
+            Map.foldlWithKey addReversedEdges Map.empty graph
+    in
+    addAllReversedEdges originalGraph
 
 
+type AssignTask
+    = CheckAssigned Vertex
+    | FinishComponent
 
--- TREE
 
+assign : Graph -> TList Vertex -> TList (TList Vertex)
+assign graph orderedVertices =
+    let
+        check : TList Vertex -> TList AssignTask
+        check vertices =
+            MList.map CheckAssigned vertices
 
-type Tree a
-    = Node a (TList (Tree a))
+        go : TList AssignTask -> Set Vertex -> TList Vertex -> TList (TList Vertex) -> ( Set Vertex, TList Vertex, TList (TList Vertex) )
+        go tasks assigned scc output =
+            case tasks of
+                [] ->
+                    ( assigned, scc, output )
+
+                (CheckAssigned vertex) :: rest ->
+                    if Set.member vertex assigned then
+                        go rest assigned scc output
+
+                    else
+                        let
+                            neighborTasks =
+                                Map.lookup vertex graph |> Maybe.withDefault [] |> check
+
+                            finishTasks =
+                                case scc of
+                                    [] ->
+                                        [ FinishComponent ]
+
+                                    _ ->
+                                        []
+
+                            newTasks =
+                                neighborTasks ++ finishTasks ++ rest
+
+                            newAssigned =
+                                Set.insert vertex assigned
+
+                            newScc =
+                                vertex :: scc
+                        in
+                        go newTasks newAssigned newScc output
+
+                FinishComponent :: rest ->
+                    go rest assigned [] (scc :: output)
+    in
+    go (check orderedVertices) Set.empty [] [] |> (\( _, _, output ) -> output)
