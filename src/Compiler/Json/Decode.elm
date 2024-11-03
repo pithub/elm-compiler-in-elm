@@ -463,13 +463,13 @@ pObject =
   P.oneOf ObjectField
     [ P.bind (pField) <| \entry ->
       P.bind spaces <| \_ ->
-      pObjectHelp [entry]
+      P.loop pObjectHelp [entry]
     , P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
       P.return (Object [])
     ]
 
 
-pObjectHelp : TList (P.Snippet, AST) -> Parser AST_
+pObjectHelp : TList (P.Snippet, AST) -> Parser (P.Step (TList (P.Snippet, AST)) AST_)
 pObjectHelp revEntries =
   P.oneOf ObjectEnd
     [
@@ -477,10 +477,10 @@ pObjectHelp revEntries =
       P.bind spaces <| \_ ->
       P.bind pField <| \entry ->
       P.bind spaces <| \_ ->
-      pObjectHelp (entry::revEntries)
+      P.return (P.Loop (entry::revEntries))
     ,
       P.bind (P.word1 0x7D {-}-} ObjectEnd) <| \_ ->
-      P.return (Object (MList.reverse revEntries))
+      P.return (P.Done (Object (MList.reverse revEntries)))
     ]
 
 
