@@ -192,7 +192,7 @@ type Context
 
 check : Can.Module -> Either (NE.TList Error) ()
 check (Can.Module _ _ _ decls _ _ _ _) =
-  case checkDecls decls [] of
+  case checkDecls decls [] identity of
     [] ->
       Right ()
 
@@ -204,17 +204,17 @@ check (Can.Module _ _ _ decls _ _ _ _) =
 -- CHECK DECLS
 
 
-checkDecls : Can.Decls -> TList Error -> TList Error
-checkDecls decls errors =
+checkDecls : Can.Decls -> TList Error -> (TList Error -> TList Error) -> TList Error
+checkDecls decls errors cont =
   case decls of
     Can.Declare def subDecls ->
-      checkDef def <| checkDecls subDecls errors
+      checkDecls subDecls errors (checkDef def >> cont)
 
     Can.DeclareRec def defs subDecls ->
-      checkDef def (MList.foldr checkDef (checkDecls subDecls errors) defs)
+      MList.foldr checkDef (checkDecls subDecls errors (checkDef def >> cont)) defs
 
     Can.SaveTheEnvironment ->
-      errors
+      cont errors
 
 
 
