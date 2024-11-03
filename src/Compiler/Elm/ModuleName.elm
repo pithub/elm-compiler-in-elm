@@ -92,7 +92,7 @@ encode =
     E.name
 
 
-decoder : D.Decoder z ( Row, Col ) Raw
+decoder : D.Decoder ( Row, Col ) Raw
 decoder =
     D.customString parser Tuple.pair
 

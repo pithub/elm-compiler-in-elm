@@ -331,7 +331,7 @@ getConstraints pkg vsn =
                         err (Exit.SolverBadHttpData pkg vsn url)
 
 
-constraintsDecoder : D.Decoder z () Constraints
+constraintsDecoder : D.Decoder () Constraints
 constraintsDecoder =
   D.bind (D.mapError (always ()) Outline.decoder) <| \outline ->
   case outline of

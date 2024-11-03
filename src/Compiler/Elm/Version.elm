@@ -106,7 +106,7 @@ toChars (Version major minor patch) =
 -- JSON
 
 
-decoder : D.Decoder z ( Row, Col ) Version
+decoder : D.Decoder ( Row, Col ) Version
 decoder =
     D.customString parser Tuple.pair
 

@@ -158,7 +158,7 @@ encode constraint =
   E.chars (toChars constraint)
 
 
-decoder : D.Decoder z Error Constraint
+decoder : D.Decoder Error Constraint
 decoder =
   D.customString parser BadFormat
 

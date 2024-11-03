@@ -265,11 +265,11 @@ isDup paths =
 -- JSON DECODE
 
 
-type alias Decoder z a =
-  D.Decoder z Exit.OutlineProblem a
+type alias Decoder a =
+  D.Decoder Exit.OutlineProblem a
 
 
-decoder : Decoder z Outline
+decoder : Decoder Outline
 decoder =
   let
     application = Json.fromChars "application"
@@ -281,7 +281,7 @@ decoder =
   else                             D.failure Exit.OP_BadType
 
 
-appDecoder : Decoder z AppOutline
+appDecoder : Decoder AppOutline
 appDecoder =
   D.pure AppOutline
     |> D.andMap (D.field "elm-version" versionDecoder)
@@ -292,7 +292,7 @@ appDecoder =
     |> D.andMap (D.field "test-dependencies" (D.field "indirect" (depsDecoder versionDecoder)))
 
 
-pkgDecoder : Decoder z PkgOutline
+pkgDecoder : Decoder PkgOutline
 pkgDecoder =
   D.pure PkgOutline
     |> D.andMap (D.field "name" nameDecoder)
@@ -309,34 +309,34 @@ pkgDecoder =
 -- JSON DECODE HELPERS
 
 
-nameDecoder : Decoder z Pkg.Name
+nameDecoder : Decoder Pkg.Name
 nameDecoder =
   D.mapError (\(a,b) -> Exit.OP_BadPkgName a b) Pkg.decoder
 
 
-summaryDecoder : Decoder z Json.TString
+summaryDecoder : Decoder Json.TString
 summaryDecoder =
   D.customString
     (boundParser 80 Exit.OP_BadSummaryTooLong)
     (\_ _ -> Exit.OP_BadSummaryTooLong)
 
 
-versionDecoder : Decoder z V.Version
+versionDecoder : Decoder V.Version
 versionDecoder =
   D.mapError (\(a,b) -> Exit.OP_BadVersion a b) V.decoder
 
 
-constraintDecoder : Decoder z Con.Constraint
+constraintDecoder : Decoder Con.Constraint
 constraintDecoder =
   D.mapError Exit.OP_BadConstraint Con.decoder
 
 
-depsDecoder : Decoder z a -> Decoder z (Map.Map Pkg.Comparable a)
+depsDecoder : Decoder a -> Decoder (Map.Map Pkg.Comparable a)
 depsDecoder valueDecoder =
   D.dict (Pkg.keyDecoder Exit.OP_BadDependencyName) valueDecoder
 
 
-dirsDecoder : Decoder z (NE.TList SrcDir)
+dirsDecoder : Decoder (NE.TList SrcDir)
 dirsDecoder =
   D.fmap (NE.fmap (toSrcDir << SysFile.fromString << Json.toChars)) <| D.nonEmptyList D.string Exit.OP_NoSrcDirs
 
@@ -352,7 +352,7 @@ toSrcDir path =
 -- EXPOSED MODULES DECODER
 
 
-exposedDecoder : Decoder z Exposed
+exposedDecoder : Decoder Exposed
 exposedDecoder =
   D.oneOf
     [ D.fmap ExposedList <| D.list moduleDecoder
@@ -360,7 +360,7 @@ exposedDecoder =
     ]
 
 
-moduleDecoder : Decoder z ModuleName.Raw
+moduleDecoder : Decoder ModuleName.Raw
 moduleDecoder =
   D.mapError (\(a,b) -> Exit.OP_BadModuleName a b) ModuleName.decoder
 
