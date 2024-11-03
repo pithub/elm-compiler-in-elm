@@ -1,5 +1,6 @@
 module Extra.System.IO.Pure exposing
     ( IO
+    , Step(..)
     , andMap
     , andThen
     , bind
@@ -9,6 +10,7 @@ module Extra.System.IO.Pure exposing
     , liftM2
     , liftM3
     , liftS
+    , loop
     , performIO
     , pure
     , return
@@ -108,3 +110,22 @@ return =
 when : Applicative.When (IO s ())
 when =
     Applicative.when pure
+
+
+
+-- LOOP
+
+
+type Step state a
+    = Loop state
+    | Done a
+
+
+loop : (state -> IO s (Step state a)) -> state -> IO s a
+loop callback loopState ioState =
+    case callback loopState ioState of
+        ( Loop newLoopState, newIOState ) ->
+            loop callback newLoopState newIOState
+
+        ( Done a, newIOState ) ->
+            ( a, newIOState )
