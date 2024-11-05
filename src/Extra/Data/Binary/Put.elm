@@ -125,7 +125,4 @@ put6 fa fb fc fd fe ff a b c d e f =
 
 putSequence : (a -> Put) -> List a -> Put
 putSequence fa list =
-    MList.foldl
-        (\acc a -> mappend acc (fa a))
-        mempty
-        list
+    join (MList.map fa list)
