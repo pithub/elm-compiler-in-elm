@@ -27,7 +27,6 @@ import Extra.Class.Applicative as Applicative
 import Extra.Class.Functor as Functor
 import Extra.Class.Monad as Monad
 import Extra.Type.Either as Either exposing (Either(..))
-import Extra.Type.List as MList
 
 
 type alias Get a =
@@ -213,13 +212,23 @@ liftM6 fun ga gb gc gd ge gf =
 
 
 getSequence : Get a -> Int -> Get (List a)
-getSequence ga length =
-    let
-        go l acc =
-            if l > 0 then
-                bind ga (\a -> go (l - 1) (a :: acc))
+getSequence ga length remaining =
+    Bytes.Decode.loop ( length, remaining, [] ) (getSequenceStep ga)
 
-            else
-                return (MList.reverse acc)
-    in
-    go length []
+
+getSequenceStep : Get a -> ( Int, ByteOffset, List a ) -> Bytes.Decode.Decoder (Bytes.Decode.Step ( Int, ByteOffset, List a ) (Either ( ByteOffset, String ) ( ByteOffset, List a )))
+getSequenceStep ga ( length, remaining1, result ) =
+    if length <= 0 then
+        Bytes.Decode.succeed (Bytes.Decode.Done (Right ( remaining1, List.reverse result )))
+
+    else
+        Bytes.Decode.map
+            (\ra ->
+                case ra of
+                    Left ( remaining2, err ) ->
+                        Bytes.Decode.Done (Left ( remaining2, err ))
+
+                    Right ( remaining2, a ) ->
+                        Bytes.Decode.Loop ( length - 1, remaining2, a :: result )
+            )
+            (ga remaining1)
