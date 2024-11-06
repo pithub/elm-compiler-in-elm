@@ -198,7 +198,7 @@ constrainCall rtv region ((A.At funcRegion _) as func) args expected =
   IO.bind (constrain rtv func (E.NoExpectation funcType)) <| \funcCon ->
 
   IO.bind
-    (IO.fmap MList.unzip3 <| Index.indexedTraverse IO.pure IO.liftA2 (constrainArg rtv region maybeName) args) <| \(argVars, argTypes, argCons) ->
+    (IO.fmap MList.unzip3 <| indexedForA args (constrainArg rtv region maybeName)) <| \(argVars, argTypes, argCons) ->
 
   let arityType = MList.foldr Type.FunN resultType argTypes
       category = E.CallResult maybeName in
@@ -280,7 +280,7 @@ constrainList rtv region entries expected =
       listType = Type.AppN ModuleName.list Name.list [entryType] in
 
   IO.bind
-    (Index.indexedTraverse IO.pure IO.liftA2 (constrainListEntry rtv region entryType) entries) <| \entryCons ->
+    (indexedForA entries (constrainListEntry rtv region entryType)) <| \entryCons ->
 
   IO.return <| Type.exists [entryVar] <|
     Type.CAnd
@@ -308,7 +308,7 @@ constrainIf rtv region branches final expected =
 
   case expected of
     E.FromAnnotation name arity _ tipe ->
-      IO.bind (Index.indexedForA IO.pure IO.liftA2 exprs <| \index expr ->
+      IO.bind (indexedForA exprs <| \index expr ->
         constrain rtv expr (E.FromAnnotation name arity (E.TypedIfBranch index) tipe)) <| \branchCons ->
       IO.return <|
         Type.CAnd
@@ -320,7 +320,7 @@ constrainIf rtv region branches final expected =
       IO.bind Type.mkFlexVar <| \branchVar ->
       let branchType = Type.VarN branchVar in
 
-      IO.bind (Index.indexedForA IO.pure IO.liftA2 exprs <| \index expr ->
+      IO.bind (indexedForA exprs <| \index expr ->
         constrain rtv expr (E.FromContext region (E.IfBranch index) branchType)) <| \branchCons ->
 
       IO.return <| Type.exists [branchVar] <|
@@ -343,7 +343,7 @@ constrainCase rtv region expr branches expected =
 
   case expected of
     E.FromAnnotation name arity _ tipe ->
-      IO.bind (Index.indexedForA IO.pure IO.liftA2 branches <| \index branch ->
+      IO.bind (indexedForA branches <| \index branch ->
         constrainCaseBranch rtv branch
           (E.PFromContext region (E.PCaseMatch index) ptrnType)
           (E.FromAnnotation name arity (E.TypedCaseBranch index) tipe)) <| \branchCons ->
@@ -354,7 +354,7 @@ constrainCase rtv region expr branches expected =
       IO.bind Type.mkFlexVar <| \branchVar ->
       let branchType = Type.VarN branchVar in
 
-      IO.bind (Index.indexedForA IO.pure IO.liftA2 branches <| \index branch ->
+      IO.bind (indexedForA branches <| \index branch ->
         constrainCaseBranch rtv branch
           (E.PFromContext region (E.PCaseMatch index) ptrnType)
           (E.FromContext region (E.CaseBranch index) branchType)) <| \branchCons ->
@@ -737,3 +737,22 @@ typedArgsHelp rtv name index args srcResultType state =
           Pattern.add pattern expected state) <| \(TypedArgs tipe resultType newState) ->
 
       IO.return (TypedArgs (Type.FunN argType tipe) resultType newState)
+
+
+
+-- HELPER
+
+
+indexedForA : TList a -> (Index.ZeroBased -> a -> IO s b) -> IO s (TList b)
+indexedForA list func =
+  IO.loop (indexedForAHelp func) (list, 0, [])
+
+
+indexedForAHelp : (Index.ZeroBased -> a -> IO s b) -> (TList a, Int, TList b) -> IO s (IO.Step (TList a, Int, TList b) (TList b))
+indexedForAHelp callback (list, index, result) =
+  case list of
+    [] ->
+      IO.return (IO.Done (MList.reverse result))
+
+    a::rest ->
+      IO.fmap (\b -> IO.Loop (rest, index + 1, b::result)) (callback (Index.ZeroBased index) a)
