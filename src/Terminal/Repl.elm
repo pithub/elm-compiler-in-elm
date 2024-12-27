@@ -4,6 +4,7 @@ module Terminal.Repl exposing
   , Interpreter
   , InterpreterInput(..)
   , InterpreterResult(..)
+  , continueInterpreter
   , run
   --
   --, Lines(..)
@@ -79,19 +80,19 @@ type alias GlobalState a g =
 
 type LocalState a g =
   LocalState
-    -- tbd
-    ()
+    -- cont
+    (Maybe (InterpreterResult -> IO a g ()))
 
 
 initialLocalState : LocalState a g
 initialLocalState =
   LocalState
-    -- tbd
-    ()
+    -- cont
+    Nothing
 
 
-lensTbd : Lens (GlobalState a g) ()
-lensTbd =
+lensCont : Lens (GlobalState a g) (Maybe (InterpreterResult -> IO a g ()))
+lensCont =
   { getter = \(Global.State _ _ _ _ _ _ _ (LocalState x)) -> x
   , setter = \x (Global.State a b c d e f g _) -> Global.State a b c d e f g (LocalState x)
   }
@@ -103,6 +104,48 @@ lensTbd =
 
 type alias IO a g v =
   IO.IO (GlobalState a g) v
+
+
+
+-- INTERPRETER
+
+
+type alias Interpreter a g =
+  InterpreterInput -> IO a g ()
+
+
+type InterpreterInput
+  = InterpretValue String
+  | InterpretHtml N.Name String
+  | ShowError Exit.Repl
+
+
+type InterpreterResult
+  = InterpreterSuccess
+  | InterpreterFailure
+
+
+interpret : Interpreter a g -> InterpreterInput -> IO a g InterpreterResult
+interpret interpreter input =
+  IO.liftCont (\cont ->
+    IO.sequence
+      [ IO.putLens lensCont (Just cont)
+      , interpreter input
+      ])
+
+
+continueInterpreter : InterpreterResult -> IO a g ()
+continueInterpreter result =
+  IO.bind (IO.getLens lensCont) <| \maybeCont ->
+  case maybeCont of
+    Just cont ->
+      IO.sequence
+        [ IO.putLens lensCont Nothing
+        , cont result
+        ]
+
+    Nothing ->
+      IO.return ()
 
 
 
@@ -128,19 +171,6 @@ isBreakpoint mode =
   case mode of
     Breakpoint _ _ _ -> True
     _ -> False
-
-
-type alias Interpreter a g =
-  InterpreterInput -> IO a g InterpreterResult
-
-type InterpreterInput
-  = InterpretValue String
-  | InterpretHtml N.Name String
-  | ShowError Exit.Repl
-
-type InterpreterResult
-  = InterpreterSuccess
-  | InterpreterFailure
 
 
 run : Flags a g -> IO a g (Either Exit.Repl ())
@@ -623,14 +653,14 @@ attemptEval (Env root interpreter ansi mode modulePrefix htmlEnabled) oldState n
 
   case result of
     Left exit ->
-      IO.bind (interpreter (ShowError exit)) <| \_ ->
+      IO.bind (interpret interpreter (ShowError exit)) <| \_ ->
       IO.return oldState
 
     Right Nothing ->
       IO.return newState
 
     Right (Just (kind, javascript)) ->
-      IO.bind (interpreter (inputForKind kind (generatedModule mode) javascript)) <| \interpreterResult ->
+      IO.bind (interpret interpreter (inputForKind kind (generatedModule mode) javascript)) <| \interpreterResult ->
       case interpreterResult of
         InterpreterSuccess -> IO.return newState
         InterpreterFailure -> IO.return oldState
