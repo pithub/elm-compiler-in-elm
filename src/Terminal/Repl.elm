@@ -52,7 +52,6 @@ import Compiler.Reporting.Error.Import as EI
 import Compiler.Reporting.Error.Syntax as ES
 import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Report as Report
-import Extra.Class.StateT as ST
 import Extra.System.File as SysFile exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either as Either exposing (Either(..))
@@ -119,8 +118,7 @@ run flags =
 
       Right env ->
         IO.bind printWelcomeMessage <| \_ ->
-        let looper = loop env (initialState env) in
-        IO.fmap Right <| ST.evalStateT IO.fmap looper (initialState env)
+        IO.fmap Right <| loop env (initialState env)
 
 
 
@@ -179,26 +177,16 @@ type Outcome
   | End
 
 
-type alias M a g h v =
-  ST.StateT State (IO a g h ( v, State ))
-
-mPut = ST.put IO.return
-mReturn = ST.return IO.return
-mBind = ST.bind IO.bind
-mLift = ST.lift IO.fmap
-
-
-loop : Env a g h -> State -> M a g h ()
+loop : Env a g h -> State -> IO a g h ()
 loop (Env _ _ _ mode _ _ as env) state =
-  mBind (read mode) <| \input ->
-  mBind (mLift <| eval env state input) <| \outcome ->
+  IO.bind (read mode) <| \input ->
+  IO.bind (eval env state input) <| \outcome ->
   case outcome of
     Loop state_ ->
-      mBind (mPut state_) <| \_ ->
       loop env state_
 
     End ->
-      mLift Command.clearPrompt
+      Command.clearPrompt
 
 
 
@@ -218,10 +206,10 @@ type Input
   | Help (Maybe String)
 
 
-read : Mode -> M a g h Input
+read : Mode -> IO a g h Input
 read mode =
-  mBind (mLift Command.clearInput) <| \_ ->
-  mBind (mLift (Command.getLineWithInitial ">\u{2000}" "")) <| \maybeLine ->
+  IO.bind Command.clearInput <| \_ ->
+  IO.bind (Command.getLineWithInitial ">\u{2000}" "") <| \maybeLine ->
   case maybeLine of
     {- Nothing ->
       return Exit
@@ -232,13 +220,13 @@ read mode =
         lines = Lines (stripLegacyBackslash chars) []
       in
       case categorize mode lines of
-        Done input -> mReturn input
+        Done input -> IO.return input
         Continue p -> readMore mode lines p
 
 
-readMore : Mode -> Lines -> Prefill -> M a g h Input
+readMore : Mode -> Lines -> Prefill -> IO a g h Input
 readMore mode previousLines prefill =
-  mBind (mLift <| Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
+  IO.bind (Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
   case input of
     {- Nothing ->
       return Skip
@@ -249,7 +237,7 @@ readMore mode previousLines prefill =
         lines = addLine (stripLegacyBackslash chars) previousLines
       in
       case categorize mode lines of
-        Done input_ -> mReturn input_
+        Done input_ -> IO.return input_
         Continue p -> readMore mode lines p
 
 
