@@ -39,6 +39,7 @@ module Extra.System.File exposing
 import Bytes exposing (Bytes)
 import Extra.System.File.Remote as Remote
 import Extra.System.IO as IO
+import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Global
@@ -50,8 +51,8 @@ import Time
 -- PUBLIC STATE
 
 
-type alias State a c d e f g h =
-    Global.State a FileSystem c d e f g h
+type alias State b c d e f g h =
+    Global.State FileSystem b c d e f g h
 
 
 initialState : FileSystem
@@ -63,21 +64,24 @@ initialState =
         []
 
 
+lensFileSystem : Lens (State b c d e f g h) FileSystem
 lensFileSystem =
-    { getter = \(Global.State _ x _ _ _ _ _ _) -> x
-    , setter = \x (Global.State a _ c d e f g h) -> Global.State a x c d e f g h
+    { getter = \(Global.State x _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State _ b c d e f g h) -> Global.State x b c d e f g h
     }
 
 
+lensRoot : Lens (State b c d e f g h) Directory
 lensRoot =
-    { getter = \(Global.State _ (FileSystem x _) _ _ _ _ _ _) -> x
-    , setter = \x (Global.State a (FileSystem _ bi) c d e f g h) -> Global.State a (FileSystem x bi) c d e f g h
+    { getter = \(Global.State (FileSystem x _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (FileSystem _ bi) b c d e f g h) -> Global.State (FileSystem x bi) b c d e f g h
     }
 
 
+lensCwd : Lens (State b c d e f g h) (TList FileName)
 lensCwd =
-    { getter = \(Global.State _ (FileSystem _ x) _ _ _ _ _ _) -> x
-    , setter = \x (Global.State a (FileSystem ai _) c d e f g h) -> Global.State a (FileSystem ai x) c d e f g h
+    { getter = \(Global.State (FileSystem _ x) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (FileSystem ai _) b c d e f g h) -> Global.State (FileSystem ai x) b c d e f g h
     }
 
 
@@ -85,11 +89,11 @@ lensCwd =
 -- PRIVATE IO
 
 
-type alias IO a c d e f g h v =
-    IO.IO (State a c d e f g h) v
+type alias IO b c d e f g h v =
+    IO.IO (State b c d e f g h) v
 
 
-resetFileSystem : IO a c d e f g h ()
+resetFileSystem : IO b c d e f g h ()
 resetFileSystem =
     IO.putLens lensFileSystem initialState
 
@@ -277,7 +281,7 @@ type Entry
     | MountedFileEntry String Int
 
 
-createDirectoryIfMissing : Bool -> FilePath -> IO a c d e f g h ()
+createDirectoryIfMissing : Bool -> FilePath -> IO b c d e f g h ()
 createDirectoryIfMissing createParents filePath =
     walkFileSystem createParents filePath <|
         \maybeNode now ->
@@ -295,7 +299,7 @@ createDirectoryIfMissing createParents filePath =
             )
 
 
-doesDirectoryExist : FilePath -> IO a c d e f g h Bool
+doesDirectoryExist : FilePath -> IO b c d e f g h Bool
 doesDirectoryExist filePath =
     walkFileSystem False filePath <|
         \maybeNode _ ->
@@ -309,7 +313,7 @@ doesDirectoryExist filePath =
             )
 
 
-doesFileExist : FilePath -> IO a c d e f g h Bool
+doesFileExist : FilePath -> IO b c d e f g h Bool
 doesFileExist filePath =
     walkFileSystem False filePath <|
         \maybeNode _ ->
@@ -326,17 +330,17 @@ doesFileExist filePath =
             )
 
 
-getAppUserDataDirectory : FileName -> IO a c d e f g h FilePath
+getAppUserDataDirectory : FileName -> IO b c d e f g h FilePath
 getAppUserDataDirectory app =
     IO.return <| Absolute [ "." ++ app ]
 
 
-getCurrentDirectory : IO a c d e f g h FilePath
+getCurrentDirectory : IO b c d e f g h FilePath
 getCurrentDirectory =
     IO.rmap IO.get (\s -> Absolute (lensCwd.getter s))
 
 
-getModificationTime : FilePath -> IO a c d e f g h Time.Posix
+getModificationTime : FilePath -> IO b c d e f g h Time.Posix
 getModificationTime path =
     walkFileSystem False path <|
         \maybeNode _ ->
@@ -353,7 +357,7 @@ getModificationTime path =
             )
 
 
-makeAbsolute : FilePath -> IO a c d e f g h FilePath
+makeAbsolute : FilePath -> IO b c d e f g h FilePath
 makeAbsolute path =
     case path of
         Absolute _ ->
@@ -363,7 +367,7 @@ makeAbsolute path =
             IO.rmap getCurrentDirectory (\cwd -> combine cwd path)
 
 
-mount : String -> FilePath -> IO a c d e f g h ()
+mount : String -> FilePath -> IO b c d e f g h ()
 mount mountPoint filePath =
     IO.bind (getRemoteTree mountPoint) <|
         \remoteTree ->
@@ -383,7 +387,7 @@ mount mountPoint filePath =
                     )
 
 
-readFile : FilePath -> IO a c d e f g h (Maybe Bytes)
+readFile : FilePath -> IO b c d e f g h (Maybe Bytes)
 readFile filePath =
     IO.andThen getFileContent <|
         walkFileSystem False filePath <|
@@ -406,7 +410,7 @@ type FileContent
     | MountPath String
 
 
-getFileContent : Maybe FileContent -> IO a c d e f g h (Maybe Bytes)
+getFileContent : Maybe FileContent -> IO b c d e f g h (Maybe Bytes)
 getFileContent maybeContent =
     case maybeContent of
         Just (BytesContent bytes) ->
@@ -419,7 +423,7 @@ getFileContent maybeContent =
             IO.return Nothing
 
 
-removeDirectory : FilePath -> IO a c d e f g h ()
+removeDirectory : FilePath -> IO b c d e f g h ()
 removeDirectory filePath =
     walkFileSystem False filePath <|
         \maybeNode _ ->
@@ -431,7 +435,7 @@ removeDirectory filePath =
                     ( Nothing, () )
 
 
-removeFile : FilePath -> IO a c d e f g h ()
+removeFile : FilePath -> IO b c d e f g h ()
 removeFile filePath =
     walkFileSystem False filePath <|
         \maybeNode _ ->
@@ -443,14 +447,14 @@ removeFile filePath =
                     ( Nothing, () )
 
 
-setCurrentDirectory : FilePath -> IO a c d e f g h ()
+setCurrentDirectory : FilePath -> IO b c d e f g h ()
 setCurrentDirectory cwd =
     IO.bind (makeAbsolute cwd) <|
         \absolutePath ->
             IO.putLens lensCwd <| getNames absolutePath
 
 
-writeFile : FilePath -> Bytes -> IO a c d e f g h ()
+writeFile : FilePath -> Bytes -> IO b c d e f g h ()
 writeFile filePath contents =
     walkFileSystem False filePath <|
         \maybeNode now ->
@@ -470,12 +474,12 @@ writeFile filePath contents =
 -- PURE IO
 
 
-getCurrentDirectoryNamesPure : State a c d e f g h -> TList FileName
+getCurrentDirectoryNamesPure : State b c d e f g h -> TList FileName
 getCurrentDirectoryNamesPure state =
     MList.reverse (lensCwd.getter state)
 
 
-getCurrentDirectoryEntryPure : State a c d e f g h -> Directory
+getCurrentDirectoryEntryPure : State b c d e f g h -> Directory
 getCurrentDirectoryEntryPure state =
     let
         goto names directory =
@@ -495,7 +499,7 @@ getCurrentDirectoryEntryPure state =
 
 
 getCurrentDirectoryEntriesPure :
-    State a c d e f g h
+    State b c d e f g h
     -> (FileName -> Int -> Time.Posix -> z)
     -> ( TList z, TList z )
 getCurrentDirectoryEntriesPure state f =
@@ -523,7 +527,7 @@ walkFileSystem :
     Bool
     -> FilePath
     -> (Maybe ( Directory, FileName, Maybe ( Time.Posix, Entry ) ) -> Time.Posix -> ( Maybe Directory, v ))
-    -> IO a c d e f g h v
+    -> IO b c d e f g h v
 walkFileSystem createDirectories filePath callback =
     IO.bind (IO.liftA2 Tuple.pair (makeAbsolute filePath) getTime) <|
         \( absolutePath, now ) ->
@@ -602,7 +606,7 @@ walkFileSystemPure createDirectories filePath now callback root =
     down [] (MList.reverse (getNames filePath)) root
 
 
-getTime : IO a c d e f g h Time.Posix
+getTime : IO b c d e f g h Time.Posix
 getTime =
     IO.liftCmd <| Task.perform identity Time.now
 
@@ -611,7 +615,7 @@ getTime =
 -- REMOTE
 
 
-getRemoteTree : String -> IO a c d e f g h Directory
+getRemoteTree : String -> IO b c d e f g h Directory
 getRemoteTree remotePath =
     IO.rmap (Remote.getTree remotePath) mapRemoteTree
 

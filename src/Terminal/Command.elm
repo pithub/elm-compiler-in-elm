@@ -40,14 +40,14 @@ import Time
 -- PUBLIC STATE
 
 
-type alias State a g h =
-    Generate.State a (LocalState a g h) g h
+type alias State f g h =
+    Generate.State (LocalState f g h) f g h
 
 
-type LocalState a g h
+type LocalState f g h
     = LocalState
         -- stdIn
-        (TList (String -> IO a g h ()))
+        (TList (String -> IO f g h ()))
         -- stdOut
         (TList Output)
         -- prompt
@@ -60,7 +60,7 @@ type LocalState a g h
         (Maybe Int)
 
 
-initialState : LocalState a g h
+initialState : LocalState f g h
 initialState =
     LocalState
         -- stdIn
@@ -77,45 +77,45 @@ initialState =
         Nothing
 
 
-lensStdIn : Lens (State a g h) (TList (String -> IO a g h ()))
+lensStdIn : Lens (State f g h) (TList (String -> IO f g h ()))
 lensStdIn =
-    { getter = \(Global.State _ _ _ _ _ (LocalState x _ _ _ _ _) _ _) -> x
-    , setter = \x (Global.State a b c d e (LocalState _ bi ci di ei fi) g h) -> Global.State a b c d e (LocalState x bi ci di ei fi) g h
+    { getter = \(Global.State _ _ _ _ (LocalState x _ _ _ _ _) _ _ _) -> x
+    , setter = \x (Global.State a b c d (LocalState _ bi ci di ei fi) f g h) -> Global.State a b c d (LocalState x bi ci di ei fi) f g h
     }
 
 
-lensStdOut : Lens (State a g h) (TList Output)
+lensStdOut : Lens (State f g h) (TList Output)
 lensStdOut =
-    { getter = \(Global.State _ _ _ _ _ (LocalState _ x _ _ _ _) _ _) -> x
-    , setter = \x (Global.State a b c d e (LocalState ai _ ci di ei fi) g h) -> Global.State a b c d e (LocalState ai x ci di ei fi) g h
+    { getter = \(Global.State _ _ _ _ (LocalState _ x _ _ _ _) _ _ _) -> x
+    , setter = \x (Global.State a b c d (LocalState ai _ ci di ei fi) f g h) -> Global.State a b c d (LocalState ai x ci di ei fi) f g h
     }
 
 
-lensPrompt : Lens (State a g h) String
+lensPrompt : Lens (State f g h) String
 lensPrompt =
-    { getter = \(Global.State _ _ _ _ _ (LocalState _ _ x _ _ _) _ _) -> x
-    , setter = \x (Global.State a b c d e (LocalState ai bi _ di ei fi) g h) -> Global.State a b c d e (LocalState ai bi x di ei fi) g h
+    { getter = \(Global.State _ _ _ _ (LocalState _ _ x _ _ _) _ _ _) -> x
+    , setter = \x (Global.State a b c d (LocalState ai bi _ di ei fi) f g h) -> Global.State a b c d (LocalState ai bi x di ei fi) f g h
     }
 
 
-lensInput : Lens (State a g h) String
+lensInput : Lens (State f g h) String
 lensInput =
-    { getter = \(Global.State _ _ _ _ _ (LocalState _ _ _ x _ _) _ _) -> x
-    , setter = \x (Global.State a b c d e (LocalState ai bi ci _ ei fi) g h) -> Global.State a b c d e (LocalState ai bi ci x ei fi) g h
+    { getter = \(Global.State _ _ _ _ (LocalState _ _ _ x _ _) _ _ _) -> x
+    , setter = \x (Global.State a b c d (LocalState ai bi ci _ ei fi) f g h) -> Global.State a b c d (LocalState ai bi ci x ei fi) f g h
     }
 
 
-lensWaiting : Lens (State a g h) (Maybe String)
+lensWaiting : Lens (State f g h) (Maybe String)
 lensWaiting =
-    { getter = \(Global.State _ _ _ _ _ (LocalState _ _ _ _ x _) _ _) -> x
-    , setter = \x (Global.State a b c d e (LocalState ai bi ci di _ fi) g h) -> Global.State a b c d e (LocalState ai bi ci di x fi) g h
+    { getter = \(Global.State _ _ _ _ (LocalState _ _ _ _ x _) _ _ _) -> x
+    , setter = \x (Global.State a b c d (LocalState ai bi ci di _ fi) f g h) -> Global.State a b c d (LocalState ai bi ci di x fi) f g h
     }
 
 
-lensInputTime : Lens (State a g h) (Maybe Int)
+lensInputTime : Lens (State f g h) (Maybe Int)
 lensInputTime =
-    { getter = \(Global.State _ _ _ _ _ (LocalState _ _ _ _ _ x) _ _) -> x
-    , setter = \x (Global.State a b c d e (LocalState ai bi ci di ei _) g h) -> Global.State a b c d e (LocalState ai bi ci di ei x) g h
+    { getter = \(Global.State _ _ _ _ (LocalState _ _ _ _ _ x) _ _ _) -> x
+    , setter = \x (Global.State a b c d (LocalState ai bi ci di ei _) f g h) -> Global.State a b c d (LocalState ai bi ci di ei x) f g h
     }
 
 
@@ -123,20 +123,20 @@ lensInputTime =
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-    IO.IO (State a g h) v
+type alias IO f g h v =
+    IO.IO (State f g h) v
 
 
 
 -- STDIN
 
 
-getLine : IO a g h String
+getLine : IO f g h String
 getLine =
     getLineWithInitial "" ""
 
 
-getLineWithInitial : String -> String -> IO a g h String
+getLineWithInitial : String -> String -> IO f g h String
 getLineWithInitial prompt prefill =
     IO.bindSequence
         [ IO.putLens lensPrompt prompt
@@ -157,7 +157,7 @@ getLineWithInitial prompt prefill =
         )
 
 
-gotLine : String -> IO a g h ()
+gotLine : String -> IO f g h ()
 gotLine line =
     IO.bind (IO.getLens lensStdIn) <|
         \stdIn ->
@@ -192,22 +192,22 @@ getText output =
             string
 
 
-putLine : String -> IO a g h ()
+putLine : String -> IO f g h ()
 putLine line =
     putOutput <| Permanent line
 
 
-putTemporary : String -> IO a g h ()
+putTemporary : String -> IO f g h ()
 putTemporary line =
     putOutput <| Temporary line
 
 
-putDoc : D.Doc -> IO a g h ()
+putDoc : D.Doc -> IO f g h ()
 putDoc doc =
     putOutput <| Permanent (D.toString doc)
 
 
-putOutput : Output -> IO a g h ()
+putOutput : Output -> IO f g h ()
 putOutput output =
     IO.modifyLens lensStdOut <|
         \stdOut ->
@@ -219,12 +219,12 @@ putOutput output =
                     output :: stdOut
 
 
-clearStdOut : IO a g h ()
+clearStdOut : IO f g h ()
 clearStdOut =
     IO.putLens lensStdOut []
 
 
-clearPutLine : String -> IO a g h ()
+clearPutLine : String -> IO f g h ()
 clearPutLine string =
     IO.sequence
         [ clearStdOut
@@ -236,7 +236,7 @@ clearPutLine string =
 -- PROMPT
 
 
-clearPrompt : IO a g h ()
+clearPrompt : IO f g h ()
 clearPrompt =
     IO.putLens lensPrompt ""
 
@@ -245,7 +245,7 @@ clearPrompt =
 -- ASK
 
 
-ask : D.Doc -> IO a g h Bool
+ask : D.Doc -> IO f g h Bool
 ask doc =
     IO.bind clearInput <|
         \_ ->
@@ -254,7 +254,7 @@ ask doc =
                     askHelp
 
 
-askHelp : IO a g h Bool
+askHelp : IO f g h Bool
 askHelp =
     IO.bind (getLineWithInitial "?\u{2000}" "") <|
         \input ->
@@ -285,22 +285,22 @@ askHelp =
 -- INPUT
 
 
-clearInput : IO a g h ()
+clearInput : IO f g h ()
 clearInput =
     setInput ""
 
 
-setInput : String -> IO a g h ()
+setInput : String -> IO f g h ()
 setInput input =
     IO.putLens lensInput input
 
 
-getInput : IO a g h String
+getInput : IO f g h String
 getInput =
     IO.getLens lensInput
 
 
-gotInput : IO a g h ()
+gotInput : IO f g h ()
 gotInput =
     IO.bind (IO.getLens lensInput) gotLine
 
@@ -309,12 +309,12 @@ gotInput =
 -- WAITING
 
 
-setCurrentInput : String -> IO a g h ()
+setCurrentInput : String -> IO f g h ()
 setCurrentInput input =
     gotLine input
 
 
-setNextInput : String -> IO a g h ()
+setNextInput : String -> IO f g h ()
 setNextInput input =
     IO.putLens lensWaiting (Just input)
 
@@ -323,19 +323,19 @@ setNextInput input =
 -- INPUT TIME
 
 
-clearInputTime : IO a g h ()
+clearInputTime : IO f g h ()
 clearInputTime =
     IO.putLens lensInputTime Nothing
 
 
-setInputTime : IO a g h ()
+setInputTime : IO f g h ()
 setInputTime =
     IO.bind IO.now <|
         \now ->
             IO.putLens lensInputTime (Just (Time.posixToMillis now))
 
 
-getDurationSinceLastInput : IO a g h (Maybe Int)
+getDurationSinceLastInput : IO f g h (Maybe Int)
 getDurationSinceLastInput =
     IO.bind (IO.getLens lensInputTime) <|
         \inputTime ->
