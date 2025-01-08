@@ -4,6 +4,7 @@ module Terminal.Repl exposing
   , Interpreter
   , InterpreterInput(..)
   , InterpreterResult(..)
+  , continueInterpreter
   , run
   --
   --, Lines(..)
@@ -15,6 +16,10 @@ module Terminal.Repl exposing
   --, State(..)
   --, Output(..)
   --, toByteString
+  --
+  , GlobalState
+  , LocalState
+  , initialLocalState
   --
   , Mode(..)
   , openedModule
@@ -52,24 +57,95 @@ import Compiler.Reporting.Error.Import as EI
 import Compiler.Reporting.Error.Syntax as ES
 import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Report as Report
-import Extra.Class.StateT as ST
 import Extra.System.File as SysFile exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either as Either exposing (Either(..))
+import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Extra.Type.Maybe as MMaybe
 import Extra.Type.Set as Set
+import Global
 import Terminal.Command as Command
 import Unicode as UChar
+
+
+
+-- PUBLIC STATE
+
+
+type alias GlobalState g h =
+  Command.State (LocalState g h) g h
+
+
+type LocalState g h =
+  LocalState
+    -- cont
+    (Maybe (InterpreterResult -> IO g h ()))
+
+
+initialLocalState : LocalState g h
+initialLocalState =
+  LocalState
+    -- cont
+    Nothing
+
+
+lensCont : Lens (GlobalState g h) (Maybe (InterpreterResult -> IO g h ()))
+lensCont =
+  { getter = \(Global.State _ _ _ _ _ (LocalState x) _ _) -> x
+  , setter = \x (Global.State a b c d e _ g h) -> Global.State a b c d e (LocalState x) g h
+  }
 
 
 
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Command.State a g h) v
+type alias IO g h v =
+  IO.IO (GlobalState g h) v
+
+
+
+-- INTERPRETER
+
+
+type alias Interpreter g h =
+  InterpreterInput -> IO g h ()
+
+
+type InterpreterInput
+  = InterpretValue String
+  | InterpretHtml N.Name String
+  | ShowError Exit.Repl
+
+
+type InterpreterResult
+  = InterpreterSuccess
+  | InterpreterFailure
+
+
+interpret : Interpreter g h -> InterpreterInput -> IO g h InterpreterResult
+interpret interpreter input =
+  IO.liftCont <| \cont ->
+    IO.sequence
+      [ IO.putLens lensCont (Just cont)
+      , interpreter input
+      ]
+
+
+continueInterpreter : IO g h () -> InterpreterResult -> IO g h ()
+continueInterpreter noCont result =
+  IO.bind (IO.getLens lensCont) <| \maybeCont ->
+  case maybeCont of
+    Just cont ->
+      IO.sequence
+        [ IO.putLens lensCont Nothing
+        , cont result
+        ]
+
+    Nothing ->
+      noCont
 
 
 
@@ -77,9 +153,9 @@ type alias IO a g h v =
 
 
 {- NEW: Flags -}
-type Flags a g h =
+type Flags g h =
   Flags
-    {- interpreter -} (Interpreter a g h)
+    {- interpreter -} (Interpreter g h)
     {- mode -} Mode
     {- htmlEnabled -} Bool
 
@@ -97,20 +173,7 @@ isBreakpoint mode =
     _ -> False
 
 
-type alias Interpreter a g h =
-  InterpreterInput -> IO a g h InterpreterResult
-
-type InterpreterInput
-  = InterpretValue String
-  | InterpretHtml N.Name String
-  | ShowError Exit.Repl
-
-type InterpreterResult
-  = InterpreterSuccess
-  | InterpreterFailure
-
-
-run : Flags a g h -> IO a g h (Either Exit.Repl ())
+run : Flags g h -> IO g h (Either Exit.Repl ())
 run flags =
   IO.bind (initEnv flags) <| \envResult ->
     case envResult of
@@ -119,15 +182,14 @@ run flags =
 
       Right env ->
         IO.bind printWelcomeMessage <| \_ ->
-        let looper = loop env (initialState env) in
-        IO.fmap Right <| ST.evalStateT IO.fmap looper (initialState env)
+        IO.fmap Right <| loop env (initialState env)
 
 
 
 -- WELCOME
 
 
-printWelcomeMessage : IO a g h ()
+printWelcomeMessage : IO g h ()
 printWelcomeMessage =
   let
     vsn = V.toChars V.compiler
@@ -147,17 +209,17 @@ printWelcomeMessage =
 -- ENV
 
 
-type Env a g h =
+type Env g h =
   Env
     {- root -} FilePath
-    {- interpreter -} (Interpreter a g h)
+    {- interpreter -} (Interpreter g h)
     {- ansi -} Bool
     {- mode -} Mode
     {- modulePrefix -} String
     {- htmlEnabled -} Bool
 
 
-initEnv : Flags a g h -> IO a g h (Either Exit.Repl (Env a g h))
+initEnv : Flags g h -> IO g h (Either Exit.Repl (Env g h))
 initEnv (Flags interpreter mode htmlEnabled) =
   IO.bind getRoot <| \root ->
   IO.bind (MMaybe.traverse IO.pure IO.fmap (Task.run << openModule root) (openedModule mode)) <| \openResult ->
@@ -179,26 +241,16 @@ type Outcome
   | End
 
 
-type alias M a g h v =
-  ST.StateT State (IO a g h ( v, State ))
-
-mPut = ST.put IO.return
-mReturn = ST.return IO.return
-mBind = ST.bind IO.bind
-mLift = ST.lift IO.fmap
-
-
-loop : Env a g h -> State -> M a g h ()
+loop : Env g h -> State -> IO g h ()
 loop (Env _ _ _ mode _ _ as env) state =
-  mBind (read mode) <| \input ->
-  mBind (mLift <| eval env state input) <| \outcome ->
+  IO.bind (read mode) <| \input ->
+  IO.bind (eval env state input) <| \outcome ->
   case outcome of
     Loop state_ ->
-      mBind (mPut state_) <| \_ ->
       loop env state_
 
     End ->
-      mLift Command.clearPrompt
+      Command.clearPrompt
 
 
 
@@ -218,10 +270,10 @@ type Input
   | Help (Maybe String)
 
 
-read : Mode -> M a g h Input
+read : Mode -> IO g h Input
 read mode =
-  mBind (mLift Command.clearInput) <| \_ ->
-  mBind (mLift (Command.getLineWithInitial ">\u{2000}" "")) <| \maybeLine ->
+  IO.bind Command.clearInput <| \_ ->
+  IO.bind (Command.getLineWithInitial ">\u{2000}" "") <| \maybeLine ->
   case maybeLine of
     {- Nothing ->
       return Exit
@@ -232,13 +284,13 @@ read mode =
         lines = Lines (stripLegacyBackslash chars) []
       in
       case categorize mode lines of
-        Done input -> mReturn input
+        Done input -> IO.return input
         Continue p -> readMore mode lines p
 
 
-readMore : Mode -> Lines -> Prefill -> M a g h Input
+readMore : Mode -> Lines -> Prefill -> IO g h Input
 readMore mode previousLines prefill =
-  mBind (mLift <| Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
+  IO.bind (Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
   case input of
     {- Nothing ->
       return Skip
@@ -249,7 +301,7 @@ readMore mode previousLines prefill =
         lines = addLine (stripLegacyBackslash chars) previousLines
       in
       case categorize mode lines of
-        Done input_ -> mReturn input_
+        Done input_ -> IO.return input_
         Continue p -> readMore mode lines p
 
 
@@ -512,7 +564,7 @@ setDecls decls (State a b _) = State a b decls
 
 
 {- NEW: initialState env -}
-initialState : Env a g h -> State
+initialState : Env g h -> State
 initialState (Env _ _ _ mode _ _) =
   case mode of
     Breakpoint _ id bpName -> initialBreakpointState id bpName
@@ -535,7 +587,7 @@ initialBreakpointState id bpName =
 -- EVAL
 
 
-eval : Env a g h -> State -> Input -> IO a g h Outcome
+eval : Env g h -> State -> Input -> IO g h Outcome
 eval ((Env _ _ _ mode _ _) as env) ((State imports types decls) as state) input =
   case input of
     Skip ->
@@ -585,7 +637,7 @@ type Output
   | OutputExpr String
 
 
-attemptEval : Env a g h -> State -> State -> Output -> IO a g h State
+attemptEval : Env g h -> State -> State -> Output -> IO g h State
 attemptEval (Env root interpreter ansi mode modulePrefix htmlEnabled) oldState newState output =
   IO.bind
     (Task.run <|
@@ -601,14 +653,14 @@ attemptEval (Env root interpreter ansi mode modulePrefix htmlEnabled) oldState n
 
   case result of
     Left exit ->
-      IO.bind (interpreter (ShowError exit)) <| \_ ->
+      IO.bind (interpret interpreter (ShowError exit)) <| \_ ->
       IO.return oldState
 
     Right Nothing ->
       IO.return newState
 
     Right (Just (kind, javascript)) ->
-      IO.bind (interpreter (inputForKind kind (generatedModule mode) javascript)) <| \interpreterResult ->
+      IO.bind (interpret interpreter (inputForKind kind (generatedModule mode) javascript)) <| \interpreterResult ->
       case interpreterResult of
         InterpreterSuccess -> IO.return newState
         InterpreterFailure -> IO.return oldState
@@ -701,7 +753,7 @@ genericHelpMessage showResume =
 -- GET ROOT
 
 
-getRoot : IO a g h FilePath
+getRoot : IO g h FilePath
 getRoot =
   IO.bind Stuff.findRoot <| \maybeRoot ->
   case maybeRoot of
@@ -740,7 +792,7 @@ defaultDeps =
 
 
 {- NEW: openModule -}
-openModule : FilePath -> String -> Task z a g h String
+openModule : FilePath -> String -> Task z g h String
 openModule root input =
   let src = "import " ++ input ++ "\n" in
   Task.bind (Task.eio (Exit.ReplBadInput src) <| parseOpenModuleName src) <| \name ->
@@ -749,11 +801,11 @@ openModule root input =
   Task.io (File.readUtf8 path)
 
 
-type alias Task z a g h v =
-  Task.Task z (Command.State a g h) Exit.Repl v
+type alias Task z g h v =
+  Task.Task z (GlobalState g h) Exit.Repl v
 
 
-parseOpenModuleName : String -> IO a g h (Either E.Error N.Name)
+parseOpenModuleName : String -> IO g h (Either E.Error N.Name)
 parseOpenModuleName src =
   IO.return <| case P.fromByteString PM.chompImport ES.ModuleBadEnd src of
     Right (Src.Import (A.At _ name) _ _) ->
@@ -763,7 +815,7 @@ parseOpenModuleName src =
       Left <| E.BadSyntax <| ES.ParseError err
 
 
-findOpenModulePath : FilePath -> Details.Details -> String -> N.Name -> IO a g h (Either E.Error FilePath)
+findOpenModulePath : FilePath -> Details.Details -> String -> N.Name -> IO g h (Either E.Error FilePath)
 findOpenModulePath root details src name =
   IO.rmap (Build.findModulePath root details name) <| \maybePath ->
     case maybePath of

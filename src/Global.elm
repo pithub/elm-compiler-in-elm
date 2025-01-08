@@ -3,19 +3,19 @@ module Global exposing (State(..))
 
 type State a b c d e f g h
     = State
-        -- App1
-        a
         -- SysFile
-        b
+        a
         -- Details
-        c
+        b
         -- Build
-        d
+        c
         -- Generate
-        e
+        d
         -- Terminal
+        e
+        -- Repl
         f
         -- Reactor
         g
-        -- App2
+        -- App1
         h
