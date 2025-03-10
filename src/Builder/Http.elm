@@ -22,6 +22,7 @@ module Builder.Http exposing
   , State
   , LocalState
   , initialState
+  , setPrefix
   )
 
 
@@ -31,7 +32,9 @@ import Extra.System.File as SysFile
 import Extra.System.Http as Sys
 import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
+import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List exposing (TList)
+import Global
 import Zip
 
 
@@ -42,11 +45,19 @@ type alias State c d e f g h =
   SysFile.State LocalState c d e f g h
 
 
-type LocalState = LocalState
+type alias LocalState =
+  Maybe String
 
 
 initialState : LocalState
-initialState = LocalState
+initialState = Nothing
+
+
+lensPrefix : Lens (State c d e f g h) (Maybe String)
+lensPrefix =
+  { getter = \(Global.State _ x _ _ _ _ _ _) -> x
+  , setter = \x (Global.State a _ c d e f g h) -> Global.State a x c d e f g h
+  }
 
 
 
@@ -67,7 +78,12 @@ type alias Manager =
 
 getManager : IO c d e f g h Manager
 getManager =
-  Sys.newManager
+  IO.bind (IO.getLens lensPrefix) Sys.newManager
+
+
+setPrefix : Maybe String -> IO c d e f g h ()
+setPrefix prefix =
+    IO.putLens lensPrefix prefix
 
 
 

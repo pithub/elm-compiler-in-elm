@@ -30,6 +30,7 @@ module Extra.System.File exposing
     , removeFile
     , resetFileSystem
     , setCurrentDirectory
+    , setMountPrefix
     , splitExtension
     , splitLastName
     , toString
@@ -60,8 +61,10 @@ initialState =
     FileSystem
         -- root
         Map.empty
-        --cwd
+        -- cwd
         []
+        -- mountPrefix
+        Nothing
 
 
 lensFileSystem : Lens (State b c d e f g h) FileSystem
@@ -73,15 +76,22 @@ lensFileSystem =
 
 lensRoot : Lens (State b c d e f g h) Directory
 lensRoot =
-    { getter = \(Global.State (FileSystem x _) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (FileSystem _ bi) b c d e f g h) -> Global.State (FileSystem x bi) b c d e f g h
+    { getter = \(Global.State (FileSystem x _ _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (FileSystem _ bi ci) b c d e f g h) -> Global.State (FileSystem x bi ci) b c d e f g h
     }
 
 
 lensCwd : Lens (State b c d e f g h) (TList FileName)
 lensCwd =
-    { getter = \(Global.State (FileSystem _ x) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (FileSystem ai _) b c d e f g h) -> Global.State (FileSystem ai x) b c d e f g h
+    { getter = \(Global.State (FileSystem _ x _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (FileSystem ai _ ci) b c d e f g h) -> Global.State (FileSystem ai x ci) b c d e f g h
+    }
+
+
+lensMountPrefix : Lens (State b c d e f g h) (Maybe String)
+lensMountPrefix =
+    { getter = \(Global.State (FileSystem _ _ x) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (FileSystem ai bi _) b c d e f g h) -> Global.State (FileSystem ai bi x) b c d e f g h
     }
 
 
@@ -95,7 +105,12 @@ type alias IO b c d e f g h v =
 
 resetFileSystem : IO b c d e f g h ()
 resetFileSystem =
-    IO.putLens lensFileSystem initialState
+    IO.bind (IO.getLens lensMountPrefix) <|
+        \mountPrefix ->
+            IO.sequence
+                [ IO.putLens lensFileSystem initialState
+                , IO.putLens lensMountPrefix mountPrefix
+                ]
 
 
 
@@ -269,6 +284,8 @@ type FileSystem
         Directory
         -- cwd
         (TList FileName)
+        -- mountPrefix
+        (Maybe String)
 
 
 type alias Directory =
@@ -417,7 +434,9 @@ getFileContent maybeContent =
             IO.return (Just bytes)
 
         Just (MountPath path) ->
-            Remote.getFile path
+            IO.bind (IO.getLens lensMountPrefix) <|
+                \mountPrefix ->
+                    Remote.getFile mountPrefix path
 
         Nothing ->
             IO.return Nothing
@@ -452,6 +471,11 @@ setCurrentDirectory cwd =
     IO.bind (makeAbsolute cwd) <|
         \absolutePath ->
             IO.putLens lensCwd <| getNames absolutePath
+
+
+setMountPrefix : Maybe String -> IO b c d e f g h ()
+setMountPrefix mountPrefix =
+    IO.putLens lensMountPrefix mountPrefix
 
 
 writeFile : FilePath -> Bytes -> IO b c d e f g h ()
@@ -617,7 +641,9 @@ getTime =
 
 getRemoteTree : String -> IO b c d e f g h Directory
 getRemoteTree remotePath =
-    IO.rmap (Remote.getTree remotePath) mapRemoteTree
+    IO.bind (IO.getLens lensMountPrefix) <|
+        \mountPrefix ->
+            IO.rmap (Remote.getTree mountPrefix remotePath) mapRemoteTree
 
 
 mapRemoteTree : Remote.Directory -> Directory
