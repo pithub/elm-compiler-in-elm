@@ -23,26 +23,26 @@ import Terminal.Terminal.Internal as Internal
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Terminal.Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Terminal.Command.State g h) v
 
 
 
 -- EXIT
 
 
-exitSuccess : TList D.Doc -> IO a g h ()
+exitSuccess : TList D.Doc -> IO g h ()
 exitSuccess =
   exitWith -- Exit.ExitSuccess
 
 
-exitWith : TList D.Doc -> IO a g h ()
+exitWith : TList D.Doc -> IO g h ()
 exitWith docs =
   Terminal.Command.putDoc <|
     D.vcat <| MList.concatMap (\doc -> [doc,d""]) docs
 
 
-getExeName : IO a g h String
+getExeName : IO g h String
 getExeName =
   -- hard coded
   IO.return "elm"
@@ -72,7 +72,7 @@ argsToDocHelp command =
 -- OVERVIEW
 
 
-exitWithOverview : D.Doc -> D.Doc -> TList Internal.Command -> IO a g h ()
+exitWithOverview : D.Doc -> D.Doc -> TList Internal.Command -> IO g h ()
 exitWithOverview intro outro commands =
   IO.bind getExeName <| \exeName ->
     exitSuccess

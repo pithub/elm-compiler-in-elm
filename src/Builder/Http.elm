@@ -18,16 +18,43 @@ module Builder.Http exposing
   --, filePart
   --, jsonPart
   --, stringPart
+  --
+  , State
+  , LocalState
+  , initialState
   )
 
 
 import Compiler.Elm.Version as V
 import Extra.System.Exception exposing (handle, SomeException(..))
+import Extra.System.File as SysFile
 import Extra.System.Http as Sys
 import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List exposing (TList)
 import Zip
+
+
+
+-- PUBLIC STATE
+
+type alias State c d e f g h =
+  SysFile.State LocalState c d e f g h
+
+
+type LocalState = LocalState
+
+
+initialState : LocalState
+initialState = LocalState
+
+
+
+-- PRIVATE IO
+
+
+type alias IO c d e f g h v =
+  IO.IO (State c d e f g h) v
 
 
 
@@ -38,7 +65,7 @@ type alias Manager =
   Sys.Manager
 
 
-getManager : IO s Manager
+getManager : IO c d e f g h Manager
 getManager =
   Sys.newManager
 
@@ -58,17 +85,17 @@ toUrl url params =
 -- FETCH
 
 
-get : Sys.Manager -> String -> TList Sys.Header -> (Error -> e) -> (String -> IO s (Either e a)) -> IO s (Either e a)
+get : Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO c d e f g h (Either x v)) -> IO c d e f g h (Either x v)
 get =
   fetch Sys.methodGet
 
 
-post : Sys.Manager -> String -> TList Sys.Header -> (Error -> e) -> (String -> IO s (Either e a)) -> IO s (Either e a)
+post : Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO c d e f g h (Either x v)) -> IO c d e f g h (Either x v)
 post =
   fetch Sys.methodPost
 
 
-fetch : Sys.Method -> Sys.Manager -> String -> TList Sys.Header -> (Error -> e) -> (String -> IO s (Either e a)) -> IO s (Either e a)
+fetch : Sys.Method -> Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO c d e f g h (Either x v)) -> IO c d e f g h (Either x v)
 fetch methodVerb manager url headers onError onSuccess =
   handle (handleHttpException url onError) <|
   IO.bind (Sys.parseUrlThrow url) <| \req0 ->
@@ -105,7 +132,7 @@ type Error
   | BadMystery String SomeException
 
 
-handleHttpException : String -> (Error -> e) -> Sys.Exception -> IO s (Either e a)
+handleHttpException : String -> (Error -> x) -> Sys.Exception -> IO c d e f g h (Either x v)
 handleHttpException url onError httpException =
   IO.return (Left (onError (BadHttp url httpException)))
 
@@ -117,10 +144,10 @@ handleHttpException url onError httpException =
 getArchive :
   Manager
   -> String
-  -> (Error -> e)
-  -> e
-  -> (Zip.Zip -> IO s (Either e a))
-  -> IO s (Either e a)
+  -> (Error -> x)
+  -> x
+  -> (Zip.Zip -> IO c d e f g h (Either x v))
+  -> IO c d e f g h (Either x v)
 getArchive manager url onError err onSuccess =
   handle (handleHttpException url onError) <|
   IO.bind (Sys.parseUrlThrow url) <| \req0 ->

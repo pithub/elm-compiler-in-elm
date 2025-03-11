@@ -63,8 +63,8 @@ import Time
 -- PRIVATE IO
 
 
-type alias IO a c d e f g h v =
-    IO.IO (SysFile.State a c d e f g h) v
+type alias IO b c d e f g h v =
+    IO.IO (SysFile.State b c d e f g h) v
 
 
 
@@ -81,12 +81,12 @@ type alias ByteOffset =
     Get.ByteOffset
 
 
-encodeFile : Binary v -> FilePath -> v -> IO a c d e f g h ()
+encodeFile : Binary v -> FilePath -> v -> IO b c d e f g h ()
 encodeFile binV path v =
     SysFile.writeFile path (Put.runPut (binV.put v))
 
 
-decodeFileOrFail : Binary v -> FilePath -> IO a c d e f g h (Either ( ByteOffset, String ) v)
+decodeFileOrFail : Binary v -> FilePath -> IO b c d e f g h (Either ( ByteOffset, String ) v)
 decodeFileOrFail binV path =
     SysFile.readFile path
         |> IO.fmap

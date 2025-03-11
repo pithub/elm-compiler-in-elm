@@ -34,8 +34,8 @@ import Zip.Entry
 -- PRIVATE IO
 
 
-type alias IO a c d e f g h v =
-  IO.IO (SysFile.State a c d e f g h) v
+type alias IO b c d e f g h v =
+  IO.IO (SysFile.State b c d e f g h) v
 
 
 
@@ -45,7 +45,7 @@ type alias IO a c d e f g h v =
 type Time = Time T.Posix
 
 
-getTime : FilePath -> IO a c d e f g h Time
+getTime : FilePath -> IO b c d e f g h Time
 getTime path =
   IO.fmap Time (SysFile.getModificationTime path)
 
@@ -93,14 +93,14 @@ halfTimeFactor =
 -- BINARY
 
 
-writeBinary : B.Binary v -> FilePath -> v -> IO a c d e f g h ()
+writeBinary : B.Binary v -> FilePath -> v -> IO b c d e f g h ()
 writeBinary binA path value =
   let dir = SysFile.dropLastName path in
   IO.bind (SysFile.createDirectoryIfMissing True dir) <| \_ ->
   B.encodeFile binA path value
 
 
-readBinary : B.Binary v -> FilePath -> IO a c d e f g h (Maybe v)
+readBinary : B.Binary v -> FilePath -> IO b c d e f g h (Maybe v)
 readBinary binA path =
   IO.bind (SysFile.doesFileExist path) <| \pathExists ->
   if pathExists
@@ -130,7 +130,7 @@ readBinary binA path =
 -- WRITE UTF-8
 
 
-writeUtf8 : FilePath -> String -> IO a c d e f g h ()
+writeUtf8 : FilePath -> String -> IO b c d e f g h ()
 writeUtf8 filePath contents =
   SysFile.writeFile filePath <| Bytes.Encode.encode <| Bytes.Encode.string contents
 
@@ -139,7 +139,7 @@ writeUtf8 filePath contents =
 -- READ UTF-8
 
 
-readUtf8 : FilePath -> IO a c d e f g h String
+readUtf8 : FilePath -> IO b c d e f g h String
 readUtf8 path =
   SysFile.readFile path |> IO.fmap (Maybe.andThen bytesToString >> Maybe.withDefault "")
 
@@ -153,7 +153,7 @@ bytesToString bytes =
 -- WRITE BUILDER
 
 
-writeBuilder : FilePath -> String -> IO a c d e f g h ()
+writeBuilder : FilePath -> String -> IO b c d e f g h ()
 writeBuilder =
   writeUtf8
 
@@ -162,7 +162,7 @@ writeBuilder =
 -- WRITE PACKAGE
 
 
-writePackage : FilePath -> Zip.Zip -> IO a c d e f g h ()
+writePackage : FilePath -> Zip.Zip -> IO b c d e f g h ()
 writePackage destination archive =
   case Zip.entries archive of
     [] ->
@@ -174,7 +174,7 @@ writePackage destination archive =
         |> MList.mapM_ IO.return IO.bind (writeEntry destination root)
 
 
-writeEntry : FilePath -> Int -> Zip.Entry.Entry -> IO a c d e f g h ()
+writeEntry : FilePath -> Int -> Zip.Entry.Entry -> IO b c d e f g h ()
 writeEntry destination root entry =
   let
     path = String.dropLeft root (Zip.Entry.path entry)
@@ -201,7 +201,7 @@ writeEntry destination root entry =
 -- EXISTS
 
 
-exists : FilePath -> IO a c d e f g h Bool
+exists : FilePath -> IO b c d e f g h Bool
 exists path =
   SysFile.doesFileExist path
 
@@ -210,7 +210,7 @@ exists path =
 -- REMOVE FILES
 
 
-remove : FilePath -> IO a c d e f g h ()
+remove : FilePath -> IO b c d e f g h ()
 remove path =
   IO.bind (SysFile.doesFileExist path) <| \exists_ ->
     if exists_

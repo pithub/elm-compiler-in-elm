@@ -60,22 +60,22 @@ import Global
 
 -- PUBLIC STATE
 
-type alias State c d e f g h =
-  SysFile.State (LocalState c d e f g h) c d e f g h
+type alias State d e f g h =
+  Http.State (LocalState d e f g h) d e f g h
 
 
-type LocalState c d e f g h = LocalState
-  {- mvDep -} (MVar.State (State c d e f g h) Dep)
-  {- mvDepMap -} (MVar.State (State c d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
-  {- mvStatus -} (MVar.State (State c d e f g h) (Maybe Status))
-  {- mvStatusMap -} (MVar.State (State c d e f g h) StatusDict)
-  {- mvResult -} (MVar.State (State c d e f g h) (Maybe TResult))
-  {- mvResultMap -} (MVar.State (State c d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
-  {- mvInterfaces -} (MVar.State (State c d e f g h) (Maybe Interfaces))
-  {- mvGlobalGraph -} (MVar.State (State c d e f g h) (Maybe Opt.GlobalGraph))
+type LocalState d e f g h = LocalState
+  {- mvDep -} (MVar.State (State d e f g h) Dep)
+  {- mvDepMap -} (MVar.State (State d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
+  {- mvStatus -} (MVar.State (State d e f g h) (Maybe Status))
+  {- mvStatusMap -} (MVar.State (State d e f g h) StatusDict)
+  {- mvResult -} (MVar.State (State d e f g h) (Maybe TResult))
+  {- mvResultMap -} (MVar.State (State d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
+  {- mvInterfaces -} (MVar.State (State d e f g h) (Maybe Interfaces))
+  {- mvGlobalGraph -} (MVar.State (State d e f g h) (Maybe Opt.GlobalGraph))
 
 
-initialState : LocalState c d e f g h
+initialState : LocalState d e f g h
 initialState = LocalState
   {- mvDep -} (MVar.initialState "Dep")
   {- mvDepMap -} (MVar.initialState "DepDict")
@@ -87,52 +87,52 @@ initialState = LocalState
   {- mvGlobalGraph -} (MVar.initialState "GlobalGraph")
 
 
-lensMVDep : Lens (State c d e f g h) (MVar.State (State c d e f g h) Dep)
+lensMVDep : Lens (State d e f g h) (MVar.State (State d e f g h) Dep)
 lensMVDep =
-  { getter = \(Global.State _ (LocalState x _ _ _ _ _ _ _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState _ bi ci di ei fi gi hi) c d e f g h) -> Global.State a (LocalState x bi ci di ei fi gi hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState x _ _ _ _ _ _ _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState _ bi ci di ei fi gi hi) d e f g h) -> Global.State a b (LocalState x bi ci di ei fi gi hi) d e f g h
   }
 
-lensMVDepMap : Lens (State c d e f g h) (MVar.State (State c d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
+lensMVDepMap : Lens (State d e f g h) (MVar.State (State d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
 lensMVDepMap =
-  { getter = \(Global.State _ (LocalState _ x _ _ _ _ _ _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai _ ci di ei fi gi hi) c d e f g h) -> Global.State a (LocalState ai x ci di ei fi gi hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ x _ _ _ _ _ _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai _ ci di ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai x ci di ei fi gi hi) d e f g h
   }
 
-lensMVStatus : Lens (State c d e f g h) (MVar.State (State c d e f g h) (Maybe Status))
+lensMVStatus : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe Status))
 lensMVStatus =
-  { getter = \(Global.State _ (LocalState _ _ x _ _ _ _ _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai bi _ di ei fi gi hi) c d e f g h) -> Global.State a (LocalState ai bi x di ei fi gi hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ x _ _ _ _ _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi _ di ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi x di ei fi gi hi) d e f g h
   }
 
-lensMVStatusMap : Lens (State c d e f g h) (MVar.State (State c d e f g h) StatusDict)
+lensMVStatusMap : Lens (State d e f g h) (MVar.State (State d e f g h) StatusDict)
 lensMVStatusMap =
-  { getter = \(Global.State _ (LocalState _ _ _ x _ _ _ _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai bi ci _ ei fi gi hi) c d e f g h) -> Global.State a (LocalState ai bi ci x ei fi gi hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ x _ _ _ _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci _ ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci x ei fi gi hi) d e f g h
   }
 
-lensMVResult : Lens (State c d e f g h) (MVar.State (State c d e f g h) (Maybe TResult))
+lensMVResult : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe TResult))
 lensMVResult =
-  { getter = \(Global.State _ (LocalState _ _ _ _ x _ _ _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai bi ci di _ fi gi hi) c d e f g h) -> Global.State a (LocalState ai bi ci di x fi gi hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ x _ _ _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di _ fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci di x fi gi hi) d e f g h
   }
 
-lensMVResultMap : Lens (State c d e f g h) (MVar.State (State c d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
+lensMVResultMap : Lens (State d e f g h) (MVar.State (State d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
 lensMVResultMap =
-  { getter = \(Global.State _ (LocalState _ _ _ _ _ x _ _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai bi ci di ei _ gi hi) c d e f g h) -> Global.State a (LocalState ai bi ci di ei x gi hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ x _ _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di ei _ gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci di ei x gi hi) d e f g h
   }
 
-lensMVInterfaces : Lens (State c d e f g h) (MVar.State (State c d e f g h) (Maybe Interfaces))
+lensMVInterfaces : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe Interfaces))
 lensMVInterfaces =
-  { getter = \(Global.State _ (LocalState _ _ _ _ _ _ x _) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai bi ci di ei fi _ hi) c d e f g h) -> Global.State a (LocalState ai bi ci di ei fi x hi) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ x _) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di ei fi _ hi) d e f g h) -> Global.State a b (LocalState ai bi ci di ei fi x hi) d e f g h
   }
 
-lensMVGlobalGraph : Lens (State c d e f g h) (MVar.State (State c d e f g h) (Maybe Opt.GlobalGraph))
+lensMVGlobalGraph : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe Opt.GlobalGraph))
 lensMVGlobalGraph =
-  { getter = \(Global.State _ (LocalState _ _ _ _ _ _ _ x) _ _ _ _ _ _) -> x
-  , setter = \x (Global.State a (LocalState ai bi ci di ei fi gi _) c d e f g h) -> Global.State a (LocalState ai bi ci di ei fi gi x) c d e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ _ x) _ _ _ _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di ei fi gi _) d e f g h) -> Global.State a b (LocalState ai bi ci di ei fi gi x) d e f g h
   }
 
 
@@ -140,22 +140,22 @@ lensMVGlobalGraph =
 -- PRIVATE IO
 
 
-type alias IO c d e f g h v =
-  IO.IO (State c d e f g h) v
+type alias IO d e f g h v =
+  IO.IO (State d e f g h) v
 
 
 
 -- LOAD ARTIFACTS
 
 
-loadObjects : FilePath -> Details -> IO c d e f g h (MVar (Maybe Opt.GlobalGraph))
+loadObjects : FilePath -> Details -> IO d e f g h (MVar (Maybe Opt.GlobalGraph))
 loadObjects root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh _ o -> MVar.new lensMVGlobalGraph (Just o)
     ArtifactsCached    -> fork lensMVGlobalGraph (\() -> File.readBinary Opt.bGlobalGraph (Stuff.objects root))
 
 
-loadInterfaces : FilePath -> Details -> IO c d e f g h (MVar (Maybe Interfaces))
+loadInterfaces : FilePath -> Details -> IO d e f g h (MVar (Maybe Interfaces))
 loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> MVar.new lensMVInterfaces (Just i)
@@ -166,7 +166,7 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 -- VERIFY INSTALL -- used by Install
 
 
-verifyInstall : FilePath -> Solver.Env -> Outline.Outline -> IO c d e f g h (Either Exit.Details ())
+verifyInstall : FilePath -> Solver.Env -> Outline.Outline -> IO d e f g h (Either Exit.Details ())
 verifyInstall root (Solver.Env cache manager connection registry) outline =
   IO.bind (File.getTime (SysFile.addName root "elm.json")) <| \time ->
   let env = Env root cache manager connection registry in
@@ -240,7 +240,7 @@ type alias Interfaces =
 -- LOAD -- used by Make, Repl, Reactor
 
 
-load : FilePath -> IO c d e f g h (Either Exit.Details Details)
+load : FilePath -> IO d e f g h (Either Exit.Details Details)
 load root =
   IO.bind (File.getTime (SysFile.addName root "elm.json")) <| \newTime ->
   IO.bind (File.readBinary bDetails (Stuff.details root)) <| \maybeDetails ->
@@ -258,7 +258,7 @@ load root =
 -- GENERATE
 
 
-generate : FilePath -> File.Time -> IO c d e f g h (Either Exit.Details Details)
+generate : FilePath -> File.Time -> IO d e f g h (Either Exit.Details Details)
 generate root time =
   IO.bind (initEnv root) <| \result ->
   case result of
@@ -284,7 +284,7 @@ type Env =
     {- registry -} Registry.Registry
 
 
-initEnv : FilePath -> IO c d e f g h (Either Exit.Details (Env, Outline.Outline))
+initEnv : FilePath -> IO d e f g h (Either Exit.Details (Env, Outline.Outline))
 initEnv root =
   IO.bind Solver.initEnv <| \maybeEnv ->
   IO.bind (Outline.read root) <| \eitherOutline ->
@@ -305,11 +305,11 @@ initEnv root =
 -- VERIFY PROJECT
 
 
-type alias Task z c d e f g h v =
-  Task.Task z (State c d e f g h) Exit.Details v
+type alias Task z d e f g h v =
+  Task.Task z (State d e f g h) Exit.Details v
 
 
-verifyPkg : Env -> File.Time -> Outline.PkgOutline -> Task z c d e f g h Details
+verifyPkg : Env -> File.Time -> Outline.PkgOutline -> Task z d e f g h Details
 verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
   if Con.goodElm elm
   then
@@ -321,7 +321,7 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) 
     Task.throw <| Exit.DetailsBadElmInPkg elm
 
 
-verifyApp : Env -> File.Time -> Outline.AppOutline -> Task z c d e f g h Details
+verifyApp : Env -> File.Time -> Outline.AppOutline -> Task z d e f g h Details
 verifyApp env time ((Outline.AppOutline elmVersion srcDirs direct _ _ _) as outline) =
   if elmVersion == V.compiler
   then
@@ -334,7 +334,7 @@ verifyApp env time ((Outline.AppOutline elmVersion srcDirs direct _ _ _) as outl
     Task.throw <| Exit.DetailsBadElmInAppOutline elmVersion
 
 
-checkAppDeps : Outline.AppOutline -> Task z c d e f g h (Map.Map Pkg.Comparable V.Version)
+checkAppDeps : Outline.AppOutline -> Task z d e f g h (Map.Map Pkg.Comparable V.Version)
 checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
   Task.bind (union allowEqualDups indirect testDirect) <| \x ->
   Task.bind (union noDups direct testIndirect) <| \y ->
@@ -345,7 +345,7 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 -- VERIFY CONSTRAINTS
 
 
-verifyConstraints : Env -> Map.Map Pkg.Comparable Con.Constraint -> Task z c d e f g h (Map.Map Pkg.Comparable Solver.Details)
+verifyConstraints : Env -> Map.Map Pkg.Comparable Con.Constraint -> Task z d e f g h (Map.Map Pkg.Comparable Solver.Details)
 verifyConstraints (Env _ cache _ connection registry) constraints =
   Task.bind (Task.io <| Solver.verify cache connection registry constraints) <| \result ->
   case result of
@@ -359,17 +359,17 @@ verifyConstraints (Env _ cache _ connection registry) constraints =
 -- UNION
 
 
-union : (comparable -> v -> v -> Task z c d e f g h v) -> Map.Map comparable v -> Map.Map comparable v -> Task z c d e f g h (Map.Map comparable v)
+union : (comparable -> v -> v -> Task z d e f g h v) -> Map.Map comparable v -> Map.Map comparable v -> Task z d e f g h (Map.Map comparable v)
 union tieBreaker deps1 deps2 =
   Map.mergeA Task.pure Task.liftA2 (Map.preserveMissing Task.pure) (Map.preserveMissing Task.pure) (Map.zipWithAMatched Task.fmap tieBreaker) deps1 deps2
 
 
-noDups : comparable -> v -> v -> Task z c d e f g h v
+noDups : comparable -> v -> v -> Task z d e f g h v
 noDups _ _ _ =
   Task.throw Exit.DetailsHandEditedDependencies
 
 
-allowEqualDups : comparable -> v -> v -> Task z c d e f g h v
+allowEqualDups : comparable -> v -> v -> Task z d e f g h v
 allowEqualDups _ v1 v2 =
   if v1 == v2
   then Task.return v1
@@ -381,8 +381,8 @@ allowEqualDups _ v1 v2 =
 
 
 fork :
-  MVar.Lens (State c d e f g h) v
-  -> ((() -> IO c d e f g h v) -> IO c d e f g h (MVar v))
+  MVar.Lens (State d e f g h) v
+  -> ((() -> IO d e f g h v) -> IO d e f g h (MVar v))
 fork =
   MVar.newWaiting
 
@@ -391,7 +391,7 @@ fork =
 -- VERIFY DEPENDENCIES
 
 
-verifyDependencies : Env -> File.Time -> ValidOutline -> Map.Map Pkg.Comparable Solver.Details -> Map.Map Pkg.Comparable v -> Task z c d e f g h Details
+verifyDependencies : Env -> File.Time -> ValidOutline -> Map.Map Pkg.Comparable Solver.Details -> Map.Map Pkg.Comparable v -> Task z d e f g h Details
 verifyDependencies ((Env root _ _ _ _) as env) time outline solution directDeps =
   Task.eio identity <|
     IO.bind (MVar.newEmpty lensMVDepMap) <| \mvar ->
@@ -455,7 +455,7 @@ type alias Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 
-verifyDep : Env -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Map.Map Pkg.Comparable Solver.Details -> Pkg.Name -> Solver.Details -> () -> IO c d e f g h Dep
+verifyDep : Env -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Map.Map Pkg.Comparable Solver.Details -> Pkg.Name -> Solver.Details -> () -> IO d e f g h Dep
 verifyDep (Env _ cache manager _ _) depsMVar solution pkg ((Solver.Details vsn directDeps) as details) () =
   let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps in
   IO.bind (SysFile.doesDirectoryExist (SysFile.addName (Stuff.package cache pkg vsn) "src")) <| \exists ->
@@ -507,7 +507,7 @@ toComparable f =
 -- BUILD
 
 
-build : Stuff.PackageCache -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set FingerprintComparable -> IO c d e f g h Dep
+build : Stuff.PackageCache -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set FingerprintComparable -> IO d e f g h Dep
 build cache depsMVar pkg (Solver.Details vsn _) f fs =
   IO.bind (Outline.read (Stuff.package cache pkg vsn)) <| \eitherOutline ->
   case eitherOutline of
@@ -644,7 +644,7 @@ type Status
   | SKernelForeign
 
 
-crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> () -> IO c d e f g h (Maybe Status)
+crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> () -> IO d e f g h (Maybe Status)
 crawlModule foreignDeps mvar pkg src docsStatus name () =
   let path = SysFile.addExtension (SysFile.addNames src (ModuleName.toFileNames name)) "elm" in
   IO.bind (File.exists path) <| \exists ->
@@ -668,7 +668,7 @@ crawlModule foreignDeps mvar pkg src docsStatus name () =
         IO.return Nothing
 
 
-crawlFile : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO c d e f g h (Maybe Status)
+crawlFile : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO d e f g h (Maybe Status)
 crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
   IO.bind (File.readUtf8 path) <| \bytes ->
   case Parse.fromByteString (Parse.Package pkg) bytes of
@@ -683,7 +683,7 @@ crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
       IO.return Nothing
 
 
-crawlImports : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> TList Src.Import -> IO c d e f g h (Map.Map ModuleName.Raw ())
+crawlImports : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> TList Src.Import -> IO d e f g h (Map.Map ModuleName.Raw ())
 crawlImports foreignDeps mvar pkg src imports =
   IO.bind (MVar.read lensMVStatusMap mvar) <| \statusDict ->
   let deps = Map.fromList (MList.map (\i -> (Src.getImportName i, ())) imports) in
@@ -694,7 +694,7 @@ crawlImports foreignDeps mvar pkg src imports =
   IO.return deps
 
 
-crawlKernel : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO c d e f g h (Maybe Status)
+crawlKernel : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO d e f g h (Maybe Status)
 crawlKernel foreignDeps mvar pkg src name =
   let path = SysFile.addExtension (SysFile.addNames src (ModuleName.toFileNames name)) "js" in
   IO.bind (File.exists path) <| \exists ->
@@ -730,7 +730,7 @@ type TResult
   | RKernelForeign
 
 
-compile : Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe TResult))) -> Status -> () -> IO c d e f g h (Maybe TResult)
+compile : Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe TResult))) -> Status -> () -> IO d e f g h (Maybe TResult)
 compile pkg mvar status () =
   case status of
     SLocal docsStatus deps modul ->
@@ -780,7 +780,7 @@ type DocsStatus
   | DocsNotNeeded
 
 
-getDocsStatus : Stuff.PackageCache -> Pkg.Name -> V.Version -> IO c d e f g h DocsStatus
+getDocsStatus : Stuff.PackageCache -> Pkg.Name -> V.Version -> IO d e f g h DocsStatus
 getDocsStatus cache pkg vsn =
   IO.bind (File.exists (SysFile.addName (Stuff.package cache pkg vsn) "docs.json")) <| \exists ->
   if exists
@@ -800,7 +800,7 @@ makeDocs status modul =
       Nothing
 
 
-writeDocs : Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw TResult -> IO c d e f g h ()
+writeDocs : Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw TResult -> IO d e f g h ()
 writeDocs _ _ _ status _ =
   case status of
     DocsNeeded ->
@@ -817,7 +817,7 @@ writeDocs _ _ _ status _ =
 -- DOWNLOAD PACKAGE
 
 
-downloadPackage : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO c d e f g h (Either Exit.PackageProblem ())
+downloadPackage : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO d e f g h (Either Exit.PackageProblem ())
 downloadPackage cache manager pkg vsn =
   let
     url = Website.metadata pkg vsn "endpoint.json"

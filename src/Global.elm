@@ -5,17 +5,17 @@ type State a b c d e f g h
     = State
         -- SysFile
         a
-        -- Details
+        -- Http
         b
-        -- Build
+        -- Details
         c
-        -- Generate
+        -- Build
         d
-        -- Terminal
+        -- Generate
         e
-        -- Repl
+        -- Terminal
         f
-        -- Reactor
+        -- Repl
         g
-        -- App1
+        -- Reactor
         h

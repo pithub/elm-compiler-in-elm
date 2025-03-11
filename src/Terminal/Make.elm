@@ -31,20 +31,20 @@ import Terminal.Command as Command
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Command.State g h) v
 
 
 
 -- RUN
 
 
-type alias Task z a g h v =
-  Task.Task z (Command.State a g h) Exit.Make v
+type alias Task z g h v =
+  Task.Task z (Command.State g h) Exit.Make v
 
 
 {- NEW: async -}
-run : FilePath -> TList FilePath -> Bool -> Bool -> Bool -> FilePath -> IO a g h (Either Exit.Make ())
+run : FilePath -> TList FilePath -> Bool -> Bool -> Bool -> FilePath -> IO g h (Either Exit.Make ())
 run root paths debug optimize async target =
   Task.run <|
   Task.bind (getMode debug optimize async) <| \desiredMode ->
@@ -69,7 +69,7 @@ run root paths debug optimize async target =
 -- GET INFORMATION
 
 
-getMode : Bool -> Bool -> Bool -> Task z a g h DesiredMode
+getMode : Bool -> Bool -> Bool -> Task z g h DesiredMode
 getMode debug optimize async =
   case (debug, optimize, async) of
     (True , True , _    ) -> Task.throw Exit.MakeCannotOptimizeAndDebug
@@ -79,7 +79,7 @@ getMode debug optimize async =
     (False, True , _    ) -> Task.return Prod
 
 
-getExposed : Details.Details -> Task z a g h (NE.TList ModuleName.Raw)
+getExposed : Details.Details -> Task z g h (NE.TList ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
     Details.ValidApp _ ->
@@ -95,7 +95,7 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 -- BUILD PROJECTS
 
 
-buildExposed : FilePath -> Details.Details -> NE.TList ModuleName.Raw -> Task z a g h ()
+buildExposed : FilePath -> Details.Details -> NE.TList ModuleName.Raw -> Task z g h ()
 buildExposed root details exposed =
   let
     docsGoal = Build.ignoreDocs
@@ -104,7 +104,7 @@ buildExposed root details exposed =
     Build.fromExposed root details docsGoal exposed
 
 
-buildPaths : FilePath -> Details.Details -> NE.TList FilePath -> Task z a g h Build.Artifacts
+buildPaths : FilePath -> Details.Details -> NE.TList FilePath -> Task z g h Build.Artifacts
 buildPaths root details paths =
   Task.eio Exit.MakeCannotBuild <|
     Build.fromPaths root details paths
@@ -151,7 +151,7 @@ getNoMain modules root =
 -- GENERATE
 
 
-generate : FilePath -> String -> Task z a g h ()
+generate : FilePath -> String -> Task z g h ()
 generate target builder =
   Task.io <|
     IO.bind (SysFile.createDirectoryIfMissing True (SysFile.dropLastName target)) <| \_ ->
@@ -165,7 +165,7 @@ generate target builder =
 type DesiredMode = Debug | Async | Dev | Prod
 
 
-toBuilder : FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task z a g h String
+toBuilder : FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task z g h String
 toBuilder root details desiredMode artifacts =
   Task.mapError Exit.MakeBadGenerate <|
     case desiredMode of
