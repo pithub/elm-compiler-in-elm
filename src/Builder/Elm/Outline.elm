@@ -39,8 +39,8 @@ import Extra.Type.Map as Map
 -- PRIVATE IO
 
 
-type alias IO a c d e f g h v =
-  IO.IO (SysFile.State a c d e f g h) v
+type alias IO b c d e f g h v =
+  IO.IO (SysFile.State b c d e f g h) v
 
 
 
@@ -111,7 +111,7 @@ flattenExposed exposed =
 -- WRITE
 
 
-write : FilePath -> Outline -> IO a c d e f g h ()
+write : FilePath -> Outline -> IO b c d e f g h ()
 write root outline =
   E.write (SysFile.addName root "elm.json") (encode outline)
 
@@ -185,7 +185,7 @@ encodeSrcDir srcDir =
 -- PARSE AND VERIFY
 
 
-read : FilePath -> IO a c d e f g h (Either Exit.Outline Outline)
+read : FilePath -> IO b c d e f g h (Either Exit.Outline Outline)
 read root =
   IO.bind (File.readUtf8 (SysFile.addName root "elm.json")) <| \bytes ->
   case D.fromByteString decoder bytes of
@@ -223,7 +223,7 @@ read root =
                     IO.return <| Left (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
 
 
-isSrcDirMissing : FilePath -> SrcDir -> IO a c d e f g h Bool
+isSrcDirMissing : FilePath -> SrcDir -> IO b c d e f g h Bool
 isSrcDirMissing root srcDir =
   IO.fmap not <| SysFile.doesDirectoryExist (toAbsolute root srcDir)
 
@@ -242,14 +242,14 @@ toAbsolute root srcDir =
     RelativeSrcDir dir -> SysFile.combine root dir
 
 
-detectDuplicates : FilePath -> TList SrcDir -> IO a c d e f g h (Maybe (String, (FilePath, FilePath)))
+detectDuplicates : FilePath -> TList SrcDir -> IO b c d e f g h (Maybe (String, (FilePath, FilePath)))
 detectDuplicates root srcDirs =
   IO.bind (MList.traverse IO.pure IO.liftA2 (toPair root) srcDirs) <| \pairs ->
   IO.return <| Map.lookupMin <| Map.mapMaybe isDup <|
     Map.fromListWith OneOrMore.more pairs
 
 
-toPair : FilePath -> SrcDir -> IO a c d e f g h (String, OneOrMore.OneOrMore FilePath)
+toPair : FilePath -> SrcDir -> IO b c d e f g h (String, OneOrMore.OneOrMore FilePath)
 toPair root srcDir =
   IO.return ( SysFile.toString (toAbsolute root srcDir), OneOrMore.one (toGiven srcDir) )
 

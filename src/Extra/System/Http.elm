@@ -4,7 +4,6 @@ module Extra.System.Http exposing
     , Manager
     , Method
     , Request
-    , directManager
     , methodGet
     , methodPost
     , newManager
@@ -28,28 +27,17 @@ import Http
 
 
 type Manager
-    = Direct
-    | Proxied
+    = Manager (Maybe String)
 
 
-newManager : IO s Manager
-newManager =
-    IO.return Proxied
+newManager : Maybe String -> IO s Manager
+newManager maybePrefix =
+    IO.return (Manager maybePrefix)
 
 
-directManager : IO s Manager
-directManager =
-    IO.return Direct
-
-
-managedUrl : Manager -> String -> String
-managedUrl manager url =
-    case manager of
-        Direct ->
-            url
-
-        Proxied ->
-            "http://localhost:8088/proxy/" ++ url
+managedUrl : Manager -> String -> Maybe String
+managedUrl (Manager maybePrefix) url =
+    Maybe.map (\prefix -> prefix ++ url) maybePrefix
 
 
 
@@ -115,30 +103,41 @@ type alias Exception =
 
 withStringResponse : Request -> Manager -> (Either Exception String -> IO s a) -> IO s a
 withStringResponse request manager handler =
-    Http.request
-        { method = request.method
-        , headers = request.headers
-        , url = managedUrl manager request.url
-        , body = request.body
-        , expect = Http.expectString (mapHandler handler)
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-        |> IO.liftCmdIO
+    withExpect stringExpect request manager handler
 
 
 withBytesResponse : Request -> Manager -> (Either Exception Bytes -> IO s a) -> IO s a
 withBytesResponse request manager handler =
-    Http.request
-        { method = request.method
-        , headers = request.headers
-        , url = managedUrl manager request.url
-        , body = request.body
-        , expect = Http.expectBytesResponse (mapHandler handler) toResult
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-        |> IO.liftCmdIO
+    withExpect bytesExpect request manager handler
+
+
+withExpect : ((Either Exception a -> IO s b) -> Http.Expect (IO s b)) -> Request -> Manager -> (Either Exception a -> IO s b) -> IO s b
+withExpect expectFun request manager handler =
+    case managedUrl manager request.url of
+        Just url ->
+            Http.request
+                { method = request.method
+                , headers = request.headers
+                , url = url
+                , body = request.body
+                , expect = expectFun handler
+                , timeout = Nothing
+                , tracker = Nothing
+                }
+                |> IO.liftCmdIO
+
+        Nothing ->
+            handler (Left Http.NetworkError)
+
+
+stringExpect : (Either Exception String -> IO s a) -> Http.Expect (IO s a)
+stringExpect handler =
+    Http.expectString (mapHandler handler)
+
+
+bytesExpect : (Either Exception Bytes -> IO s a) -> Http.Expect (IO s a)
+bytesExpect handler =
+    Http.expectBytesResponse (mapHandler handler) toResult
 
 
 mapHandler : (Either Exception a -> IO s b) -> Result Http.Error a -> IO s b

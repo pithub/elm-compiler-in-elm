@@ -38,22 +38,22 @@ import Extra.Class.Monad as Monad
 -- PRIVATE IO
 
 
-type alias IO a c d e f g h v =
-  IO.IO (SysFile.State a c d e f g h) v
+type alias IO c d e f g h v =
+  IO.IO (Http.State c d e f g h) v
 
 
 
 -- SOLVER
 
 
-type Solver z a c d e f g h v =
+type Solver z b c d e f g h v =
   Solver
   (
     State
-    -> (State -> v -> (State -> IO a c d e f g h z) -> IO a c d e f g h z)
-    -> (State -> IO a c d e f g h z)
-    -> (Exit.Solver -> IO a c d e f g h z)
-    -> IO a c d e f g h z
+    -> (State -> v -> (State -> IO c d e f g h z) -> IO c d e f g h z)
+    -> (State -> IO c d e f g h z)
+    -> (Exit.Solver -> IO c d e f g h z)
+    -> IO c d e f g h z
   )
 
 
@@ -97,7 +97,7 @@ type Details =
   Details V.Version (Map.Map Pkg.Comparable C.Constraint)
 
 
-verify : Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Comparable C.Constraint -> IO a c d e f g h (Result (Map.Map Pkg.Comparable Details))
+verify : Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Comparable C.Constraint -> IO c d e f g h (Result (Map.Map Pkg.Comparable Details))
 verify cache connection registry constraints =
   case try constraints of
     Solver solver ->
@@ -132,7 +132,7 @@ type AppSolution =
     {- app -} (Outline.AppOutline)
 
 
-addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Comparable -> Outline.AppOutline -> IO a c d e f g h (Result AppSolution)
+addToApp : Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Comparable -> Outline.AppOutline -> IO c d e f g h (Result AppSolution)
 addToApp cache connection registry pkg ((Outline.AppOutline _ _ direct indirect testDirect testIndirect) as outline) =
   let
     allIndirects = Map.union indirect testIndirect
@@ -192,7 +192,7 @@ getTransitive constraints solution unvisited visited =
 -- TRY
 
 
-try : Map.Map Pkg.Comparable C.Constraint -> Solver z a c d e f g h (Map.Map Pkg.Comparable V.Version)
+try : Map.Map Pkg.Comparable C.Constraint -> Solver z b c d e f g h (Map.Map Pkg.Comparable V.Version)
 try constraints =
   exploreGoals (Goals constraints Map.empty)
 
@@ -207,7 +207,7 @@ type Goals =
     {- solved -} (Map.Map Pkg.Comparable V.Version)
 
 
-exploreGoals : Goals -> Solver z a c d e f g h (Map.Map Pkg.Comparable V.Version)
+exploreGoals : Goals -> Solver z b c d e f g h (Map.Map Pkg.Comparable V.Version)
 exploreGoals (Goals pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
@@ -221,7 +221,7 @@ exploreGoals (Goals pending solved) =
       exploreGoals goals2
 
 
-addVersion : Goals -> Pkg.Comparable -> V.Version -> Solver z a c d e f g h Goals
+addVersion : Goals -> Pkg.Comparable -> V.Version -> Solver z b c d e f g h Goals
 addVersion (Goals pending solved) name version =
   bind (getConstraints (Pkg.fromComparable name) version) <| \(Constraints elm deps) ->
   if C.goodElm elm
@@ -232,7 +232,7 @@ addVersion (Goals pending solved) name version =
       backtrack
 
 
-addConstraint : Map.Map Pkg.Comparable V.Version -> Map.Map Pkg.Comparable C.Constraint -> (Pkg.Comparable, C.Constraint) -> Solver z a c d e f g h (Map.Map Pkg.Comparable C.Constraint)
+addConstraint : Map.Map Pkg.Comparable V.Version -> Map.Map Pkg.Comparable C.Constraint -> (Pkg.Comparable, C.Constraint) -> Solver z b c d e f g h (Map.Map Pkg.Comparable C.Constraint)
 addConstraint solved unsolved (name, newConstraint) =
   case Map.lookup name solved of
     Just version ->
@@ -260,7 +260,7 @@ addConstraint solved unsolved (name, newConstraint) =
 -- GET RELEVANT VERSIONS
 
 
-getRelevantVersions : Pkg.Comparable -> C.Constraint -> Solver z a c d e f g h (V.Version, TList V.Version)
+getRelevantVersions : Pkg.Comparable -> C.Constraint -> Solver z b c d e f g h (V.Version, TList V.Version)
 getRelevantVersions name constraint =
   Solver <| \((State _ _ registry _) as state) ok back _ ->
     case Registry.getVersions name registry of
@@ -277,7 +277,7 @@ getRelevantVersions name constraint =
 -- GET CONSTRAINTS
 
 
-getConstraints : Pkg.Name -> V.Version -> Solver z a c d e f g h Constraints
+getConstraints : Pkg.Name -> V.Version -> Solver z b c d e f g h Constraints
 getConstraints pkg vsn =
   Solver <| \((State cache connection registry cDict) as state) ok back err ->
     let key = (Pkg.toComparable pkg, V.toComparable vsn) in
@@ -350,7 +350,7 @@ type Env =
   Env Stuff.PackageCache Http.Manager Connection Registry.Registry
 
 
-initEnv : IO a c d e f g h (Either Exit.RegistryProblem Env)
+initEnv : IO c d e f g h (Either Exit.RegistryProblem Env)
 initEnv =
   IO.bind Http.getManager <| \manager ->
   IO.bind Stuff.getPackageCache <| \cache ->
@@ -388,11 +388,11 @@ addSpecialVersions (Registry.Registry count registry) =
 -- INSTANCES
 
 
-return : Monad.Return v (Solver z a c d e f g h v)
+return : Monad.Return v (Solver z b c d e f g h v)
 return a =
   Solver <| \state ok back _ -> ok state a back
 
-bind : Monad.Bind v (Solver z a c d e f g h v) (Solver z a c d e f g h w)
+bind : Monad.Bind v (Solver z b c d e f g h v) (Solver z b c d e f g h w)
 bind (Solver solverA) callback =
   Solver <| \state ok back err ->
     let
@@ -403,7 +403,7 @@ bind (Solver solverA) callback =
     solverA state okA back err
 
 
-oneOf : Solver z a c d e f g h v -> TList (Solver z a c d e f g h v) -> Solver z a c d e f g h v
+oneOf : Solver z b c d e f g h v -> TList (Solver z b c d e f g h v) -> Solver z b c d e f g h v
 oneOf ((Solver solverHead) as solver) solvers =
   case solvers of
     [] ->
@@ -421,6 +421,6 @@ oneOf ((Solver solverHead) as solver) solvers =
         solverHead state0 ok tryTail err
 
 
-backtrack : Solver z a c d e f g h v
+backtrack : Solver z b c d e f g h v
 backtrack =
   Solver <| \state _ back _ -> back state

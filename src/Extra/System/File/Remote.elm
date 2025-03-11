@@ -27,23 +27,23 @@ type Entry
     | DirectoryEntry Directory
 
 
-getTree : String -> IO.IO s Directory
-getTree remotePath =
-    queryString remotePath <|
+getTree : Maybe String -> String -> IO.IO s Directory
+getTree prefix remotePath =
+    queryString prefix remotePath <|
         \response ->
             case response of
                 Left _ ->
                     IO.return Map.empty
 
                 Right body ->
-                    processBody remotePath body
+                    processBody prefix remotePath body
 
 
-processBody : String -> String -> IO.IO s Directory
-processBody remotePath body =
+processBody : Maybe String -> String -> String -> IO.IO s Directory
+processBody prefix remotePath body =
     case Json.decodeString directoryDecoder body of
         Ok ( directories, files ) ->
-            getDirectories remotePath directories
+            getDirectories prefix remotePath directories
                 |> IO.fmap (addFiles remotePath files)
 
         Err _ ->
@@ -54,15 +54,15 @@ processBody remotePath body =
 -- DIRECTORIES
 
 
-getDirectories : String -> TList ( String, Int ) -> IO.IO s Directory
-getDirectories remotePath dirs =
+getDirectories : Maybe String -> String -> TList ( String, Int ) -> IO.IO s Directory
+getDirectories prefix remotePath dirs =
     Map.fromList dirs
-        |> Map.traverseWithKey IO.pure IO.liftA2 (getDirectory remotePath)
+        |> Map.traverseWithKey IO.pure IO.liftA2 (getDirectory prefix remotePath)
 
 
-getDirectory : String -> String -> Int -> IO.IO s ( Int, Entry )
-getDirectory remotePath name time =
-    getTree (remotePath ++ "/" ++ name)
+getDirectory : Maybe String -> String -> String -> Int -> IO.IO s ( Int, Entry )
+getDirectory prefix remotePath name time =
+    getTree prefix (remotePath ++ "/" ++ name)
         |> IO.fmap (\directory -> ( time, DirectoryEntry directory ))
 
 
@@ -115,9 +115,9 @@ timeDecoder =
 -- READ FILE
 
 
-getFile : String -> IO.IO s (Maybe Bytes)
-getFile filePath =
-    queryBytes filePath <|
+getFile : Maybe String -> String -> IO.IO s (Maybe Bytes)
+getFile prefix filePath =
+    queryBytes prefix filePath <|
         \response ->
             case response of
                 Left _ ->
@@ -131,18 +131,18 @@ getFile filePath =
 -- HTTP
 
 
-queryString : String -> (Either Http.Exception String -> IO.IO s a) -> IO.IO s a
-queryString remotePath callback =
-    query remotePath (\manager request -> Http.withStringResponse request manager callback)
+queryString : Maybe String -> String -> (Either Http.Exception String -> IO.IO s a) -> IO.IO s a
+queryString prefix remotePath callback =
+    query prefix remotePath (\manager request -> Http.withStringResponse request manager callback)
 
 
-queryBytes : String -> (Either Http.Exception Bytes -> IO.IO s a) -> IO.IO s a
-queryBytes remotePath callback =
-    query remotePath (\manager request -> Http.withBytesResponse request manager callback)
+queryBytes : Maybe String -> String -> (Either Http.Exception Bytes -> IO.IO s a) -> IO.IO s a
+queryBytes prefix remotePath callback =
+    query prefix remotePath (\manager request -> Http.withBytesResponse request manager callback)
 
 
-query : String -> (Http.Manager -> Http.Request -> IO.IO s a) -> IO.IO s a
-query remotePath callback =
-    IO.bind Http.directManager <|
+query : Maybe String -> String -> (Http.Manager -> Http.Request -> IO.IO s a) -> IO.IO s a
+query prefix remotePath callback =
+    IO.bind (Http.newManager prefix) <|
         \manager ->
-            IO.bind (Http.parseUrlThrow <| "/query/" ++ remotePath) (callback manager)
+            IO.bind (Http.parseUrlThrow remotePath) (callback manager)

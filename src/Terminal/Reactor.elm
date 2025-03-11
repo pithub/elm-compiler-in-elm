@@ -21,15 +21,15 @@ import Terminal.Command as Command
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Command.State g h) v
 
 
 
 -- SERVE ELM
 
 
-compile : FilePath -> IO a g h (Either Exit.Reactor String)
+compile : FilePath -> IO g h (Either Exit.Reactor String)
 compile path =
   IO.bind Stuff.findRoot <| \maybeRoot ->
   case maybeRoot of

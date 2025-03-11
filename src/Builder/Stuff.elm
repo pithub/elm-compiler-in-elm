@@ -29,8 +29,8 @@ import Extra.System.IO as IO
 -- PRIVATE IO
 
 
-type alias IO a c d e f g h v =
-  IO.IO (SysFile.State a c d e f g h) v
+type alias IO b c d e f g h v =
+  IO.IO (SysFile.State b c d e f g h) v
 
 
 
@@ -85,13 +85,13 @@ toArtifactPath root name ext =
 -- ROOT
 
 
-findRoot : IO a c d e f g h (Maybe FilePath)
+findRoot : IO b c d e f g h (Maybe FilePath)
 findRoot =
   IO.bind SysFile.getCurrentDirectory <| \dir ->
   findRootHelp dir
 
 
-findRootHelp : FilePath -> IO a c d e f g h (Maybe FilePath)
+findRootHelp : FilePath -> IO b c d e f g h (Maybe FilePath)
 findRootHelp dirs =
   IO.bind (SysFile.doesFileExist (SysFile.addName dirs "elm.json")) <| \exists ->
   if exists
@@ -112,7 +112,7 @@ findRootHelp dirs =
 type PackageCache = PackageCache FilePath
 
 
-getPackageCache : IO a c d e f g h PackageCache
+getPackageCache : IO b c d e f g h PackageCache
 getPackageCache =
   IO.fmap PackageCache <| getCacheDir "packages"
 
@@ -131,12 +131,12 @@ package (PackageCache dir) name version =
 -- CACHE
 
 
-getReplCache : IO a c d e f g h FilePath
+getReplCache : IO b c d e f g h FilePath
 getReplCache =
   getCacheDir "repl"
 
 
-getCacheDir : FileName -> IO a c d e f g h FilePath
+getCacheDir : FileName -> IO b c d e f g h FilePath
 getCacheDir projectName =
   IO.bind getElmHome <| \home ->
   let root = SysFile.addNames home [ compilerVersion, projectName ] in
@@ -144,6 +144,6 @@ getCacheDir projectName =
   IO.return root
 
 
-getElmHome : IO a c d e f g h FilePath
+getElmHome : IO b c d e f g h FilePath
 getElmHome =
   SysFile.getAppUserDataDirectory "elm"

@@ -24,15 +24,15 @@ import Terminal.Command as Command
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Command.State g h) v
 
 
 
 -- RUN
 
 
-run : IO a g h (Either Exit.Init ())
+run : IO g h (Either Exit.Init ())
 run =
   IO.bind (SysFile.doesFileExist (SysFile.fromString "elm.json")) <| \exists ->
   if exists
@@ -70,7 +70,7 @@ question =
 -- INIT
 
 
-init : IO a g h (Either Exit.Init ())
+init : IO g h (Either Exit.Init ())
 init =
   IO.bind Solver.initEnv <| \eitherEnv ->
   case eitherEnv of

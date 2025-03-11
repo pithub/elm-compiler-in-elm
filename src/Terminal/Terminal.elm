@@ -36,14 +36,14 @@ uncommon = Internal.Uncommon
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Terminal.Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Terminal.Command.State g h) v
 
 
 
 -- APP
 
 
-app : D.Doc -> D.Doc -> TList Command -> IO a g h ()
+app : D.Doc -> D.Doc -> TList Command -> IO g h ()
 app intro outro commands =
   Error.exitWithOverview intro outro commands

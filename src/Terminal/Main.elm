@@ -16,15 +16,15 @@ import Terminal.Terminal as Terminal
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Command.State g h) v
 
 
 
 -- RUN
 
 
-runMain : IO a g h ()
+runMain : IO g h ()
 runMain =
   Terminal.app intro outro
     [ init

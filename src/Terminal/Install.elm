@@ -26,14 +26,14 @@ import Terminal.Command as Command
 -- PRIVATE IO
 
 
-type alias IO a g h v =
-  IO.IO (Command.State a g h) v
+type alias IO g h v =
+  IO.IO (Command.State g h) v
 
 
 
 -- INSTALL
 
-install : FilePath -> Pkg.Name -> IO a g h (Either Exit.Install ())
+install : FilePath -> Pkg.Name -> IO g h (Either Exit.Install ())
 install root pkg =
   Task.run <|
     Task.bind (Task.eio Exit.InstallBadRegistry Solver.initEnv) <| \env ->
@@ -59,11 +59,11 @@ type Changes vsn
   | Changes (Map.Map Pkg.Comparable (Change vsn)) Outline.Outline
 
 
-type alias Task z a g h v =
-  Task.Task z (Command.State a g h) Exit.Install v
+type alias Task z g h v =
+  Task.Task z (Command.State g h) Exit.Install v
 
 
-attemptChanges : FilePath -> Solver.Env -> Outline.Outline -> (v -> String) -> Changes v -> Task z a g h ()
+attemptChanges : FilePath -> Solver.Env -> Outline.Outline -> (v -> String) -> Changes v -> Task z g h ()
 attemptChanges root env oldOutline toChars changes =
   case changes of
     AlreadyInstalled ->
@@ -108,7 +108,7 @@ attemptChanges root env oldOutline toChars changes =
         ]
 
 
-attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task z a g h ()
+attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task z g h ()
 attemptChangesHelp root env oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails <|
     IO.bind (Command.ask question) <| \approved ->
@@ -133,7 +133,7 @@ attemptChangesHelp root env oldOutline newOutline question =
 -- MAKE APP PLAN
 
 
-makeAppPlan : Solver.Env -> Pkg.Comparable -> Outline.AppOutline -> Task z a g h (Changes V.Version)
+makeAppPlan : Solver.Env -> Pkg.Comparable -> Outline.AppOutline -> Task z g h (Changes V.Version)
 makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline a b direct indirect testDirect testIndirect) as outline) =
   if Map.member pkg direct then
     Task.return AlreadyInstalled
@@ -199,7 +199,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline a 
 -- MAKE PACKAGE PLAN
 
 
-makePkgPlan : Solver.Env -> Pkg.Comparable -> Outline.PkgOutline -> Task z a g h (Changes C.Constraint)
+makePkgPlan : Solver.Env -> Pkg.Comparable -> Outline.PkgOutline -> Task z g h (Changes C.Constraint)
 makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline a b c d e deps test h) =
   if Map.member pkg deps then
     Task.return AlreadyInstalled
