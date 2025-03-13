@@ -165,6 +165,8 @@ type Mode
   = Normal
   | Module String
   | Breakpoint String String String
+  | Configured (Map.Map String String) (Map.Map String String) (Map.Map String String)
+
 
 isBreakpoint : Mode -> Bool
 isBreakpoint mode =
@@ -540,6 +542,7 @@ openedModule mode =
     Normal -> Nothing
     Module moduleName -> Just moduleName
     Breakpoint moduleName _ _ -> Just moduleName
+    Configured _ _ _ -> Nothing
 
 
 {- NEW: generatedModule -}
@@ -568,8 +571,8 @@ initialState : Env h -> State
 initialState (Env _ _ _ mode _ _) =
   case mode of
     Breakpoint _ id bpName -> initialBreakpointState id bpName
-    {- NEW: force_quit_ -}
-    _ -> State Map.empty Map.empty <| Map.singleton "force_quit_" "force_quit_ () = False\n"
+    Configured imports types decls -> State imports types (addForceQuit decls)
+    _ -> State Map.empty Map.empty (addForceQuit Map.empty)
 
 
 {- NEW: initialBreakpointState -}
@@ -581,6 +584,12 @@ initialBreakpointState id bpName =
     , ("bpTag", "bpTag = case Breakpoint.tag bp of\n  Just x -> x\n  _ -> Debug.todo \"no suspended Breakpoint\"\n")
     , ("force_quit_", "force_quit_ () = not (Breakpoint.isSuspended bp)\n")
     ]
+
+
+{- NEW: addForceQuit -}
+addForceQuit : Map.Map N.Name String -> Map.Map N.Name String
+addForceQuit decls =
+  Map.insertWith (\_ old -> old) "force_quit_" "force_quit_ () = False\n" decls
 
 
 
