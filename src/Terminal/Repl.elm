@@ -598,9 +598,7 @@ eval ((Env _ _ _ mode _ _) as env) ((State imports types decls) as state) input 
 
     Reset ->
       IO.bindSequence
-        [ Command.clearStdOut
-        , printWelcomeMessage
-        ]
+        [ Command.putLine "<reset>" ]
         (IO.return (Loop (initialState env)))
 
     Help maybeUnknownCommand ->
