@@ -163,7 +163,7 @@ fromStringHelper : (TList FileName -> FilePath) -> String -> FilePath
 fromStringHelper constructor string =
     string
         |> String.split "/"
-        |> MList.filter ((/=) "")
+        |> MList.filter (\name -> name /= "" && name /= ".")
         |> MList.reverse
         |> constructor
 
@@ -505,21 +505,25 @@ getCurrentDirectoryNamesPure state =
 
 getCurrentDirectoryEntryPure : State b c d e f g h -> Directory
 getCurrentDirectoryEntryPure state =
-    let
-        goto names directory =
-            case names of
-                [] ->
-                    directory
+    lensRoot.getter state
+        |> walkFileSystemPure
+            False
+            (Absolute (lensCwd.getter state))
+            (Time.millisToPosix 0)
+            (\maybeNode _ ->
+                ( Nothing
+                , case maybeNode of
+                    Just ( root, "", Nothing ) ->
+                        root
 
-                name :: rest ->
-                    case Map.lookup name directory of
-                        Just ( _, DirectoryEntry subDirectory ) ->
-                            goto rest subDirectory
+                    Just ( _, _, Just ( _, DirectoryEntry directory ) ) ->
+                        directory
 
-                        _ ->
-                            directory
-    in
-    goto (getCurrentDirectoryNamesPure state) (lensRoot.getter state)
+                    _ ->
+                        Map.empty
+                )
+            )
+        |> Tuple.first
 
 
 getCurrentDirectoryEntriesPure :
@@ -571,15 +575,16 @@ walkFileSystemPure :
     Bool
     -> FilePath
     -> Time.Posix
-    -> (Maybe ( Directory, FileName, Maybe ( Time.Posix, Entry ) ) -> Time.Posix -> ( Maybe Directory, a ))
-    -> (Directory -> ( a, Directory ))
+    -> (Maybe ( Directory, FileName, Maybe ( Time.Posix, Entry ) ) -> Time.Posix -> ( Maybe Directory, v ))
+    -> Directory
+    -> ( v, Directory )
 walkFileSystemPure createDirectories filePath now callback root =
     let
         down :
             TList ( Directory, FileName )
             -> TList FileName
             -> Directory
-            -> ( a, Directory )
+            -> ( v, Directory )
         down visited fileNames directory =
             case fileNames of
                 [] ->
@@ -609,7 +614,7 @@ walkFileSystemPure createDirectories filePath now callback root =
         finishWalk :
             TList ( Directory, FileName )
             -> Maybe ( Directory, FileName, Maybe ( Time.Posix, Entry ) )
-            -> ( a, Directory )
+            -> ( v, Directory )
         finishWalk visited input =
             case callback input now of
                 ( Just changedDirectory, result ) ->

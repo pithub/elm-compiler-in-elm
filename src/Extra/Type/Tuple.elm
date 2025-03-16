@@ -3,7 +3,6 @@ module Extra.Type.Tuple exposing (mappend, mempty, traverseSecond)
 import Extra.Class.Functor as Functor
 import Extra.Class.Monoid as Monoid
 import Extra.Class.Traversable as Traversable
-import Time exposing (Weekday(..))
 
 
 mappend : Monoid.Mappend a -> Monoid.Mappend b -> Monoid.Mappend ( a, b )
