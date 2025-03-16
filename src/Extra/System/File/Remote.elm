@@ -1,148 +1,54 @@
-module Extra.System.File.Remote exposing
-    ( Directory
-    , Entry(..)
-    , getFile
-    , getTree
-    )
+module Extra.System.File.Remote exposing (getTree)
 
 import Bytes exposing (Bytes)
-import Extra.System.Http as Http
-import Extra.System.IO as IO
+import Extra.System.File.Util as Util
+import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
-import Extra.Type.List as MList exposing (TList)
-import Extra.Type.Map as Map
-import Json.Decode as Json
 
 
-
--- READ DIRECTORY TREE
-
-
-type alias Directory =
-    Map.Map String ( Int, Entry )
-
-
-type Entry
-    = FileEntry String Int
-    | DirectoryEntry Directory
-
-
-getTree : Maybe String -> String -> IO.IO s Directory
+getTree : Maybe String -> String -> IO.IO s (Util.Tree s)
 getTree prefix remotePath =
-    queryString prefix remotePath <|
+    Util.requestString prefix remotePath <|
         \response ->
             case response of
-                Left _ ->
-                    IO.return Map.empty
-
                 Right body ->
                     processBody prefix remotePath body
 
+                Left _ ->
+                    Util.getTreeError
 
-processBody : Maybe String -> String -> String -> IO.IO s Directory
+
+processBody : Maybe String -> String -> String -> IO s (Util.Tree s)
 processBody prefix remotePath body =
-    case Json.decodeString directoryDecoder body of
-        Ok ( directories, files ) ->
-            getDirectories prefix remotePath directories
-                |> IO.fmap (addFiles remotePath files)
-
-        Err _ ->
-            IO.return Map.empty
+    Util.getTree (fileStep prefix) beforeDirStep afterDirStep remotePath body
 
 
-
--- DIRECTORIES
-
-
-getDirectories : Maybe String -> String -> TList ( String, Int ) -> IO.IO s Directory
-getDirectories prefix remotePath dirs =
-    Map.fromList dirs
-        |> Map.traverseWithKey IO.pure IO.liftA2 (getDirectory prefix remotePath)
+type alias Acc =
+    String
 
 
-getDirectory : Maybe String -> String -> String -> Int -> IO.IO s ( Int, Entry )
-getDirectory prefix remotePath name time =
-    getTree prefix (remotePath ++ "/" ++ name)
-        |> IO.fmap (\directory -> ( time, DirectoryEntry directory ))
+fileStep : Maybe String -> Util.FileStep s Acc
+fileStep prefix name _ dirPath =
+    ( dirPath, getFile prefix (dirPath ++ "/" ++ name) )
 
 
-
--- FILES
-
-
-addFiles : String -> TList ( String, Int, Int ) -> Directory -> Directory
-addFiles remotePath files directory =
-    MList.foldl (addFile remotePath) directory files
+beforeDirStep : Util.BeforeDirStep Acc
+beforeDirStep name dirPath =
+    dirPath ++ "/" ++ name
 
 
-addFile : String -> Directory -> ( String, Int, Int ) -> Directory
-addFile remotePath directory ( name, time, size ) =
-    Map.insert name ( time, FileEntry (remotePath ++ "/" ++ name) size ) directory
+afterDirStep : Util.AfterDirStep Acc
+afterDirStep _ beforeFilePath _ =
+    beforeFilePath
 
 
-
--- JSON
-
-
-directoryDecoder : Json.Decoder ( TList ( String, Int ), TList ( String, Int, Int ) )
-directoryDecoder =
-    Json.map2 Tuple.pair
-        (Json.field "dirs" (Json.list dirEntryDecoder))
-        (Json.field "files" (Json.list fileEntryDecoder))
-
-
-dirEntryDecoder : Json.Decoder ( String, Int )
-dirEntryDecoder =
-    Json.map2 Tuple.pair
-        (Json.field "name" Json.string)
-        (Json.field "mtime" timeDecoder)
-
-
-fileEntryDecoder : Json.Decoder ( String, Int, Int )
-fileEntryDecoder =
-    Json.map3 (\name time size -> ( name, time, size ))
-        (Json.field "name" Json.string)
-        (Json.field "mtime" timeDecoder)
-        (Json.field "size" Json.int)
-
-
-timeDecoder : Json.Decoder Int
-timeDecoder =
-    Json.map round Json.float
-
-
-
--- READ FILE
-
-
-getFile : Maybe String -> String -> IO.IO s (Maybe Bytes)
+getFile : Maybe String -> String -> IO s (Maybe Bytes)
 getFile prefix filePath =
-    queryBytes prefix filePath <|
+    Util.requestBytes prefix filePath <|
         \response ->
             case response of
-                Left _ ->
-                    IO.return Nothing
-
                 Right body ->
                     IO.return (Just body)
 
-
-
--- HTTP
-
-
-queryString : Maybe String -> String -> (Either Http.Exception String -> IO.IO s a) -> IO.IO s a
-queryString prefix remotePath callback =
-    query prefix remotePath (\manager request -> Http.withStringResponse request manager callback)
-
-
-queryBytes : Maybe String -> String -> (Either Http.Exception Bytes -> IO.IO s a) -> IO.IO s a
-queryBytes prefix remotePath callback =
-    query prefix remotePath (\manager request -> Http.withBytesResponse request manager callback)
-
-
-query : Maybe String -> String -> (Http.Manager -> Http.Request -> IO.IO s a) -> IO.IO s a
-query prefix remotePath callback =
-    IO.bind (Http.newManager prefix) <|
-        \manager ->
-            IO.bind (Http.parseUrlThrow remotePath) (callback manager)
+                Left _ ->
+                    IO.return Nothing
