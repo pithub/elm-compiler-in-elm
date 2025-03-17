@@ -403,18 +403,42 @@ mountHelper : FilePath -> Util.Tree (State b c d e f g h) -> IO b c d e f g h ()
 mountHelper filePath mountedTree =
     walkFileSystem True filePath <|
         \maybeNode _ ->
-            ( Maybe.andThen
-                (\( directory, fileName, maybeEntry ) ->
-                    case maybeEntry of
-                        Nothing ->
-                            Just (Map.insert fileName (mapMountedTree mountedTree) directory)
+            ( Maybe.andThen (mountEntry (mapMountedTree mountedTree)) maybeNode, () )
 
-                        _ ->
-                            Nothing
-                )
-                maybeNode
-            , ()
-            )
+
+mountEntry :
+    ( Time.Posix, Directory b c d e f g h )
+    -> ( Directory b c d e f g h, String, Maybe ( Time.Posix, Entry b c d e f g h ) )
+    -> Maybe (Directory b c d e f g h)
+mountEntry ( time, mountedDirectory ) ( directory, fileName, maybeEntry ) =
+    case maybeEntry of
+        Nothing ->
+            if fileName == "" then
+                -- root
+                if Map.null directory then
+                    -- empty root => replace with mounted tree
+                    Just mountedDirectory
+
+                else
+                    -- non-empty root => reject mount
+                    Nothing
+
+            else
+                -- non-existing entry => add mounted tree
+                Just (Map.insert fileName ( time, DirectoryEntry mountedDirectory ) directory)
+
+        Just ( _, DirectoryEntry subDirectory ) ->
+            if Map.null subDirectory then
+                -- empty directory => replace with mounted tree
+                Just (Map.insert fileName ( time, DirectoryEntry mountedDirectory ) directory)
+
+            else
+                -- non-empty directory => reject mount
+                Nothing
+
+        _ ->
+            -- other cases => reject mount
+            Nothing
 
 
 readFile : FilePath -> IO b c d e f g h (Maybe Bytes)
@@ -655,14 +679,14 @@ getTime =
 -- MOUNTED TREES
 
 
-mapMountedTree : Util.Tree (State b c d e f g h) -> ( Time.Posix, Entry b c d e f g h )
+mapMountedTree : Util.Tree (State b c d e f g h) -> ( Time.Posix, Directory b c d e f g h )
 mapMountedTree mountedTree =
     Tuple.mapSecond mapMountedDirectory mountedTree
 
 
-mapMountedDirectory : Util.Directory (State b c d e f g h) -> Entry b c d e f g h
+mapMountedDirectory : Util.Directory (State b c d e f g h) -> Directory b c d e f g h
 mapMountedDirectory mountedDirectory =
-    DirectoryEntry (Map.map (Tuple.mapSecond mapMountedEntry) mountedDirectory)
+    Map.map (Tuple.mapSecond mapMountedEntry) mountedDirectory
 
 
 mapMountedEntry : Util.Entry (State b c d e f g h) -> Entry b c d e f g h
@@ -675,4 +699,4 @@ mapMountedEntry mountedEntry =
             FileEntry bytes
 
         Util.DirectoryEntry directory ->
-            mapMountedDirectory directory
+            DirectoryEntry (mapMountedDirectory directory)
