@@ -277,7 +277,7 @@ toBinopStep makeBinop ((Env.Binop _ _ _ _ rootAssociativity rootPrecedence) as r
             -- without this construct, we get an endless recursion...
             (\() -> toBinopStep (\right -> makeBinop (toBinop op expr right)) op rest final) ()
 
-          (_, _) ->
+          _ ->
             Error rootOp op
 
 
@@ -646,8 +646,8 @@ verifyBindings context bindings (MResult.CResult k) =
 
 
 addUnusedWarning : W.Context -> TList W.Warning -> Name.Name -> A.Region -> TList W.Warning
-addUnusedWarning context warnings name region =
-  W.UnusedVariable region context name :: warnings
+addUnusedWarning _ warnings _ _ =
+  W.UnusedVariable :: warnings
 
 
 directUsage : TResult () w (expr, FreeLocals) -> TResult FreeLocals w expr

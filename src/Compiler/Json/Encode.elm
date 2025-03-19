@@ -2,18 +2,18 @@
 module Compiler.Json.Encode exposing
   ( write
   --, encode
-  , writeUgly
+  --, writeUgly
   , encodeUgly
   , Value(..)
-  , array
+  --, array
   , object
   , string
   , name
   , chars
   --, bool
-  , int
+  --, int
   --, number
-  , null
+  --, null
   , dict
   , list
   --, (==>)
@@ -44,15 +44,6 @@ type Value
   = Array (TList Value)
   | Object (TList (Json.TString, Value))
   | CString String
-  | Boolean Bool
-  | Integer Int
-  | Number Float
-  | Null
-
-
-array : TList Value -> Value
-array =
-  Array
 
 
 object : TList (Json.TString, Value) -> Value
@@ -68,16 +59,6 @@ string str =
 name : Name.Name -> Value
 name nm =
   CString ("\"" ++ Name.toBuilder nm ++ "\"")
-
-
-int : Int -> Value
-int =
-  Integer
-
-
-null : Value
-null =
-  Null
 
 
 dict : (comparable -> Json.TString) -> (v -> Value) -> Map.Map comparable v -> Value
@@ -123,11 +104,6 @@ write path value =
   File.writeBuilder path (encode value ++ "\n")
 
 
-writeUgly : FilePath -> Value -> IO b c d e f g h ()
-writeUgly path value =
-  File.writeBuilder path (encodeUgly value)
-
-
 
 -- ENCODE UGLY
 
@@ -158,18 +134,6 @@ encodeUgly value =
     CString builder ->
       builder
 
-    Boolean boolean ->
-      (if boolean then "true" else "false")
-
-    Integer n ->
-      String.fromInt n
-
-    Number scientific ->
-      String.fromFloat scientific
-
-    Null ->
-      "null"
-
 
 
 -- ENCODE
@@ -197,18 +161,6 @@ encodeHelp indent value =
 
     CString builder ->
       builder
-
-    Boolean boolean ->
-      if boolean then "true" else "false"
-
-    Integer n ->
-      String.fromInt n
-
-    Number n ->
-      String.fromFloat n
-
-    Null ->
-      "null"
 
 
 

@@ -32,7 +32,7 @@ type Error =
 
 type Problem
   = NotFound
-  | Ambiguous FilePath (TList FilePath) Pkg.Name (TList Pkg.Name)
+  | Ambiguous FilePath Pkg.Name
   | AmbiguousLocal FilePath FilePath (TList FilePath)
   | AmbiguousForeign Pkg.Name Pkg.Name (TList Pkg.Name)
 
@@ -45,7 +45,7 @@ toReport : Code.Source -> Error -> Report.Report
 toReport source (Error region name unimportedModules problem) =
   case problem of
     NotFound ->
-      Report.Report "MODULE NOT FOUND" region [] <|
+      Report.Report "MODULE NOT FOUND" region <|
         Code.toSnippet source region Nothing
           (
             D.reflow <|
@@ -79,8 +79,8 @@ toReport source (Error region name unimportedModules problem) =
               ]
           )
 
-    Ambiguous path _ pkg _ ->
-      Report.Report "AMBIGUOUS IMPORT" region [] <|
+    Ambiguous path pkg ->
+      Report.Report "AMBIGUOUS IMPORT" region <|
         Code.toSnippet source region Nothing
           (
             D.reflow <|
@@ -102,7 +102,7 @@ toReport source (Error region name unimportedModules problem) =
           )
 
     AmbiguousLocal path1 path2 paths ->
-      Report.Report "AMBIGUOUS IMPORT" region [] <|
+      Report.Report "AMBIGUOUS IMPORT" region <|
         Code.toSnippet source region Nothing
           (
             D.reflow <|
@@ -122,7 +122,7 @@ toReport source (Error region name unimportedModules problem) =
           )
 
     AmbiguousForeign pkg1 pkg2 pkgs ->
-      Report.Report "AMBIGUOUS IMPORT" region [] <|
+      Report.Report "AMBIGUOUS IMPORT" region <|
         Code.toSnippet source region Nothing
           (
             D.reflow <|

@@ -94,10 +94,7 @@ type DecodeExpectation
   = TObject
   | TArray
   | TString
-  | TBool
-  | TInt
   | TObjectWith String
-  | TArrayPair Int
 
 
 
@@ -382,7 +379,7 @@ type AST_
   = Array (TList AST)
   | Object (TList (P.Snippet, AST))
   | String P.Snippet
-  | Int Int
+  | Int
   | TRUE
   | FALSE
   | NULL
@@ -677,13 +674,13 @@ pInt =
           else if word1 == 0x2E {-.-} then
             P.Cerr row (col + 1) NoFloats
           else
-            P.Cok (Int 0) newState
+            P.Cok Int newState
         else
-          P.Cok (Int 0) newState
+          P.Cok Int newState
 
       else
         let
-          (status, n, newPos) =
+          (status, _, newPos) =
             chompInt src (pos + 1) end (word - 0x30 {-0-})
 
           len = newPos - pos
@@ -694,7 +691,7 @@ pInt =
               newState =
                 P.State src newPos end indent row (col + len)
             in
-            P.Cok (Int n) newState
+            P.Cok Int newState
 
           BadIntEnd ->
             P.Cerr row (col + len) NoFloats

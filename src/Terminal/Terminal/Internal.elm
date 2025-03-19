@@ -12,9 +12,6 @@ module Terminal.Terminal.Internal exposing
   )
 
 
-import Compiler.Reporting.Doc as D
-
-
 
 -- COMMAND
 
@@ -23,12 +20,10 @@ type Command =
   Command
     String
     Summary
-    String
-    D.Doc
 
 
 toName : Command -> String
-toName (Command name _ _ _) =
+toName (Command name _) =
   name
 
 

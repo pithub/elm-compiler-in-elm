@@ -94,8 +94,8 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
                       Right () ->
                         MResult.ok (portName, Can.Outgoing freeVars outgoingType ctipe)
 
-                      Left (badType, err) ->
-                        MResult.throw (Error.PortPayloadInvalid region portName badType err)
+                      Left (_, err) ->
+                        MResult.throw (Error.PortPayloadInvalid region portName err)
 
                   _ ->
                     MResult.throw (Error.PortTypeInvalid region portName Error.CmdBadMsg)
@@ -113,8 +113,8 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
                           Right () ->
                             MResult.ok (portName, Can.Incoming freeVars incomingType ctipe)
 
-                          Left (badType, err) ->
-                            MResult.throw (Error.PortPayloadInvalid region portName badType err)
+                          Left (_, err) ->
+                            MResult.throw (Error.PortPayloadInvalid region portName err)
 
                     else
                       MResult.throw (Error.PortTypeInvalid region portName Error.SubBad)

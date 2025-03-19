@@ -27,7 +27,6 @@ import Builder.Http as Http
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
 import Builder.Stuff as Stuff
-import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt
 import Compiler.AST.Source as Src
 import Compiler.Compile as Compile
@@ -35,7 +34,6 @@ import Compiler.Data.Name as Name
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Data.OneOrMore as OneOrMore
 import Compiler.Elm.Constraint as Con
-import Compiler.Elm.Docs as Docs
 import Compiler.Elm.Interface as I
 import Compiler.Elm.Kernel as Kernel
 import Compiler.Elm.ModuleName as ModuleName
@@ -530,7 +528,7 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
           let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed) in
           IO.bind (getDocsStatus cache pkg vsn) <| \docsStatus ->
           IO.bind (MVar.newEmpty lensMVStatusMap) <| \mvar ->
-          IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k _ -> fork lensMVStatus (crawlModule foreignDeps mvar pkg src docsStatus k)) exposedDict) <| \mvars ->
+          IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k _ -> fork lensMVStatus (crawlModule foreignDeps mvar pkg src k)) exposedDict) <| \mvars ->
           IO.bind (MVar.write lensMVStatusMap mvar mvars) <| \_ ->
           IO.bind (Map.mapM_ IO.return IO.bind (MVar.read lensMVStatus) mvars) <| \_ ->
           IO.bind (IO.andThen (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVStatus)) <| MVar.read lensMVStatusMap mvar) <| \maybeStatuses ->
@@ -572,7 +570,7 @@ gatherObjects results =
 addLocalGraph : ModuleName.Raw -> TResult -> Opt.GlobalGraph -> Opt.GlobalGraph
 addLocalGraph name status graph =
   case status of
-    RLocal _ objs _ -> Opt.addLocalGraph objs graph
+    RLocal _ objs   -> Opt.addLocalGraph objs graph
     RForeign _      -> graph
     RKernelLocal cs -> Opt.addKernel (Name.getKernel name) cs graph
     RKernelForeign  -> graph
@@ -591,10 +589,10 @@ gatherInterfaces exposed artifacts =
 toLocalInterface : (I.Interface -> a) -> TResult -> Maybe a
 toLocalInterface func result =
   case result of
-    RLocal iface _ _ -> Just (func iface)
-    RForeign _       -> Nothing
-    RKernelLocal _   -> Nothing
-    RKernelForeign   -> Nothing
+    RLocal iface _ -> Just (func iface)
+    RForeign _     -> Nothing
+    RKernelLocal _ -> Nothing
+    RKernelForeign -> Nothing
 
 
 
@@ -638,14 +636,14 @@ type alias StatusDict =
 
 
 type Status
-  = SLocal DocsStatus (Map.Map ModuleName.Raw ()) Src.Module
+  = SLocal (Map.Map ModuleName.Raw ()) Src.Module
   | SForeign I.Interface
   | SKernelLocal (TList Kernel.Chunk)
   | SKernelForeign
 
 
-crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> () -> IO d e f g h (Maybe Status)
-crawlModule foreignDeps mvar pkg src docsStatus name () =
+crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> () -> IO d e f g h (Maybe Status)
+crawlModule foreignDeps mvar pkg src name () =
   let path = SysFile.addExtension (SysFile.addNames src (ModuleName.toFileNames name)) "elm" in
   IO.bind (File.exists path) <| \exists ->
   case Map.lookup name foreignDeps of
@@ -659,7 +657,7 @@ crawlModule foreignDeps mvar pkg src docsStatus name () =
 
     Nothing ->
       if exists then
-        crawlFile foreignDeps mvar pkg src docsStatus name path
+        crawlFile foreignDeps mvar pkg src name path
 
       else if Pkg.isKernel pkg && Name.isKernel name then
         crawlKernel foreignDeps mvar pkg src name
@@ -668,14 +666,14 @@ crawlModule foreignDeps mvar pkg src docsStatus name () =
         IO.return Nothing
 
 
-crawlFile : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO d e f g h (Maybe Status)
-crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
+crawlFile : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO d e f g h (Maybe Status)
+crawlFile foreignDeps mvar pkg src expectedName path =
   IO.bind (File.readUtf8 path) <| \bytes ->
   case Parse.fromByteString (Parse.Package pkg) bytes of
-    Right ((Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _) as modul) ->
+    Right ((Src.Module (Just (A.At _ actualName)) _ imports _ _ _ _ _) as modul) ->
       if expectedName == actualName then
         IO.bind (crawlImports foreignDeps mvar pkg src imports) <| \deps ->
-        IO.return (Just (SLocal docsStatus deps modul))
+        IO.return (Just (SLocal deps modul))
       else
         IO.return Nothing
 
@@ -688,7 +686,7 @@ crawlImports foreignDeps mvar pkg src imports =
   IO.bind (MVar.read lensMVStatusMap mvar) <| \statusDict ->
   let deps = Map.fromList (MList.map (\i -> (Src.getImportName i, ())) imports) in
   let news = Map.difference deps statusDict in
-  IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k _ -> fork lensMVStatus (crawlModule foreignDeps mvar pkg src DocsNotNeeded k)) news) <| \mvars ->
+  IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k _ -> fork lensMVStatus (crawlModule foreignDeps mvar pkg src k)) news) <| \mvars ->
   IO.bind (MVar.write lensMVStatusMap mvar (Map.union mvars statusDict)) <| \_ ->
   IO.bind (Map.mapM_ IO.return IO.bind (MVar.read lensMVStatus) mvars) <| \_ ->
   IO.return deps
@@ -724,7 +722,7 @@ getDepHome fi =
 
 
 type TResult
-  = RLocal I.Interface Opt.LocalGraph (Maybe Docs.Module)
+  = RLocal I.Interface Opt.LocalGraph
   | RForeign I.Interface
   | RKernelLocal (TList Kernel.Chunk)
   | RKernelForeign
@@ -733,7 +731,7 @@ type TResult
 compile : Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe TResult))) -> Status -> () -> IO d e f g h (Maybe TResult)
 compile pkg mvar status () =
   case status of
-    SLocal docsStatus deps modul ->
+    SLocal deps modul ->
       IO.bind (MVar.read lensMVResultMap mvar) <| \resultsDict ->
       IO.bind (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVResult) (Map.intersection resultsDict deps)) <| \maybeResults ->
       case Map.sequenceA Just Maybe.map2 maybeResults of
@@ -748,9 +746,8 @@ compile pkg mvar status () =
             Right (Compile.Artifacts canonical annotations objects) ->
               let
                 ifaces = I.fromModule pkg canonical annotations
-                docs = makeDocs docsStatus canonical
               in
-              IO.return (Just (RLocal ifaces objects docs))
+              IO.return (Just (RLocal ifaces objects))
 
     SForeign iface ->
       IO.return (Just (RForeign iface))
@@ -765,10 +762,10 @@ compile pkg mvar status () =
 getInterface : TResult -> Maybe I.Interface
 getInterface result =
   case result of
-    RLocal iface _ _ -> Just iface
-    RForeign iface   -> Just iface
-    RKernelLocal _   -> Nothing
-    RKernelForeign   -> Nothing
+    RLocal iface _ -> Just iface
+    RForeign iface -> Just iface
+    RKernelLocal _ -> Nothing
+    RKernelForeign -> Nothing
 
 
 
@@ -786,18 +783,6 @@ getDocsStatus cache pkg vsn =
   if exists
     then IO.return DocsNotNeeded
     else IO.return DocsNeeded
-
-
-makeDocs : DocsStatus -> Can.Module -> Maybe Docs.Module
-makeDocs status modul =
-  case status of
-    DocsNeeded ->
-      case Docs.fromModule modul of
-        Right docs -> Just docs
-        Left _     -> Nothing
-
-    DocsNotNeeded ->
-      Nothing
 
 
 writeDocs : Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw TResult -> IO d e f g h ()

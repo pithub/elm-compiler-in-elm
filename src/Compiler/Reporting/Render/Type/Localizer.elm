@@ -78,7 +78,7 @@ toChars (Localizer localizer) ((ModuleName.Canonical _ home) as moduleName) name
 
 
 fromModule : Src.Module -> Localizer
-fromModule ((Src.Module _ _ _ imports _ _ _ _ _) as modul) =
+fromModule ((Src.Module _ _ imports _ _ _ _ _) as modul) =
   Localizer <| Map.fromList <|
     (Src.getName modul, Import Nothing All) :: MList.map toPair imports
 

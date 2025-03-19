@@ -6,7 +6,7 @@ module Compiler.Elm.Compiler.Type exposing
   , DebugMetadata(..)
   , Alias(..)
   , Union(..)
-  , encode
+  --, encode
   --, decoder
   , encodeMetadata
   )

@@ -182,7 +182,7 @@ toReport source localizer err =
 
 toPatternReport : Code.Source -> L.Localizer -> A.Region -> PCategory -> T.Type -> PExpected T.Type -> Report.Report
 toPatternReport source localizer patternRegion category tipe expected =
-  Report.Report "TYPE MISMATCH" patternRegion [] <|
+  Report.Report "TYPE MISMATCH" patternRegion <|
   case expected of
     PNoExpectation expectedType ->
       Code.toSnippet source patternRegion Nothing <|
@@ -436,7 +436,7 @@ problemToHint problem =
             "It looks like it takes too many arguments. I see " ++ String.fromInt (x - y) ++ " extra."
       ]
 
-    T.BadFlexSuper direction super _ tipe ->
+    T.BadFlexSuper direction super tipe ->
       case tipe of
         T.Lambda _ _ _   -> badFlexSuper direction super tipe
         T.Infinite       -> []
@@ -651,7 +651,7 @@ toExprReport : Code.Source -> L.Localizer -> A.Region -> Category -> T.Type -> E
 toExprReport source localizer exprRegion category tipe expected =
   case expected of
     NoExpectation expectedType ->
-      Report.Report "TYPE MISMATCH" exprRegion [] <|
+      Report.Report "TYPE MISMATCH" exprRegion <|
         Code.toSnippet source exprRegion Nothing
           ( d"This expression is being used in an unexpected way:"
           , typeComparison localizer tipe expectedType
@@ -674,7 +674,7 @@ toExprReport source localizer exprRegion category tipe expected =
             TypedCaseBranch index -> "The " ++ D.ordinal index ++ " branch is"
             TypedBody             -> "The body is"
       in
-      Report.Report "TYPE MISMATCH" exprRegion [] <|
+      Report.Report "TYPE MISMATCH" exprRegion <|
         Code.toSnippet source exprRegion Nothing <|
           ( D.reflow ("Something is off with the " ++ thing)
           , typeComparison localizer tipe expectedType
@@ -686,21 +686,21 @@ toExprReport source localizer exprRegion category tipe expected =
     FromContext region context expectedType ->
       let
         mismatch (maybeHighlight, problem, (thisIs, insteadOf, furtherDetails)) =
-          Report.Report "TYPE MISMATCH" exprRegion [] <|
+          Report.Report "TYPE MISMATCH" exprRegion <|
             Code.toSnippet source region maybeHighlight
               ( D.reflow problem
               , typeComparison localizer tipe expectedType (addCategory thisIs category) insteadOf furtherDetails
               )
 
         badType (maybeHighlight, problem, (thisIs, furtherDetails)) =
-          Report.Report "TYPE MISMATCH" exprRegion [] <|
+          Report.Report "TYPE MISMATCH" exprRegion <|
             Code.toSnippet source region maybeHighlight
               ( D.reflow problem
               , loneType localizer tipe expectedType (D.reflow (addCategory thisIs category)) furtherDetails
               )
 
         custom maybeHighlight docPair =
-          Report.Report "TYPE MISMATCH" exprRegion [] <|
+          Report.Report "TYPE MISMATCH" exprRegion <|
             Code.toSnippet source region maybeHighlight docPair
       in
       case context of
@@ -783,7 +783,7 @@ toExprReport source localizer exprRegion category tipe expected =
           ))
 
         CallArity maybeFuncName numGivenArgs ->
-          Report.Report "TOO MANY ARGS" exprRegion [] <|
+          Report.Report "TOO MANY ARGS" exprRegion <|
           Code.toSnippet source region (Just exprRegion) <|
           case countArgs tipe of
             0 ->
@@ -1333,7 +1333,7 @@ badAppendRight localizer category tipe expected =
             ]
         )
 
-    (_,_) ->
+    _ ->
       EmphBoth
         ( D.reflow <|
             "The (++) operator cannot append these two values:"
@@ -1609,7 +1609,7 @@ badEquality localizer op tipe expected =
 
 toInfiniteReport : Code.Source -> L.Localizer -> A.Region -> Name.Name -> T.Type -> Report.Report
 toInfiniteReport source localizer region name overallType =
-  Report.Report "INFINITE TYPE" region [] <|
+  Report.Report "INFINITE TYPE" region <|
     Code.toSnippet source region Nothing
       (
         D.reflow <|

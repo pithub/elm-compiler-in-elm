@@ -75,7 +75,7 @@ chompModule projectType =
   P.bind chompHeader <| \header ->
   P.bind (chompImports (if isCore projectType then [] else Imports.defaults)) <| \imports ->
   P.bind (if isKernel projectType then chompInfixes [] else P.return []) <| \infixes ->
-  P.bind (P.specialize E.Declarations <| chompDecls) <| \decls ->
+  P.bind (P.specialize (\decl _ _ -> E.Declarations decl) <| chompDecls) <| \decls ->
   P.return (Module header imports infixes decls)
 
 
@@ -89,13 +89,13 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
     ((values, unions), (aliases, ports)) = categorizeDecls [] [] [] [] decls
   in
   case maybeHeader of
-    Just (Header name effects exports docs) ->
-      Either.fmap (Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes)
+    Just (Header name effects exports) ->
+      Either.fmap (Src.Module (Just name) exports imports values unions aliases infixes)
         <| checkEffects projectType ports effects
 
     Nothing ->
       Right <|
-        Src.Module Nothing (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes <|
+        Src.Module Nothing (A.At A.one Src.Open) imports values unions aliases infixes <|
           case ports of
             [] -> Src.NoEffects
             _::_ -> Src.Ports ports
@@ -142,45 +142,10 @@ categorizeDecls values unions aliases ports decls =
 
     decl::otherDecls ->
       case decl of
-        Decl.Value _ value -> categorizeDecls (value::values) unions aliases ports otherDecls
-        Decl.Union _ union -> categorizeDecls values (union::unions) aliases ports otherDecls
-        Decl.Alias _ alias_ -> categorizeDecls values unions (alias_::aliases) ports otherDecls
-        Decl.Port  _ port_ -> categorizeDecls values unions aliases (port_::ports) otherDecls
-
-
-
--- TO DOCS
-
-
-toDocs : Either A.Region Src.Comment -> TList Decl.Decl -> Src.Docs
-toDocs comment decls =
-  case comment of
-    Right overview ->
-      Src.YesDocs overview (getComments decls [])
-
-    Left region ->
-      Src.NoDocs region
-
-
-getComments : TList Decl.Decl -> TList (Name.Name,Src.Comment) -> TList (Name.Name,Src.Comment)
-getComments decls comments =
-  case decls of
-    [] ->
-      comments
-
-    decl::otherDecls ->
-      case decl of
-        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getComments otherDecls (addComment c n comments)
-        Decl.Union c (A.At _ (Src.Union n _ _  )) -> getComments otherDecls (addComment c n comments)
-        Decl.Alias c (A.At _ (Src.Alias n _ _  )) -> getComments otherDecls (addComment c n comments)
-        Decl.Port  c         (Src.Port  n _    )  -> getComments otherDecls (addComment c n comments)
-
-
-addComment : Maybe Src.Comment -> A.Located Name.Name -> TList (Name.Name,Src.Comment) -> TList (Name.Name,Src.Comment)
-addComment maybeComment (A.At _ name) comments =
-  case maybeComment of
-    Just comment -> (name, comment) :: comments
-    Nothing      -> comments
+        Decl.Value value -> categorizeDecls (value::values) unions aliases ports otherDecls
+        Decl.Union union -> categorizeDecls values (union::unions) aliases ports otherDecls
+        Decl.Alias alias_ -> categorizeDecls values unions (alias_::aliases) ports otherDecls
+        Decl.Port  port_ -> categorizeDecls values unions aliases (port_::ports) otherDecls
 
 
 
@@ -244,7 +209,7 @@ chompModuleDocCommentSpace =
 
 
 type Header =
-  Header (A.Located Name.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.Comment)
+  Header (A.Located Name.Name) Effects (A.Located Src.Exposing)
 
 
 type Effects
@@ -268,9 +233,9 @@ chompHeader =
       P.bind (Keyword.exposing_ E.ModuleProblem) <| \_ ->
       P.bind (Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem) <| \_ ->
       P.bind (P.addLocation (P.specialize E.ModuleExposing exposing_)) <| \exports ->
-      P.bind chompModuleDocCommentSpace <| \comment ->
+      P.bind chompModuleDocCommentSpace <| \_ ->
       P.return <| Just <|
-        Header name (NoEffects (A.Region start effectEnd)) exports comment
+        Header name (NoEffects (A.Region start effectEnd)) exports
     ,
       -- port module MyThing exposing (..)
       P.bind (Keyword.port_ E.PortModuleProblem) <| \_ ->
@@ -283,9 +248,9 @@ chompHeader =
       P.bind (Keyword.exposing_ E.PortModuleProblem) <| \_ ->
       P.bind (Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem) <| \_ ->
       P.bind (P.addLocation (P.specialize E.PortModuleExposing exposing_)) <| \exports ->
-      P.bind chompModuleDocCommentSpace <| \comment ->
+      P.bind chompModuleDocCommentSpace <| \_ ->
       P.return <| Just <|
-        Header name (Ports (A.Region start effectEnd)) exports comment
+        Header name (Ports (A.Region start effectEnd)) exports
     ,
       -- effect module MyThing where { command = MyCmd } exposing (..)
       P.bind (Keyword.effect_ E.Effect) <| \_ ->
@@ -302,9 +267,9 @@ chompHeader =
       P.bind (Keyword.exposing_ E.Effect) <| \_ ->
       P.bind (Space.chompAndCheckIndent E.ModuleSpace E.Effect) <| \_ ->
       P.bind (P.addLocation (P.specialize (always E.Effect) exposing_)) <| \exports ->
-      P.bind chompModuleDocCommentSpace <| \comment ->
+      P.bind chompModuleDocCommentSpace <| \_ ->
       P.return <| Just <|
-        Header name (Manager (A.Region start effectEnd) manager) exports comment
+        Header name (Manager (A.Region start effectEnd) manager) exports
     ]
     -- default header
     Nothing

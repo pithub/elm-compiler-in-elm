@@ -15,7 +15,7 @@ module Compiler.Type.Type exposing
   , nextMark
   --, (==>)
   , int, float, char, string, bool, never
-  , vec2, vec3, vec4, mat4, texture
+  , texture
   , mkFlexVar
   , mkFlexNumber
   , unnamedFlexVar
@@ -148,8 +148,7 @@ type FlatType
 
 
 type Type
-  = PlaceHolder Name.Name
-  | AliasN ModuleName.Canonical Name.Name (TList (Name.Name, Type)) Type
+  = AliasN ModuleName.Canonical Name.Name (TList (Name.Name, Type)) Type
   | VarN Variable
   | AppN ModuleName.Canonical Name.Name (TList Type)
   | FunN Type Type
@@ -271,22 +270,6 @@ never = AppN ModuleName.basics "Never" []
 
 
 -- WEBGL TYPES
-
-
-vec2 : Type
-vec2 = AppN ModuleName.vector2 "Vec2" []
-
-
-vec3 : Type
-vec3 = AppN ModuleName.vector3 "Vec3" []
-
-
-vec4 : Type
-vec4 = AppN ModuleName.vector4 "Vec4" []
-
-
-mat4 : Type
-mat4 = AppN ModuleName.matrix4 "Mat4" []
 
 
 texture : Type

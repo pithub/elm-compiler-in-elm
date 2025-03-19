@@ -27,7 +27,7 @@ module Builder.Http exposing
 
 
 import Compiler.Elm.Version as V
-import Extra.System.Exception exposing (handle, SomeException(..))
+import Extra.System.Exception exposing (handle)
 import Extra.System.File as SysFile
 import Extra.System.Http as Sys
 import Extra.System.IO as IO exposing (IO)
@@ -143,9 +143,7 @@ userAgent =
 
 
 type Error
-  = BadUrl String String
-  | BadHttp String Sys.Exception
-  | BadMystery String SomeException
+  = BadHttp String Sys.Exception
 
 
 handleHttpException : String -> (Error -> x) -> Sys.Exception -> IO c d e f g h (Either x v)

@@ -2,7 +2,7 @@ module Compiler.AST.Source exposing
     ( Alias(..)
     , Comment(..)
     , Def(..)
-    , Docs(..)
+    --, Docs(..)
     , Effects(..)
     , Exposed(..)
     , Exposing(..)
@@ -30,7 +30,6 @@ import Compiler.AST.Utils.Shader as Shader
 import Compiler.Data.Name as Name
 import Compiler.Elm.Float as EF
 import Compiler.Elm.String as ES
-import Compiler.Parse.Primitives as P
 import Compiler.Reporting.Annotation as A
 import Extra.Type.List exposing (TList)
 
@@ -132,7 +131,6 @@ type Module
     = Module
         --{ name    : Maybe (A.Located Name)
         --, exports : A.Located Exposing
-        --, docs    : Docs
         --, imports : List_ Import
         --, values  : List_ (A.Located Value)
         --, unions  : List_ (A.Located Union)
@@ -142,7 +140,6 @@ type Module
         --}
         (Maybe (A.Located Name.Name))
         (A.Located Exposing)
-        Docs
         (TList Import)
         (TList (A.Located Value))
         (TList (A.Located Union))
@@ -152,7 +149,7 @@ type Module
 
 
 getName : Module -> Name.Name
-getName (Module maybeName _ _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _) =
     case maybeName of
         Just (A.At _ name) ->
             name
@@ -209,13 +206,8 @@ type Manager
     | Fx (A.Located Name.Name) (A.Located Name.Name)
 
 
-type Docs
-    = NoDocs A.Region
-    | YesDocs Comment (TList ( Name.Name, Comment ))
-
-
 type Comment
-    = Comment P.Snippet
+    = Comment
 
 
 

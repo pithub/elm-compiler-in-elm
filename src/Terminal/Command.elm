@@ -8,16 +8,13 @@ module Terminal.Command exposing
     , clearPutLine
     , clearStdOut
     , getDurationSinceLastInput
-    , getInput
     , getLine
     , getLineWithInitial
     , getText
     , gotInput
-    , gotLine
     , initialState
     , lensInput
     , lensPrompt
-    , lensStdIn
     , lensStdOut
     , putDoc
     , putLine
@@ -293,11 +290,6 @@ clearInput =
 setInput : String -> IO g h ()
 setInput input =
     IO.putLens lensInput input
-
-
-getInput : IO g h String
-getInput =
-    IO.getLens lensInput
 
 
 gotInput : IO g h ()

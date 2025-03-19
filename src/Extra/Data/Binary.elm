@@ -11,7 +11,6 @@ module Extra.Data.Binary exposing
     , bMap
     , bMaybe
     , bPath
-    , bPosix
     , bSequence
     , bSet
     , bString
@@ -43,7 +42,6 @@ module Extra.Data.Binary exposing
     , var3
     , var4
     , var5
-    , var6
     )
 
 import BigInt exposing (BigInt)
@@ -56,7 +54,6 @@ import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Extra.Type.Set as Set
-import Time
 
 
 
@@ -450,33 +447,6 @@ var5 id ctor m1 m2 m3 m4 m5 =
         (Get.liftM5 ctor m1.get m2.get m3.get m4.get m5.get)
 
 
-var6 :
-    Int
-    -> (a -> b -> c -> d -> e -> f -> v)
-    -> Binary a
-    -> Binary b
-    -> Binary c
-    -> Binary d
-    -> Binary e
-    -> Binary f
-    -> CustomType ((a -> b -> c -> d -> e -> f -> Put) -> z) v
-    -> CustomType z v
-var6 id ctor m1 m2 m3 m4 m5 m6 =
-    variant ((==) id)
-        (\a b c d e f ->
-            Put.join
-                [ Put.putWord8 id
-                , m1.put a
-                , m2.put b
-                , m3.put c
-                , m4.put d
-                , m5.put e
-                , m6.put f
-                ]
-        )
-        (Get.liftM6 ctor m1.get m2.get m3.get m4.get m5.get m6.get)
-
-
 finish : CustomType (a -> Put) a -> Binary a
 finish customType =
     { put = customType.toPut
@@ -518,11 +488,6 @@ bMaybe binA =
 bPath : Binary SysFile.FilePath
 bPath =
     bin1 SysFile.fromString SysFile.toString bString
-
-
-bPosix : Binary Time.Posix
-bPosix =
-    bin1 Time.millisToPosix Time.posixToMillis bWord64
 
 
 bSequence : Binary a -> Int -> Binary (List a)

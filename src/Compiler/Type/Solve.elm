@@ -456,7 +456,7 @@ introduce rank pools variables =
 
 typeToVariable : Int -> Pools -> Type.Type -> IO Type.Variable
 typeToVariable rank pools tipe =
-  typeToVar rank pools Map.empty tipe
+  typeToVar rank pools tipe
 
 
 -- PERF working with @mgriffith we noticed that a 784 line entry in a `let` was
@@ -466,9 +466,9 @@ typeToVariable rank pools tipe =
 -- are recommended in cases like this anyway, so there is at least a safety
 -- valve for now.
 --
-typeToVar : Int -> Pools -> Map.Map Name.Name Type.Variable -> Type.Type -> IO Type.Variable
-typeToVar rank pools aliasDict tipe =
-  let go = typeToVar rank pools aliasDict in
+typeToVar : Int -> Pools -> Type.Type -> IO Type.Variable
+typeToVar rank pools tipe =
+  let go = typeToVar rank pools in
   case tipe of
     Type.VarN v ->
       IO.return v
@@ -484,11 +484,8 @@ typeToVar rank pools aliasDict tipe =
 
     Type.AliasN home name args aliasType ->
       IO.bind (IO.traverseList (MTuple.traverseSecond IO.fmap go) args) <| \argVars ->
-      IO.bind (typeToVar rank pools (Map.fromList argVars) aliasType) <| \aliasVar ->
+      IO.bind (typeToVar rank pools aliasType) <| \aliasVar ->
       register rank pools (Type.Alias home name argVars aliasVar)
-
-    Type.PlaceHolder name ->
-      IO.return (Map.ex aliasDict name)
 
     Type.RecordN fields ext ->
       IO.bind (IO.traverseMap go fields) <| \fieldVars ->

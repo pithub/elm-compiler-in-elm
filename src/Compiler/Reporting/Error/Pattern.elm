@@ -21,7 +21,7 @@ toReport : Code.Source -> P.Error -> Report.Report
 toReport source err =
   case err of
     P.Redundant caseRegion patternRegion index ->
-      Report.Report "REDUNDANT PATTERN" patternRegion [] <|
+      Report.Report "REDUNDANT PATTERN" patternRegion <|
         Code.toSnippet source caseRegion (Just patternRegion)
           (
             D.reflow <|
@@ -35,7 +35,7 @@ toReport source err =
     P.Incomplete region context unhandled ->
       case context of
         P.BadArg ->
-          Report.Report "UNSAFE PATTERN" region [] <|
+          Report.Report "UNSAFE PATTERN" region <|
             Code.toSnippet source region Nothing
               (
                 d"This pattern does not cover all possibilities:"
@@ -51,7 +51,7 @@ toReport source err =
               )
 
         P.BadDestruct ->
-          Report.Report "UNSAFE PATTERN" region [] <|
+          Report.Report "UNSAFE PATTERN" region <|
             Code.toSnippet source region Nothing
               (
                 d"This pattern does not cover all possible values:"
@@ -71,7 +71,7 @@ toReport source err =
               )
 
         P.BadCase ->
-          Report.Report "MISSING PATTERNS" region [] <|
+          Report.Report "MISSING PATTERNS" region <|
             Code.toSnippet source region Nothing
               (
                 d"This `case` does not have branches for all possibilities:"

@@ -28,20 +28,20 @@ import Extra.Type.List as MList exposing (TList)
 
 
 type Decl
-  = Value (Maybe Src.Comment) (A.Located Src.Value)
-  | Union (Maybe Src.Comment) (A.Located Src.Union)
-  | Alias (Maybe Src.Comment) (A.Located Src.Alias)
-  | Port (Maybe Src.Comment) Src.Port
+  = Value (A.Located Src.Value)
+  | Union (A.Located Src.Union)
+  | Alias (A.Located Src.Alias)
+  | Port Src.Port
 
 
 declaration : Space.Parser E.Decl Decl
 declaration =
-  P.bind chompDocComment <| \maybeDocs ->
+  P.bind chompDocComment <| \_ ->
   P.bind P.getPosition <| \start ->
   P.oneOf E.DeclStart
-    [ typeDecl maybeDocs start
-    , portDecl maybeDocs
-    , valueDecl maybeDocs start
+    [ typeDecl start
+    , portDecl
+    , valueDecl start
     ]
 
 
@@ -65,8 +65,8 @@ chompDocComment =
 -- DEFINITION and ANNOTATION
 
 
-valueDecl : Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
-valueDecl maybeDocs start =
+valueDecl : A.Position -> Space.Parser E.Decl Decl
+valueDecl start =
   P.bind (Var.lower E.DeclStart) <| \name ->
   P.bind P.getPosition <| \end ->
   P.specialize (E.DeclDef name) <|
@@ -79,24 +79,24 @@ valueDecl maybeDocs start =
         P.bind (Space.checkFreshLine E.DeclDefNameRepeat) <| \_ ->
         P.bind (chompMatchingName name) <| \defName ->
         P.bind (Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals) <| \_ ->
-        chompDefArgsAndBody maybeDocs start defName (Just tipe) []
+        chompDefArgsAndBody start defName (Just tipe) []
       ,
-        chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing []
+        chompDefArgsAndBody start (A.at start end name) Nothing []
       ]
 
 
-chompDefArgsAndBody : Maybe Src.Comment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> TList Src.Pattern -> Space.Parser E.DeclDef Decl
-chompDefArgsAndBody maybeDocs start name tipe revArgs =
+chompDefArgsAndBody : A.Position -> A.Located Name.Name -> Maybe Src.Type -> TList Src.Pattern -> Space.Parser E.DeclDef Decl
+chompDefArgsAndBody start name tipe revArgs =
   P.oneOf E.DeclDefEquals
     [ P.bind (P.specialize E.DeclDefArg Pattern.term) <| \arg ->
       P.bind (Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals) <| \_ ->
-      chompDefArgsAndBody maybeDocs start name tipe (arg :: revArgs)
+      chompDefArgsAndBody start name tipe (arg :: revArgs)
     , P.bind (P.word1 0x3D {-=-} E.DeclDefEquals) <| \_ ->
       P.bind (Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody) <| \_ ->
       P.bind (P.specialize E.DeclDefBody Expr.expression) <| \(body, end) ->
       let value = Src.Value name (MList.reverse revArgs) body tipe in
       let avalue = A.at start end value in
-      P.return (Value maybeDocs avalue, end)
+      P.return (Value avalue, end)
     ]
 
 
@@ -123,8 +123,8 @@ chompMatchingName expectedName =
 -- TYPE DECLARATIONS
 
 
-typeDecl : Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
-typeDecl maybeDocs start =
+typeDecl : A.Position -> Space.Parser E.Decl Decl
+typeDecl start =
   P.inContext E.DeclType (Keyword.type_ E.DeclStart) <|
     P.bind (Space.chompAndCheckIndent E.DT_Space E.DT_IndentName) <| \_ ->
     P.oneOf E.DT_Name
@@ -134,14 +134,14 @@ typeDecl maybeDocs start =
           P.bind chompAliasNameToEquals <| \(name, args) ->
           P.bind (P.specialize E.AliasBody Type.expression) <| \(tipe, end) ->
           let alias = A.at start end (Src.Alias name args tipe) in
-          P.return (Alias maybeDocs alias, end)
+          P.return (Alias alias, end)
       ,
         P.specialize E.DT_Union <|
           P.bind chompCustomNameToEquals <| \(name, args) ->
           P.bind Type.variant <| \(firstVariant, firstEnd) ->
           P.bind (chompVariants [firstVariant] firstEnd) <| \(variants, end) ->
           let union = A.at start end (Src.Union name args variants) in
-          P.return (Union maybeDocs union, end)
+          P.return (Union union, end)
       ]
 
 
@@ -207,8 +207,8 @@ chompVariants variants end =
 -- PORT
 
 
-portDecl : Maybe Src.Comment -> Space.Parser E.Decl Decl
-portDecl maybeDocs =
+portDecl : Space.Parser E.Decl Decl
+portDecl =
   P.inContext E.Port (Keyword.port_ E.DeclStart) <|
     P.bind (Space.chompAndCheckIndent E.PortSpace E.PortIndentName) <| \_ ->
     P.bind (P.addLocation (Var.lower E.PortName)) <| \name ->
@@ -217,7 +217,7 @@ portDecl maybeDocs =
     P.bind (Space.chompAndCheckIndent E.PortSpace E.PortIndentType) <| \_ ->
     P.bind (P.specialize E.PortType Type.expression) <| \(tipe, end) ->
     P.return
-      ( Port maybeDocs (Src.Port name tipe)
+      ( Port (Src.Port name tipe)
       , end
       )
 

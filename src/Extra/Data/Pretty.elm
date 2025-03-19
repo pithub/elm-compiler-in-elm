@@ -9,7 +9,6 @@ module Extra.Data.Pretty exposing
     , cyan
     , cyanS
     , dullcyan
-    , dullcyanS
     , dullred
     , dullyellow
     , dullyellowS
@@ -94,11 +93,6 @@ cyanS str =
 dullcyan : Doc t -> Doc t
 dullcyan =
     P.setTag .dullcyan
-
-
-dullcyanS : String -> Doc t
-dullcyanS str =
-    P.taggedString str .dullcyan
 
 
 dullred : Doc t -> Doc t

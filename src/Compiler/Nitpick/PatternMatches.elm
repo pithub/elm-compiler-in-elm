@@ -191,7 +191,7 @@ type Context
 
 
 check : Can.Module -> Either (NE.TList Error) ()
-check (Can.Module _ _ _ decls _ _ _ _) =
+check (Can.Module _ _ decls _ _ _ _) =
   case checkDecls decls [] identity of
     [] ->
       Right ()

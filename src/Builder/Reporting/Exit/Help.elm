@@ -7,7 +7,7 @@ module Builder.Reporting.Exit.Help exposing
   , compilerReport
   , reportToDoc
   , reportToClient -- reportToJson
-  , toString
+  --, toString
   --, toStdout
   --, toStderr
   )
@@ -98,12 +98,3 @@ reportToClient report_ =
         , title = title
         , message = D.toClient message
         }
-
-
-
--- OUTPUT
-
-
-toString : D.Doc -> String
-toString =
-  D.toString

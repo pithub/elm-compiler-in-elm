@@ -9,7 +9,7 @@ import Compiler.AST.Utils.Shader as Shader
 import Compiler.Parse.Primitives as P
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Error.Syntax as E
-import Extra.Type.Map as Map
+import Extra.Type.Set as Set
 
 
 
@@ -93,4 +93,4 @@ eatShader src pos end row col =
 parseGlsl : P.Row -> P.Col -> String -> P.Parser E.Expr Shader.Types
 parseGlsl _ _ _ =
   -- TODO: Parse.Shader.parseGlsl
-  P.return <| Shader.Types Map.empty Map.empty Map.empty
+  P.return <| Shader.Types Set.empty Set.empty Set.empty

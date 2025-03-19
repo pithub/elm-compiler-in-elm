@@ -5,8 +5,6 @@ module Extra.Class.Foldable exposing
     , Foldl
     , FoldlM
     , Foldr
-    , FoldrM
-    , ForM_
     , Length
     , MapM_
     , NotElem
@@ -14,8 +12,6 @@ module Extra.Class.Foldable exposing
     , Sequence_
     , Traverse_
     , foldlM
-    , foldrM
-    , forM_
     , mapM_
     , sequence_
     , traverse_
@@ -42,34 +38,8 @@ type alias Foldr a ta b =
     (a -> b -> b) -> b -> ta -> b
 
 
-type alias FoldrM a ta b mb =
-    (a -> b -> mb) -> b -> ta -> mb
-
-
-foldrM :
-    Foldl a ta (b -> mb)
-    -> Monad.Return b mb
-    -> Monad.Bind b mb mb
-    -> FoldrM a ta b mb
-foldrM pFoldl pReturn pBind f z0 xs =
-    pFoldl (\k x z -> pBind (f x z) k) pReturn xs z0
-
-
 type alias Foldl a ta b =
     (b -> a -> b) -> b -> ta -> b
-
-
-type alias ForM_ a ta mb mu =
-    ta -> (a -> mb) -> mu
-
-
-forM_ :
-    Foldr a ta mu
-    -> Monad.Return () mu
-    -> Monad.Bind b mb mu
-    -> ForM_ a ta mb mu
-forM_ pFoldr pReturn pBind t f =
-    mapM_ pFoldr pReturn pBind f t
 
 
 type alias Elem a ta =

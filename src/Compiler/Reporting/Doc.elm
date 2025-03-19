@@ -12,7 +12,6 @@ module Compiler.Reporting.Doc exposing
     , d
     , da
     , dullcyan
-    , dullcyanS
     , dullred
     , dullyellow
     , dullyellowS
@@ -100,11 +99,6 @@ cyanS =
 dullcyan : Doc -> Doc
 dullcyan =
     P.dullcyan
-
-
-dullcyanS : String -> Doc
-dullcyanS =
-    P.dullcyanS
 
 
 dullred : Doc -> Doc

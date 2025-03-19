@@ -168,8 +168,8 @@ lookupMain pkg locals root =
       Maybe.map (Tuple.pair (ModuleName.toComparable <| ModuleName.Canonical pkg name)) <| maybeMain
   in
   case root of
-    Build.Inside  name     -> Maybe.andThen (toPair name) <| Map.lookup name locals
-    Build.Outside name _ g -> toPair name g
+    Build.Inside  name   -> Maybe.andThen (toPair name) <| Map.lookup name locals
+    Build.Outside name g -> toPair name g
 
 
 

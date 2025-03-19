@@ -3,7 +3,6 @@ module Compiler.Reporting.Annotation exposing
     , Position(..)
     , Region(..)
     , at
-    , bPosition
     , bRegion
     , merge
     , mergeRegions

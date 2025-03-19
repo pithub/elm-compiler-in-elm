@@ -141,7 +141,7 @@ getNoMain modules root =
       then Nothing
       else Just name
 
-    Build.Outside name _ (Opt.LocalGraph maybeMain _ _) ->
+    Build.Outside name (Opt.LocalGraph maybeMain _ _) ->
       case maybeMain of
         Just _  -> Nothing
         Nothing -> Just name
