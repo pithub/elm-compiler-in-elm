@@ -1,11 +1,4 @@
-module Compiler.Compile exposing
-    ( Artifacts(..)
-    , canonicalize
-    , compile
-    , nitpick
-    , optimize
-    , typeCheck
-    )
+module Compiler.Compile exposing (Artifacts(..), compile)
 
 import Compiler.AST.Canonical as Can
 import Compiler.AST.Optimized as Opt

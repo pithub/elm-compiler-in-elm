@@ -13,7 +13,6 @@ import Compiler.Nitpick.PatternMatches as PatternMatches
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D exposing (d)
 import Compiler.Reporting.Error.Canonicalize as Canonicalize
-import Compiler.Reporting.Error.Docs as Docs
 import Compiler.Reporting.Error.Import as Import
 import Compiler.Reporting.Error.Main as Main
 import Compiler.Reporting.Error.Pattern as Pattern
@@ -57,7 +56,6 @@ type Error
     | BadTypes L.Localizer (NE.TList Type.Error)
     | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
     | BadPatterns (NE.TList PatternMatches.Error)
-    | BadDocs Docs.Error
 
 
 
@@ -84,9 +82,6 @@ toReports source err =
 
         BadPatterns errs ->
             NE.fmap (Pattern.toReport source) errs
-
-        BadDocs docsErr ->
-            Docs.toReports source docsErr
 
 
 
@@ -156,7 +151,7 @@ moduleToDoc root (Module _ absolutePath _ source err) =
 
 
 reportToDoc : FilePath -> Report.Report -> D.Doc
-reportToDoc relativePath (Report.Report title _ _ message) =
+reportToDoc relativePath (Report.Report title _ message) =
   D.vcat
     [ toMessageBar title relativePath
     , d""
@@ -194,7 +189,7 @@ toClient (Module name path _ source err) =
 
 
 reportToClient : Report.Report -> Client.Problem
-reportToClient (Report.Report title region _ message) =
+reportToClient (Report.Report title region message) =
     { title = title
     , region = toClientRegion region
     , message = D.toClient message

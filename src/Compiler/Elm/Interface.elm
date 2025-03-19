@@ -73,7 +73,7 @@ type Binop
 
 
 fromModule : Pkg.Name -> Can.Module -> Map.Map Name.Name Can.Annotation -> Interface
-fromModule home (Can.Module _ exports _ _ unions aliases binops _) annotations =
+fromModule home (Can.Module _ exports _ unions aliases binops _) annotations =
     Interface
         home
         (restrict exports annotations)
@@ -85,7 +85,7 @@ fromModule home (Can.Module _ exports _ _ unions aliases binops _) annotations =
 restrict : Can.Exports -> Map.Map Name.Name a -> Map.Map Name.Name a
 restrict exports dict =
     case exports of
-        Can.ExportEverything _ ->
+        Can.ExportEverything ->
             dict
 
         Can.Export explicitExports ->
@@ -100,7 +100,7 @@ toOp types (Can.Binop_ associativity precedence name) =
 restrictUnions : Can.Exports -> Map.Map Name.Name Can.Union -> Map.Map Name.Name Union
 restrictUnions exports unions =
     case exports of
-        Can.ExportEverything _ ->
+        Can.ExportEverything ->
             Map.map OpenUnion unions
 
         Can.Export explicitExports ->
@@ -130,7 +130,7 @@ restrictUnions exports unions =
 restrictAliases : Can.Exports -> Map.Map Name.Name Can.Alias -> Map.Map Name.Name Alias
 restrictAliases exports aliases =
     case exports of
-        Can.ExportEverything _ ->
+        Can.ExportEverything ->
             Map.map PublicAlias aliases
 
         Can.Export explicitExports ->

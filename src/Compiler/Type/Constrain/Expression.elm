@@ -19,6 +19,7 @@ import Compiler.Type.Type as Type
 import Extra.System.IO.Pure as IO
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
+import Extra.Type.Set as Set
 
 
 
@@ -489,24 +490,17 @@ constrainShader region (Shader.Types attributes uniforms varyings) expected =
     Type.CEqual region E.Shader shaderType expected
 
 
-toShaderRecord : Map.Map Name.Name Shader.Type -> Type.Type -> Type.Type
+toShaderRecord : Set.Set Name.Name -> Type.Type -> Type.Type
 toShaderRecord types baseRecType =
-  if Map.null types then
+  if Set.null types then
     baseRecType
   else
-    Type.RecordN (Map.map glToType types) baseRecType
+    Type.RecordN (glToType types) baseRecType
 
 
-glToType : Shader.Type -> Type.Type
-glToType glType =
-  case glType of
-    Shader.V2 -> Type.vec2
-    Shader.V3 -> Type.vec3
-    Shader.V4 -> Type.vec4
-    Shader.M4 -> Type.mat4
-    Shader.CInt -> Type.int
-    Shader.CFloat -> Type.float
-    Shader.Texture -> Type.texture
+glToType : Set.Set Name.Name -> Map.Map Name.Name Type.Type
+glToType types =
+  Set.foldl (\map name -> Map.insert name Type.texture map) Map.empty types
 
 
 

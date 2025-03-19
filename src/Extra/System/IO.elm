@@ -2,7 +2,6 @@ module Extra.System.IO exposing
     ( Cont
     , IO
     , ION(..)
-    , andMap
     , andThen
     , bind
     , bindSequence
@@ -14,14 +13,11 @@ module Extra.System.IO exposing
     , liftCmd
     , liftCmdIO
     , liftCont
-    , liftContIO
     , log
-    , logTime
     , modify
     , modifyLens
     , noOp
     , now
-    , performPure
     , pure
     , put
     , putLens
@@ -63,16 +59,6 @@ type ION s a
 -- MISC
 
 
-performPure : IO s a -> s -> Maybe a
-performPure ma s =
-    case ma s of
-        ( Pure a, _ ) ->
-            Just a
-
-        _ ->
-            Nothing
-
-
 bindSequence : TList (IO s ()) -> IO s a -> IO s a
 bindSequence ms ma =
     bind (sequence ms) (\_ -> ma)
@@ -86,11 +72,6 @@ sequence ms =
 sleep : Float -> IO s ()
 sleep time =
     liftTask (Process.sleep time)
-
-
-logTime : String -> IO s ()
-logTime msg =
-    bind now (\time -> log msg time)
 
 
 now : IO s Time.Posix
@@ -173,11 +154,6 @@ putLens lens s1 =
 
 
 -- TYPE CLASS INSTANCES
-
-
-andMap : Applicative.AndMap (IO s a) (IO s (a -> b)) (IO s b)
-andMap ma mf =
-    bind mf (\f -> bind ma (\a -> return (f a)))
 
 
 andThen : Monad.AndThen a (IO s a) (IO s b)

@@ -5,11 +5,9 @@ module Extra.Class.StateT exposing
     , evalStateT
     , fmap
     , gets
-    , lift
     , liftA2
     , modify
     , pure
-    , put
     , return
     )
 
@@ -60,13 +58,6 @@ gets pReturn f s =
     pReturn ( f s, s )
 
 
-lift :
-    Functor.Fmap a ma ( a, s ) mas
-    -> (ma -> StateT s mas)
-lift pFmap m s =
-    pFmap (\a -> ( a, s )) m
-
-
 liftA2 :
     Functor.Fmap ( a, s ) mas ( b -> c, s ) mfs
     -> Functor.Fmap ( b, s ) mbs ( c, s ) mcs
@@ -90,22 +81,8 @@ pure pReturn a s =
     pReturn ( a, s )
 
 
-put :
-    Monad.Return ( (), s ) mus
-    -> (s -> StateT s mus)
-put pReturn s =
-    state pReturn (\_ -> ( (), s ))
-
-
 return :
     Monad.Return ( a, s ) mas
     -> Monad.Return a (StateT s mas)
 return =
     pure
-
-
-state :
-    Monad.Return ( a, s ) mas
-    -> ((s -> ( a, s )) -> StateT s mas)
-state pReturn f s =
-    pReturn (f s)

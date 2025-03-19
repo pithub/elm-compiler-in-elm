@@ -157,7 +157,7 @@ toDecisionTree rawBranches =
         ([], _ :: _) ->
           toDecisionTree fallback
 
-        (_, _) ->
+        _ ->
             Decision path decisionEdges (Just (toDecisionTree fallback))
 
 

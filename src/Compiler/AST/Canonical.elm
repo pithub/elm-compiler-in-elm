@@ -52,7 +52,6 @@ module Compiler.AST.Canonical exposing
    So it is clear why the data is kept around.
 -}
 
-import Compiler.AST.Source as Src
 import Compiler.AST.Utils.Binop as Binop
 import Compiler.AST.Utils.Shader as Shader
 import Compiler.Data.Index as Index
@@ -245,7 +244,6 @@ type Module
     = Module
         --{ name    : ModuleName.Canonical
         --, exports : Exports
-        --, docs    : Src.Docs
         --, decls   : Decls
         --, unions  : Map.Map Name.Name Union
         --, aliases : Map.Map Name.Name Alias
@@ -254,7 +252,6 @@ type Module
         --}
         ModuleName.Canonical
         Exports
-        Src.Docs
         Decls
         (Map.Map Name.Name Union)
         (Map.Map Name.Name Alias)
@@ -263,7 +260,7 @@ type Module
 
 
 getName : Module -> ModuleName.Canonical
-getName (Module name _ _ _ _ _ _ _) =
+getName (Module name _ _ _ _ _ _) =
     name
 
 
@@ -316,7 +313,7 @@ type Ctor
 
 
 type Exports
-    = ExportEverything A.Region
+    = ExportEverything
     | Export (Map.Map Name.Name (A.Located Export))
 
 

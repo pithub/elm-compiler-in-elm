@@ -478,7 +478,7 @@ let_ start =
 chompLetDefs : TList (A.Located Src.Def) -> A.Position -> Space.Parser E.Let (TList (A.Located Src.Def))
 chompLetDefs revDefs end =
   P.oneOfWithFallback
-    [ P.bind (Space.checkAligned E.LetDefAlignment) <| \_ ->
+    [ P.bind (Space.checkAligned (\_ -> E.LetDefAlignment)) <| \_ ->
       P.bind chompLetDef <| \(def, newEnd) ->
       chompLetDefs (def::revDefs) newEnd
     ]

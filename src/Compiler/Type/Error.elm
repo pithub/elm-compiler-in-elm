@@ -174,7 +174,7 @@ type Problem
   | AnythingToBool
   | AnythingFromMaybe
   | ArityMismatch Int Int
-  | BadFlexSuper Direction Super Name.Name Type
+  | BadFlexSuper Direction Super Type
   | BadRigidVar Name.Name Type
   | BadRigidSuper Super Name.Name Type
   | FieldTypo Name.Name (TList Name.Name)
@@ -393,10 +393,10 @@ toDiff7 localizer ctx tipe1 tipe2 =
       different doc1 doc2 <|
         case pair of
           (RigidVar     x, other) -> Bag.one <| BadRigidVar x other
-          (FlexSuper  s x, other) -> Bag.one <| BadFlexSuper Have s x other
+          (FlexSuper  s _, other) -> Bag.one <| BadFlexSuper Have s other
           (RigidSuper s x, other) -> Bag.one <| BadRigidSuper s x other
           (other, RigidVar     x) -> Bag.one <| BadRigidVar x other
-          (other, FlexSuper  s x) -> Bag.one <| BadFlexSuper Need s x other
+          (other, FlexSuper  s _) -> Bag.one <| BadFlexSuper Need s other
           (other, RigidSuper s x) -> Bag.one <| BadRigidSuper s x other
 
           (Type home1 name1 [], Type home2 name2 []) ->
@@ -408,7 +408,7 @@ toDiff7 localizer ctx tipe1 tipe2 =
             else if isString home1 name1 && isFloat home2 name2 then Bag.one StringToFloat
             else if isBool home2 name2 then Bag.one AnythingToBool else Bag.empty
 
-          (_, _) ->
+          _ ->
             Bag.empty
 
 

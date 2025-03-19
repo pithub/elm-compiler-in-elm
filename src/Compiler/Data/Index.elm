@@ -3,7 +3,6 @@ module Compiler.Data.Index exposing
     , ZeroBased(..)
     , bZeroBased
     , first
-    , indexedForA
     , indexedMap
     , indexedTraverse
     , indexedZipWith
@@ -82,14 +81,6 @@ indexedTraverse :
     -> Applicative.LiftA2 b fb (TList b) flb (TList b) flb
     -> ((ZeroBased -> a -> fb) -> TList a -> flb)
 indexedTraverse pPure pLiftA2 func xs =
-    MList.sequenceA pPure pLiftA2 (indexedMap func xs)
-
-
-indexedForA :
-    Applicative.Pure (TList b) flb
-    -> Applicative.LiftA2 b fb (TList b) flb (TList b) flb
-    -> (TList a -> (ZeroBased -> a -> fb) -> flb)
-indexedForA pPure pLiftA2 xs func =
     MList.sequenceA pPure pLiftA2 (indexedMap func xs)
 
 

@@ -1,6 +1,5 @@
 module Compiler.AST.Utils.Shader exposing
     ( Source
-    , Type(..)
     , Types(..)
     , bSource
     , fromChars
@@ -9,7 +8,7 @@ module Compiler.AST.Utils.Shader exposing
 
 import Compiler.Data.Name as Name
 import Extra.Data.Binary as B
-import Extra.Type.Map as Map
+import Extra.Type.Set as Set
 
 
 
@@ -25,17 +24,7 @@ type Source
 
 
 type Types
-    = Types {- attribute -} (Map.Map Name.Name Type) {- uniform -} (Map.Map Name.Name Type) {- varying -} (Map.Map Name.Name Type)
-
-
-type Type
-    = CInt
-    | CFloat
-    | V2
-    | V3
-    | V4
-    | M4
-    | Texture
+    = Types {- attribute -} (Set.Set Name.Name) {- uniform -} (Set.Set Name.Name) {- varying -} (Set.Set Name.Name)
 
 
 

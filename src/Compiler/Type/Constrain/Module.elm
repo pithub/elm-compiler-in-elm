@@ -28,7 +28,7 @@ type alias IO t a = Type.IO t a
 
 
 constrain : Can.Module -> IO t Type.Constraint
-constrain (Can.Module home _ _ decls _ _ _ effects) =
+constrain (Can.Module home _ decls _ _ _ effects) =
   case effects of
     Can.NoEffects ->
       constrainDecls decls Type.CSaveTheEnvironment

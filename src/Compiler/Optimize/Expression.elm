@@ -171,7 +171,7 @@ optimize cycle (A.At region expression) =
         |> Names.andMap (MMaybe.traverse Names.pure Names.fmap (optimize cycle) maybeC)
 
     Can.Shader src (Shader.Types attributes uniforms _) ->
-      Names.pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
+      Names.pure (Opt.Shader src attributes uniforms)
 
 
 

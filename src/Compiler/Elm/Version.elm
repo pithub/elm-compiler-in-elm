@@ -5,7 +5,6 @@ module Compiler.Elm.Version exposing
     , bVersion
     , bumpMajor
     , bumpMinor
-    , bumpPatch
     , compiler
     , decoder
     , encode
@@ -76,11 +75,6 @@ compiler =
 
 
 -- BUMP
-
-
-bumpPatch : Version -> Version
-bumpPatch (Version major minor patch) =
-    Version major minor (patch + 1)
 
 
 bumpMinor : Version -> Version

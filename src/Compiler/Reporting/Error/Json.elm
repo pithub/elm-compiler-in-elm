@@ -238,7 +238,7 @@ objectNote =
 
 type Context
   = CRoot
-  | CField String Context
+  | CField String
   | CIndex Int Context
 
 
@@ -246,7 +246,7 @@ problemToReport : FilePath -> FailureToReport x -> Code.Source -> Context -> JD.
 problemToReport path ftr source context problem reason =
   case problem of
     JD.Field field prob ->
-      problemToReport path ftr source (CField field context) prob reason
+      problemToReport path ftr source (CField field) prob reason
 
     JD.Index index prob ->
       problemToReport path ftr source (CIndex index context) prob reason
@@ -293,10 +293,10 @@ expectationToReport path source context (A.Region start _) expectation reason =
         CRoot ->
           "I ran into some trouble here:"
 
-        CField field _ ->
+        CField field ->
           "I ran into trouble with the value of the \"" ++ field ++ "\" field:"
 
-        CIndex index (CField field _) ->
+        CIndex index (CField field) ->
           "When looking at the \"" ++ field ++ "\" field, I ran into trouble with the "
           ++ D.intToOrdinal index ++ " entry:"
 
@@ -320,21 +320,9 @@ expectationToReport path source context (A.Region start _) expectation reason =
     JD.TString ->
       toSnippet "EXPECTING STRING" [d"a", da[D.greenS "STRING", d"."]]
 
-    JD.TBool ->
-      toSnippet "EXPECTING BOOL" [d"a", da[D.greenS "BOOLEAN", d"."]]
-
-    JD.TInt ->
-      toSnippet "EXPECTING INT" [d"an", da[D.greenS "INT", d"."]]
-
     JD.TObjectWith field ->
       toSnippet "MISSING FIELD"
         [d"an",D.greenS "OBJECT",d"with",d"a"
         ,D.green (da[d"\"", D.fromChars field, d"\""])
         ,d"field."
-        ]
-
-    JD.TArrayPair len ->
-      toSnippet "EXPECTING PAIR"
-        [d"an",D.greenS "ARRAY",d"with",D.greenS "TWO",d"entries."
-        ,d"This",d"array",d"has",D.fromInt len, if len == 1 then d"element." else d"elements."
         ]

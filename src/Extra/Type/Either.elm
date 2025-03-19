@@ -3,19 +3,14 @@ module Extra.Type.Either exposing
     , andThen
     , bind
     , fmap
-    , join
     , lefts
     , liftA2
-    , mapLeft
     , pure
-    , sequenceA
-    , traverse
     )
 
 import Extra.Class.Applicative as Applicative
 import Extra.Class.Functor as Functor
 import Extra.Class.Monad as Monad
-import Extra.Class.Traversable as Traversable
 import Extra.Type.List as MList exposing (TList)
 
 
@@ -49,11 +44,6 @@ fmap f ea =
             Right (f a)
 
 
-join : Either x (Either x a) -> Either x a
-join eea =
-    bind eea identity
-
-
 lefts : TList (Either a b) -> TList a
 lefts eithers =
     MList.foldr
@@ -84,37 +74,6 @@ liftA2 f ea eb =
                     Right (f a b)
 
 
-mapLeft : (x -> y) -> Either x a -> Either y a
-mapLeft f ea =
-    case ea of
-        Left x ->
-            Left (f x)
-
-        Right a ->
-            Right a
-
-
 pure : Applicative.Pure a (Either x a)
 pure =
     Right
-
-
-sequenceA :
-    Applicative.Pure (Either x a) fea
-    -> Functor.Fmap a fa (Either x a) fea
-    -> Traversable.SequenceA (Either x fa) fea
-sequenceA pPure pFmap mfa =
-    Traversable.sequenceA (traverse pPure pFmap) mfa
-
-
-traverse :
-    Applicative.Pure (Either x b) feb
-    -> Functor.Fmap b fb (Either x b) feb
-    -> Traversable.Traverse a (Either x a) fb feb
-traverse pPure pFmap f ea =
-    case ea of
-        Left x ->
-            pPure (Left x)
-
-        Right a ->
-            pFmap Right (f a)

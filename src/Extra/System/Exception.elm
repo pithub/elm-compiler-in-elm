@@ -1,14 +1,7 @@
-module Extra.System.Exception exposing
-    ( SomeException(..)
-    , handle
-    )
+module Extra.System.Exception exposing (handle)
 
 import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
-
-
-type SomeException
-    = SomeException
 
 
 handle : (e1 -> IO s (Either e2 a)) -> IO s (Either e1 (Either e2 a)) -> IO s (Either e2 a)

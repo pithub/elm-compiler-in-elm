@@ -12,7 +12,6 @@ module Extra.Type.Map exposing
     , findMin
     , findWithDefault
     , foldl
-    , foldlM
     , foldlWithKey
     , foldr
     , foldrWithKey
@@ -146,14 +145,6 @@ findWithDefault def k m =
 foldl : Foldable.Foldl b (Map comparable b) a
 foldl f z m =
     foldlWithKey (\a _ b -> f a b) z m
-
-
-foldlM :
-    Monad.Return b mb
-    -> Monad.Bind b mb mb
-    -> Foldable.FoldlM a (Map comparable a) b mb
-foldlM pReturn pBind f z l =
-    Foldable.foldlM foldr pReturn pBind f z l
 
 
 foldlWithKey : (a -> comparable -> b -> a) -> a -> Map comparable b -> a

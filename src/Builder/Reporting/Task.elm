@@ -1,6 +1,6 @@
 {- MANUALLY FORMATTED -}
 module Builder.Reporting.Task exposing
-  ( Task, fmap, pure, andMap, liftA2, return, bind, andThen
+  ( Task, fmap, pure, liftA2, return, bind, andThen
   , run
   , throw
   , mapError

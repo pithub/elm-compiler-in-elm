@@ -695,8 +695,5 @@ mapMountedEntry mountedEntry =
         Util.UnreadFileEntry size io ->
             MountedFileEntry size io
 
-        Util.ReadFileEntry bytes ->
-            FileEntry bytes
-
         Util.DirectoryEntry directory ->
             DirectoryEntry (mapMountedDirectory directory)

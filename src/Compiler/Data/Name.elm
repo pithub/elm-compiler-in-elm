@@ -7,7 +7,6 @@ module Compiler.Data.Name exposing
     , bool
     , char
     , cmd
-    , comparison
     , debug
     , debugger
     , dict
@@ -69,11 +68,6 @@ import Extra.Type.List as MList exposing (TList)
 
 type alias Name =
     Utf8.Utf8
-
-
-comparison : Name -> Name -> Order
-comparison =
-    Utf8.comparison
 
 
 

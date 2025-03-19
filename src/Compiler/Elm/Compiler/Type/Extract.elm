@@ -1,8 +1,6 @@
 {- MANUALLY FORMATTED -}
 module Compiler.Elm.Compiler.Type.Extract exposing
-  ( fromAnnotation
-  , fromType
-  , Types(..)
+  ( Types(..)
   , mergeMany
   , merge
   , fromInterface
@@ -30,16 +28,6 @@ import Extra.Class.Monad as Monad
 
 
 -- EXTRACTION
-
-
-fromAnnotation : Can.Annotation -> T.Type
-fromAnnotation (Can.Forall _ astType) =
-  fromType astType
-
-
-fromType : Can.Type -> T.Type
-fromType astType =
-  Tuple.second (run (extract astType))
 
 
 extract : Can.Type -> Extractor z T.Type

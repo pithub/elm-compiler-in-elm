@@ -36,7 +36,7 @@ type alias Annotations =
 
 
 optimize : Annotations -> Can.Module -> TResult i (TList W.Warning) Opt.LocalGraph
-optimize annotations (Can.Module home _ _ decls unions aliases _ effects) =
+optimize annotations (Can.Module home _ decls unions aliases _ effects) =
   addDecls home annotations decls <|
     addEffects home effects <|
       addUnions home unions <|
@@ -234,8 +234,7 @@ addDef : ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> TRe
 addDef home annotations def graph =
   case def of
     Can.Def (A.At region name) args body ->
-      let (Can.Forall _ tipe) = Map.ex annotations name in
-      MResult.bind (MResult.warn <| W.MissingTypeAnnotation region name tipe) <| \_ ->
+      MResult.bind (MResult.warn <| W.MissingTypeAnnotation) <| \_ ->
       addDefHelp region annotations home name args body graph
 
     Can.TypedDef (A.At region name) _ typedArgs body _ ->
@@ -269,8 +268,8 @@ addDefHelp region annotations home name args body ((Opt.LocalGraph _ nodes field
             MResult.ok <| addMain <| Names.run <|
               Names.fmap (Opt.Dynamic message) <| Port.toFlagsDecoder flags
 
-          Left (subType, invalidPayload) ->
-            MResult.throw (E.BadFlags region subType invalidPayload)
+          Left (_, invalidPayload) ->
+            MResult.throw (E.BadFlags region invalidPayload)
         else otherwise ()
 
       _ ->

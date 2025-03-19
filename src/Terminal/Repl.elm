@@ -21,10 +21,8 @@ module Terminal.Repl exposing
   , LocalState
   , initialLocalState
   --
-  , Mode(..)
-  , openedModule
-  --
   , Env(..)
+  , Mode(..)
   , Outcome(..)
   , addLine
   , categorize
@@ -438,15 +436,15 @@ attemptDeclOrExpr lines =
   let
     src = linesToByteString lines
     exprParser = P.specialize (toExprPosition src) PE.expression
-    declParser = P.specialize (toDeclPosition src) PD.declaration
+    declParser = P.specialize (\decl _ _ -> toDeclPosition src decl) PD.declaration
   in
   case P.fromByteString declParser Tuple.pair src of
     Right (decl, _) ->
       case decl of
-        PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
-        PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _  )) -> ifDone lines (Type name src)
-        PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _  )) -> ifDone lines (Type name src)
-        PD.Port  _ _                                        -> Done Port
+        PD.Value (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
+        PD.Union (A.At _ (Src.Union (A.At _ name) _ _  )) -> ifDone lines (Type name src)
+        PD.Alias (A.At _ (Src.Alias (A.At _ name) _ _  )) -> ifDone lines (Type name src)
+        PD.Port  _                                        -> Done Port
 
     Left declPosition ->
       if startsWithKeyword "type" lines then
@@ -513,16 +511,16 @@ toExprPosition src expr row col =
   let
     decl = ES.DeclDef N.replValueToPrint (ES.DeclDefBody expr row col) row col
   in
-  toDeclPosition src decl row col
+  toDeclPosition src decl
 
 
-toDeclPosition : String -> ES.Decl -> Row -> Col -> (Row, Col)
-toDeclPosition src decl r c =
+toDeclPosition : String -> ES.Decl -> (Row, Col)
+toDeclPosition src decl =
   let
-    err = ES.ParseError (ES.Declarations decl r c)
+    err = ES.ParseError (ES.Declarations decl)
     report = ES.toReport (Code.toSource src) err
 
-    (Report.Report _ (A.Region (A.Position row col) _) _ _) = report
+    (Report.Report _ (A.Region (A.Position row col) _) _) = report
   in
   (row, col)
 
@@ -537,7 +535,7 @@ annotation =
   P.bind (PS.chompAndCheckIndent err_ err) <| \_ ->
   P.bind (P.word1 0x3A {-:-} err) <| \_ ->
   P.bind (PS.chompAndCheckIndent err_ err) <| \_ ->
-  P.bind (P.specialize err_ PT.expression) <| \(_, _) ->
+  P.bind (P.specialize err_ PT.expression) <| \_ ->
   P.bind (PS.checkFreshLine err) <| \_ ->
   P.return name
 

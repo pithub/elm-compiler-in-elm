@@ -5,7 +5,7 @@ module Compiler.Elm.ModuleName exposing
   , toFileNames
   , toHyphenName
   --
-  , encode
+  --, encode
   , decoder
   --
   , Canonical(..), toString, bCanonical
@@ -15,7 +15,7 @@ module Compiler.Elm.ModuleName exposing
   , debug
   , virtualDom
   , jsonDecode, jsonEncode
-  , webgl, texture, vector2, vector3, vector4, matrix4
+  , webgl, texture
   --
   , getPackage, getModule
   , Comparable, bComparable
@@ -28,7 +28,6 @@ import Compiler.Data.Name as Name
 import Compiler.Data.Utf8 as Utf8
 import Compiler.Elm.Package as Pkg
 import Compiler.Json.Decode as D
-import Compiler.Json.Encode as E
 import Compiler.Parse.Primitives as P
 import Compiler.Parse.Variable as Var
 import Extra.Data.Binary as B
@@ -60,11 +59,6 @@ toHyphenName name =
 
 
 -- JSON
-
-
-encode : Raw -> E.Value
-encode =
-  E.name
 
 
 decoder : D.Decoder (P.Row, P.Col) Raw
@@ -266,19 +260,3 @@ webgl = Canonical Pkg.webgl "WebGL"
 
 texture : Canonical
 texture = Canonical Pkg.webgl "WebGL.Texture"
-
-
-vector2 : Canonical
-vector2 = Canonical Pkg.linearAlgebra "Math.Vector2"
-
-
-vector3 : Canonical
-vector3 = Canonical Pkg.linearAlgebra "Math.Vector3"
-
-
-vector4 : Canonical
-vector4 = Canonical Pkg.linearAlgebra "Math.Vector4"
-
-
-matrix4 : Canonical
-matrix4 = Canonical Pkg.linearAlgebra "Math.Matrix4"

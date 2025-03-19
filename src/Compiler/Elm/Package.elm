@@ -4,7 +4,6 @@ module Compiler.Elm.Package exposing
     , bComparable
     , bName
     , browser
-    , comparison
     , core
     , decoder
     , dummyName
@@ -15,7 +14,6 @@ module Compiler.Elm.Package exposing
     , json
     , kernel
     , keyDecoder
-    , linearAlgebra
     , nearbyNames
     , parser
     , suggestions
@@ -75,11 +73,6 @@ toComparable (Name author project) =
 fromComparable : Comparable -> Name
 fromComparable ( author, project ) =
     Name author project
-
-
-comparison : Name -> Name -> Order
-comparison name1 name2 =
-    compare (toComparable name1) (toComparable name2)
 
 
 toString : Name -> String
@@ -173,11 +166,6 @@ url =
 webgl : Name
 webgl =
     toName elm_explorations "webgl"
-
-
-linearAlgebra : Name
-linearAlgebra =
-    toName elm_explorations "linear-algebra"
 
 
 elm : Author

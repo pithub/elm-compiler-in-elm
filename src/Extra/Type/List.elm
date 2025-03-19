@@ -14,10 +14,7 @@ module Extra.Type.List exposing
     , foldlM
     , foldr
     , foldr1
-    , foldrM
-    , forM_
     , head
-    , imapM_
     , indexedFrom
     , init
     , insertBy
@@ -26,12 +23,10 @@ module Extra.Type.List exposing
     , length
     , lookup
     , map
-    , mapM
     , mapM_
     , mapMaybe
     , mappend
     , maximum
-    , mempty
     , notelem
     , null
     , pure
@@ -183,22 +178,6 @@ foldr1 f xs =
             x
 
 
-foldrM :
-    Monad.Return b mb
-    -> Monad.Bind b mb mb
-    -> Foldable.FoldrM a (TList a) b mb
-foldrM pReturn pBind f z l =
-    Foldable.foldrM foldl pReturn pBind f z l
-
-
-forM_ :
-    Monad.Return () mu
-    -> Monad.Bind b mb mu
-    -> Foldable.ForM_ a (TList a) mb mu
-forM_ pReturn pBind l f =
-    Foldable.forM_ foldr pReturn pBind l f
-
-
 head : TList a -> a
 head l =
     case l of
@@ -207,15 +186,6 @@ head l =
 
         [] ->
             Debug.todo "Extra.Type.List_.head: empty list"
-
-
-imapM_ :
-    Monad.Return () mu
-    -> Monad.Bind b mb mu
-    -> ((Int -> a -> mb) -> TList a -> mu)
-imapM_ pReturn pBind f l =
-    List.indexedMap f l
-        |> foldr (\x k -> pBind x (\_ -> k)) (pReturn ())
 
 
 indexedFrom : Int -> TList a -> TList ( Int, a )
@@ -277,14 +247,6 @@ map =
     List.map
 
 
-mapM :
-    Applicative.Pure (TList b) flb
-    -> Applicative.LiftA2 b fb (TList b) flb (TList b) flb
-    -> Traversable.MapM a (TList a) fb flb
-mapM =
-    traverse
-
-
 mapM_ :
     Monad.Return () mu
     -> Monad.Bind b mb mu
@@ -311,11 +273,6 @@ maximum l =
 
         Nothing ->
             Debug.todo "Extra.Type.List.maximum: empty list"
-
-
-mempty : Monoid.Mempty (TList a)
-mempty =
-    []
 
 
 notelem : Foldable.NotElem a (TList a)

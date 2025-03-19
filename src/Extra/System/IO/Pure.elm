@@ -21,7 +21,6 @@ module Extra.System.IO.Pure exposing
     , performIO
     , pure
     , return
-    , sequenceAList
     , traverseList
     , traverseMap
     , traverseWithKey
@@ -211,21 +210,6 @@ mapMListHelp_ callback ( list, result ) =
 
         a :: rest ->
             fmap (\_ -> Loop ( rest, result )) (callback a)
-
-
-sequenceAList : TList (IO s a) -> IO s (TList a)
-sequenceAList list =
-    loop sequenceAListHelp ( list, [] )
-
-
-sequenceAListHelp : ( TList (IO s a), TList a ) -> IO s (Step ( TList (IO s a), TList a ) (TList a))
-sequenceAListHelp ( list, result ) =
-    case list of
-        [] ->
-            return (Done (List.reverse result))
-
-        io :: rest ->
-            fmap (\a -> Loop ( rest, a :: result )) io
 
 
 traverseList : (a -> IO s b) -> TList a -> IO s (TList b)

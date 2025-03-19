@@ -1,7 +1,6 @@
 module Extra.Data.Binary.Get exposing
     ( ByteOffset
     , Get
-    , andMap
     , bind
     , fail
     , fmap
@@ -10,13 +9,11 @@ module Extra.Data.Binary.Get exposing
     , getWord16
     , getWord32
     , getWord8
-    , liftM1
     , liftM2
     , liftM3
     , liftM4
     , liftM5
     , liftM6
-    , pure
     , return
     , runGetOrFail
     )
@@ -102,20 +99,6 @@ pure a remaining =
     Bytes.Decode.succeed (Right ( remaining, a ))
 
 
-andMap : Applicative.AndMap (Get a) (Get (a -> b)) (Get b)
-andMap ga gf remaining1 =
-    Bytes.Decode.andThen
-        (\rf ->
-            case rf of
-                Left ( remaining2, err ) ->
-                    Bytes.Decode.succeed (Left ( remaining2, err ))
-
-                Right ( remaining2, f ) ->
-                    Bytes.Decode.map (Either.fmap (Tuple.mapSecond f)) (ga remaining2)
-        )
-        (gf remaining1)
-
-
 return : Monad.Return a (Get a)
 return =
     pure
@@ -137,13 +120,6 @@ bind ga f remaining1 =
 
 
 -- COMBINATORS
-
-
-liftM1 : (a -> b) -> Get a -> Get b
-liftM1 fun ga =
-    bind ga <|
-        \a ->
-            pure (fun a)
 
 
 liftM2 : (a -> b -> c) -> Get a -> Get b -> Get c

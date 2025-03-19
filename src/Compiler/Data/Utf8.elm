@@ -2,7 +2,6 @@ module Compiler.Data.Utf8 exposing
     ( Utf8
     , bUnder256
     , bVeryLong
-    , comparison
     , contains
     , empty
     , fromPtr
@@ -24,11 +23,6 @@ import Extra.Type.List exposing (TList)
 
 type alias Utf8 =
     String
-
-
-comparison : Utf8 -> Utf8 -> Order
-comparison =
-    compare
 
 
 

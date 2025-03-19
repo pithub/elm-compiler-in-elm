@@ -87,7 +87,7 @@ exitWithOverview intro outro commands =
 
 
 toSummary : String -> Internal.Command -> Maybe D.Doc
-toSummary exeName (Internal.Command name summary _ _) =
+toSummary exeName (Internal.Command name summary) =
   case summary of
     Internal.Uncommon ->
       Nothing

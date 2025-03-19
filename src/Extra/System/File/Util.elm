@@ -18,7 +18,7 @@ import Bytes exposing (Bytes)
 import Bytes.Decode
 import Extra.System.Http as Http
 import Extra.System.IO as IO exposing (IO)
-import Extra.Type.Either exposing (Either(..))
+import Extra.Type.Either exposing (Either)
 import Extra.Type.Map as Map exposing (Map)
 import Json.Decode
 import Time
@@ -46,7 +46,6 @@ type alias Entry s =
 
 type InternalEntry a
     = UnreadFileEntry Int a
-    | ReadFileEntry Bytes
     | DirectoryEntry (InternalDirectory a)
 
 
@@ -152,9 +151,6 @@ mapEntry fileStep beforeDirStep afterDirStep v name entry =
     case entry of
         UnreadFileEntry size () ->
             mapFileEntry fileStep v name size
-
-        ReadFileEntry bytes ->
-            ( v, ReadFileEntry bytes )
 
         DirectoryEntry subDirectory ->
             mapDirEntry fileStep beforeDirStep afterDirStep v name subDirectory

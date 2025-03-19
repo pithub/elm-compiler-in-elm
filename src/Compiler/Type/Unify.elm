@@ -470,7 +470,7 @@ unifyAlias context home name args realVar otherContent =
                 Unify k ->
                   k vars1 ok err
           in
-          unifyAliasArgs vars context args otherArgs ok1 err
+          unifyAliasArgs vars args otherArgs ok1 err
 
       else
         subUnify realVar otherRealVar
@@ -482,8 +482,8 @@ unifyAlias context home name args realVar otherContent =
       merge context Type.Error
 
 
-unifyAliasArgs : (TList Type.Variable) -> Context -> (TList (Name.Name,Type.Variable)) -> (TList (Name.Name,Type.Variable)) -> ((TList Type.Variable) -> () -> IO t z) -> ((TList Type.Variable) -> () -> IO t z) -> IO t z
-unifyAliasArgs vars context args1 args2 ok err =
+unifyAliasArgs : (TList Type.Variable) -> (TList (Name.Name,Type.Variable)) -> (TList (Name.Name,Type.Variable)) -> ((TList Type.Variable) -> () -> IO t z) -> ((TList Type.Variable) -> () -> IO t z) -> IO t z
+unifyAliasArgs vars args1 args2 ok err =
   case args1 of
     (_,arg1)::others1 ->
       case args2 of
@@ -491,8 +491,8 @@ unifyAliasArgs vars context args1 args2 ok err =
           case subUnify arg1 arg2 of
             Unify k ->
               k vars
-                (\vs () -> unifyAliasArgs vs context others1 others2 ok err)
-                (\vs () -> unifyAliasArgs vs context others1 others2 err err)
+                (\vs () -> unifyAliasArgs vs others1 others2 ok err)
+                (\vs () -> unifyAliasArgs vs others1 others2 err err)
 
         _ ->
           err vars ()
@@ -538,7 +538,7 @@ unifyStructure context flatType content otherContent =
                   Unify k ->
                     k vars1 ok err
             in
-            unifyArgs vars context args otherArgs ok1 err
+            unifyArgs vars args otherArgs ok1 err
           else mismatch
 
         (Type.Fun1 arg1 res1, Type.Fun1 arg2 res2) ->
@@ -590,8 +590,8 @@ unifyStructure context flatType content otherContent =
 -- UNIFY ARGS
 
 
-unifyArgs : (TList Type.Variable) -> Context -> (TList Type.Variable) -> (TList Type.Variable) -> ((TList Type.Variable) -> () -> IO t z) -> ((TList Type.Variable) -> () -> IO t z) -> IO t z
-unifyArgs vars context args1 args2 ok err =
+unifyArgs : (TList Type.Variable) -> (TList Type.Variable) -> (TList Type.Variable) -> ((TList Type.Variable) -> () -> IO t z) -> ((TList Type.Variable) -> () -> IO t z) -> IO t z
+unifyArgs vars args1 args2 ok err =
   case args1 of
     arg1::others1 ->
       case args2 of
@@ -599,8 +599,8 @@ unifyArgs vars context args1 args2 ok err =
           case subUnify arg1 arg2 of
             Unify k ->
               k vars
-                (\vs () -> unifyArgs vs context others1 others2 ok err)
-                (\vs () -> unifyArgs vs context others1 others2 err err)
+                (\vs () -> unifyArgs vs others1 others2 ok err)
+                (\vs () -> unifyArgs vs others1 others2 err err)
 
         _ ->
           err vars ()

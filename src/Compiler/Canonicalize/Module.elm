@@ -41,7 +41,7 @@ type alias TResult i w a =
 
 
 canonicalize : Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> TResult i (TList W.Warning) Can.Module
-canonicalize pkg ifaces ((Src.Module _ exports docs imports values _ _ binops effects) as modul) =
+canonicalize pkg ifaces ((Src.Module _ exports imports values _ _ binops effects) as modul) =
   let home = ModuleName.Canonical pkg (Src.getName modul) in
   let cbinops = Map.fromList (MList.map canonicalizeBinop binops) in
 
@@ -53,7 +53,7 @@ canonicalize pkg ifaces ((Src.Module _ exports docs imports values _ _ binops ef
   MResult.bind (Effects.canonicalize env values cunions effects) <| \ceffects ->
   MResult.bind (canonicalizeExports values cunions caliases cbinops ceffects exports) <| \cexports ->
 
-  MResult.return <| Can.Module home cexports docs cvalues cunions caliases cbinops ceffects
+  MResult.return <| Can.Module home cexports cvalues cunions caliases cbinops ceffects
 
 
 
@@ -213,10 +213,10 @@ canonicalizeExports
   -> Can.Effects
   -> A.Located Src.Exposing
   -> TResult i w Can.Exports
-canonicalizeExports values unions aliases binops effects (A.At region exposing_) =
+canonicalizeExports values unions aliases binops effects (A.At _ exposing_) =
   case exposing_ of
     Src.Open ->
-      MResult.ok (Can.ExportEverything region)
+      MResult.ok Can.ExportEverything
 
     Src.Explicit exposeds ->
       let names = Map.fromList (MList.map valueToName values) in

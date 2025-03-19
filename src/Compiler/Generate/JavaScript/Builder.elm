@@ -41,7 +41,6 @@ type Expr
   | CFloat String
   | CInt Int
   | CBool Bool
-  | Null
   | Json Json.Value
   | Array (TList Expr)
   | Object (TList (Name, Expr))
@@ -60,7 +59,6 @@ type Expr
 
 type LValue
   = LRef Name
-  | LDot Expr Name
   | LBracket Expr Expr
 
 
@@ -340,9 +338,6 @@ fromExpr ((Level indent toNextLevel) as level) grouping expression =
     CBool bool ->
       ( One, if bool then "true" else "false" )
 
-    Null ->
-      ( One, "null" )
-
     Json json ->
       ( One, Json.encodeUgly json )
 
@@ -479,9 +474,6 @@ fromLValue level lValue =
   case lValue of
     LRef name ->
       (One, Name.toBuilder name)
-
-    LDot expr field ->
-      makeDot level expr field
 
     LBracket expr bracketedExpr ->
       makeBracketed level expr bracketedExpr

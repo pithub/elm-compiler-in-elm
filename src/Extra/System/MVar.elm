@@ -111,7 +111,7 @@ modify { getter, setter } f =
 
 
 getEntry : MVar a -> State gs a -> Entry gs a
-getEntry (MVar id) ( _, map, name ) =
+getEntry (MVar id) ( _, map, _ ) =
     Map.ex map id
 
 

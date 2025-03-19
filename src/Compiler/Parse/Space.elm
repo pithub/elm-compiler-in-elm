@@ -252,10 +252,7 @@ docComment toExpectation toSpaceError =
       case status of
         MultiGood ->
           let
-            off = pos3
-            len = newPos - pos3 - 2
-            snippet = P.Snippet src off len row col3
-            comment = Src.Comment snippet
+            comment = Src.Comment
             newState = P.State src newPos end indent newRow newCol
           in
           P.Cok comment newState

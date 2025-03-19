@@ -34,7 +34,7 @@ encode (License code) =
   E.string code
 
 
-decoder : (Json.TString -> TList Json.TString -> e) -> D.Decoder e License
+decoder : (TList Json.TString -> e) -> D.Decoder e License
 decoder toError =
   D.bind D.string <| \str ->
   case check str of
@@ -42,7 +42,7 @@ decoder toError =
       D.return license
 
     Left suggestions ->
-      D.failure (toError str suggestions)
+      D.failure (toError suggestions)
 
 
 

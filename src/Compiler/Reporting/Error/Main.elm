@@ -24,7 +24,7 @@ import Extra.Type.List exposing (TList)
 type Error
   = BadType A.Region Can.Type
   | BadCycle A.Region Name.Name (TList Name.Name)
-  | BadFlags A.Region Can.Type E.InvalidPayload
+  | BadFlags A.Region E.InvalidPayload
 
 
 
@@ -35,7 +35,7 @@ toReport : L.Localizer -> Code.Source -> Error -> Report.Report
 toReport localizer source err =
   case err of
     BadType region tipe ->
-      Report.Report "BAD MAIN TYPE" region [] <|
+      Report.Report "BAD MAIN TYPE" region <|
         Code.toSnippet source region Nothing
           (
             d"I cannot handle this type of `main` value:"
@@ -50,7 +50,7 @@ toReport localizer source err =
           )
 
     BadCycle region name names ->
-      Report.Report "BAD MAIN" region [] <|
+      Report.Report "BAD MAIN" region <|
         Code.toSnippet source region Nothing
           (
             d"A `main` definition cannot be defined in terms of itself."
@@ -63,10 +63,10 @@ toReport localizer source err =
               ]
           )
 
-    BadFlags region _ invalidPayload ->
+    BadFlags region invalidPayload ->
       let
         formatDetails (aBadKindOfThing, butThatIsNoGood) =
-          Report.Report "BAD FLAGS" region [] <|
+          Report.Report "BAD FLAGS" region <|
             Code.toSnippet source region Nothing
               (
                 D.reflow <|

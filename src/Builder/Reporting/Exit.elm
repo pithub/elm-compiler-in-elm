@@ -22,7 +22,7 @@ module Builder.Reporting.Exit exposing
   --, DocsProblem(..)
   , Generate(..)
   ----
-  , toString
+  --, toString
   --, toStderr
   , toClient -- toJson
   )
@@ -55,11 +55,6 @@ import Http as SysHttp
 
 
 -- RENDERERS
-
-
-toString : Help.Report -> String
-toString report =
-  Help.toString (Help.reportToDoc report)
 
 
 toClient : Help.Report -> Client.Error
@@ -173,10 +168,8 @@ toSolverReport problem =
 
 
 type Install
-  = InstallNoOutline
-  | InstallBadOutline Outline
+  = InstallBadOutline Outline
   | InstallBadRegistry RegistryProblem
-  | InstallNoArgs FilePath
   | InstallNoOnlineAppSolution Pkg.Name
   | InstallNoOfflineAppSolution Pkg.Name
   | InstallNoOnlinePkgSolution Pkg.Name
@@ -190,42 +183,12 @@ type Install
 installToReport : Install -> Help.Report
 installToReport exit =
   case exit of
-    InstallNoOutline ->
-      Help.report "NEW PROJECT?" Nothing
-        "Are you trying to start a new project? Try this command instead:"
-        [ D.indent 4 <| D.greenS "elm init"
-        , D.reflow "It will help you get started!"
-        ]
-
     InstallBadOutline outline ->
       toOutlineReport outline
 
     InstallBadRegistry problem ->
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem <|
         "I need the list of published packages to figure out how to install things"
-
-    InstallNoArgs elmHome ->
-      Help.report "INSTALL WHAT?" Nothing
-        "I am expecting commands like:"
-        [ D.green <| D.indent 4 <| D.vcat <|
-            [ d"elm install elm/http"
-            , d"elm install elm/json"
-            , d"elm install elm/random"
-            ]
-        , D.toFancyHint
-            [d"In",d"JavaScript",d"folks",d"run",d"`npm install`",d"to",d"start",d"projects."
-            ,d"\"Gotta",d"download",d"everything!\"",d"But",d"why",d"download",d"packages"
-            ,d"again",d"and",d"again?",d"Instead,d",d"Elm",d"caches",d"packages",d"in"
-            ,D.dullyellow (D.fromPath elmHome)
-            ,d"so",d"each",d"one",d"is",d"downloaded",d"and",d"built",d"ONCE",d"on",d"your",d"machine."
-            ,d"Elm",d"projects",d"check",d"that",d"cache",d"before",d"trying",d"the",d"internet."
-            ,d"This",d"reduces",d"build",d"times,d",d"reduces",d"server",d"costs,d",d"and",d"makes",d"it"
-            ,d"easier",d"to",d"work",d"offline.",d"As",d"a",d"result"
-            ,D.dullcyanS "elm install",d"is",d"only",d"for",d"adding",d"dependencies",d"to",d"elm.json,d"
-            ,d"whereas",D.dullcyanS "elm make",d"is",d"in",d"charge",d"of",d"gathering",d"dependencies"
-            ,d"and",d"building",d"everything.",d"So",d"maybe",d"try",D.greenS "elm make",d"instead?"
-            ]
-        ]
 
     InstallNoOnlineAppSolution pkg ->
       Help.report "CANNOT FIND COMPATIBLE VERSION" (Just (SysFile.fromString "elm.json"))
@@ -353,7 +316,7 @@ type OutlineProblem
   | OP_BadModuleName Row Col
   | OP_BadModuleHeaderTooLong
   | OP_BadDependencyName Row Col
-  | OP_BadLicense JS.TString (TList JS.TString)
+  | OP_BadLicense (TList JS.TString)
   | OP_BadSummaryTooLong
   | OP_NoSrcDirs
 
@@ -598,7 +561,7 @@ toOutlineProblemReport path source _ region problem =
             ]
         )
 
-    OP_BadLicense _ suggestions ->
+    OP_BadLicense suggestions ->
       toSnippet "UNKNOWN LICENSE" Nothing
         ( D.reflow <|
             "I got stuck while reading your elm.json file. I do not know about this type of license:"
@@ -797,7 +760,6 @@ type PackageProblem
   | PP_BadEndpointContent String
   | PP_BadArchiveRequest Http.Error
   | PP_BadArchiveContent String
-  | PP_BadArchiveHash String String String
 
 
 toPackageProblemReport : Pkg.Name -> V.Version -> PackageProblem -> Help.Report
@@ -838,23 +800,6 @@ toPackageProblemReport pkg vsn problem =
             ++ " your internet connection. We have gotten reports that schools, businesses,"
             ++ " airports, etc. sometimes intercept requests and add things to the body or"
             ++ " change its contents entirely. Could that be the problem?"
-        ]
-
-    PP_BadArchiveHash url expectedHash actualHash ->
-      Help.report "CORRUPT PACKAGE DATA" Nothing
-        (
-          "I downloaded the source code for " ++ thePackage ++ " from:"
-        )
-        [ D.indent 4 <| D.dullyellow <| D.fromChars url
-        , D.reflow "But it looks like the hash of the archive has changed since publication:"
-        , D.vcat <| MList.map D.fromChars <|
-            [ "  Expected: " ++ expectedHash
-            , "    Actual: " ++ actualHash
-            ]
-        , D.reflow <|
-            "This usually means that the package author moved the version"
-            ++ " tag, so report it to them and see if that is the issue. Folks"
-            ++ " on Elm slack can probably help as well."
         ]
 
 
@@ -900,17 +845,6 @@ toHttpErrorReport title err context =
         D.indent 4 (D.dullyellow (D.fromChars url)) :: details
   in
   case err of
-    Http.BadUrl url reason ->
-      toHttpReport (context ++ ", so I wanted to fetch:") url
-        [ D.reflow <| "But my HTTP library is saying this is not a valid URL. It is saying:"
-        , D.indent 4 <| D.fromChars reason
-        , D.reflow <|
-            "This may indicate that there is some problem in the compiler, so please open an"
-            ++ " issue at https://github.com/elm/compiler/issues listing your operating system, Elm"
-            ++ " version, the command you ran, the terminal output, and any additional information"
-            ++ " that might help others reproduce the error."
-        ]
-
     Http.BadHttp url httpExceptionContent ->
       case httpExceptionContent of
         SysHttp.BadStatus code ->
@@ -938,16 +872,6 @@ toHttpErrorReport title err context =
                 ++ " blocks certain domains? It is usually something like that!"
             ]
 
-    Http.BadMystery url someException ->
-      toHttpReport (context ++ ", so I tried to fetch:") url
-        [ D.reflow <| "But I ran into something weird! I was able to extract this error message:"
-        , D.indent 4 <| D.fromChars (Debug.toString someException)
-        , D.reflow <|
-            "Is it possible that your internet connection intercepts certain requests? That"
-            ++ " sometimes causes problems for folks in schools, businesses, airports, hotels,"
-            ++ " and certain countries. Try asking for help locally or in a community forum!"
-        ]
-
 
 
 -- MAKE (line 1585)
@@ -959,8 +883,6 @@ type Make
   | MakeBadDetails Details
   | MakeAppNeedsFileNames
   | MakePkgNeedsExposing
-  | MakeMultipleFilesIntoHtml
-  | MakeNoMain
   | MakeNonMainFilesIntoJavaScript ModuleName.Raw (TList ModuleName.Raw)
   | MakeCannotBuild BuildProblem
   | MakeBadGenerate Generate
@@ -1015,50 +937,6 @@ makeToReport make =
         , D.reflow <|
             "You can also entries to the \"exposed-modules\" list in your elm.json file, and"
             ++ " I will try to compile the relevant files."
-        ]
-
-    MakeMultipleFilesIntoHtml ->
-      Help.report "TOO MANY FILES" Nothing
-        (
-          "When producing an HTML file, I can only handle one file."
-        )
-        [ D.fillSep
-            [d"Switch",d"to",D.dullyellowS "--output=/dev/null",d"if",d"you",d"just",d"want"
-            ,d"to",d"get",d"compile",d"errors.",d"This",d"skips",d"the",d"code",d"gen",d"phase,d"
-            ,d"so",d"it",d"can",d"be",d"a",d"bit",d"faster",d"than",d"other",d"options",d"sometimes."
-            ]
-        , D.fillSep
-            [d"Switch",d"to",D.dullyellowS "--output=elm.js",d"if",d"you",d"want",d"multiple"
-            ,d"`main`",d"values",d"available",d"in",d"a",d"single",d"JavaScript",d"file.",d"Then"
-            ,d"you",d"can",d"make",d"your",d"own",d"customized",d"HTML",d"file",d"that",d"embeds"
-            ,d"multiple",d"Elm",d"nodes.",d"The",d"generated",d"JavaScript",d"also",d"shares"
-            ,d"dependencies",d"between",d"modules,d",d"so",d"it",d"should",d"be",d"smaller",d"than"
-            ,d"compiling",d"each",d"module",d"separately."
-            ]
-        ]
-
-    MakeNoMain ->
-      Help.report "NO MAIN" Nothing
-        (
-          "When producing an HTML file, I require that the given file has a `main` value."
-          ++ " That way I have something to show on screen!"
-        )
-        [ D.reflow <|
-            "Try adding a `main` value to your file? Or if you just want to verify that this"
-            ++ " module compiles, switch to --output=/dev/null to skip the code gen phase"
-            ++ " altogether."
-        , D.toSimpleNote <|
-            "Adding a `main` value can be as brief as adding something like this:"
-        , D.vcat
-            [ D.fillSep [D.cyanS "import",d"Html"]
-            , d""
-            , D.fillSep [D.greenS "main",d"="]
-            , D.indent 2 <| D.fillSep [da[D.cyanS "Html", d".text"],D.dullyellowS "\"Hello!\""]
-            ]
-        , D.reflow <|
-            "From there I can create an HTML file that says \"Hello!\" on screen. I recommend"
-            ++ " looking through https://guide.elm-lang.org for more guidance on how to fill in"
-            ++ " the `main` value."
         ]
 
     MakeNonMainFilesIntoJavaScript m ms ->
@@ -1133,7 +1011,7 @@ type BuildProjectProblem
   | BP_WithAmbiguousSrcDir FilePath FilePath FilePath
   | BP_MainPathDuplicate FilePath FilePath
   | BP_RootNameDuplicate ModuleName.Raw FilePath FilePath
-  | BP_RootNameInvalid FilePath FilePath (TList String)
+  | BP_RootNameInvalid FilePath FilePath
   | BP_CannotLoadDependencies
   | BP_Cycle ModuleName.Raw (TList ModuleName.Raw)
   | BP_MissingExposed (NE.TList (ModuleName.Raw, Import.Problem))
@@ -1211,7 +1089,7 @@ toProjectProblemReport projectProblem =
             "Try changing to a different module name in one of them!"
         ]
 
-    BP_RootNameInvalid givenPath srcDir _ ->
+    BP_RootNameInvalid givenPath srcDir ->
       Help.report "UNEXPECTED FILE NAME" Nothing
         "I am having trouble with this file name:"
         [ D.indent 4 <| D.red <| D.fromPath givenPath
@@ -1251,7 +1129,7 @@ toProjectProblemReport projectProblem =
                 "But I cannot find it in your src/ directory. Is there a typo? Was it renamed?"
             ]
 
-        Import.Ambiguous _ _ pkg _ ->
+        Import.Ambiguous _ pkg ->
           Help.report "AMBIGUOUS MODULE NAME" (Just (SysFile.fromString "elm.json"))
             "The  \"exposed-modules\" of your elm.json lists the following module:"
             [ D.indent 4 <| D.red <| D.fromName name
