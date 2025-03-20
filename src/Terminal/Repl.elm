@@ -7,13 +7,13 @@ module Terminal.Repl exposing
   , continueInterpreter
   , run
   --
-  --, Lines(..)
+  , Lines(..)
   --, Input(..)
   --, Prefill(..)
-  --, CategorizedInput(..)
+  , CategorizedInput(..)
   --, categorize
   --
-  --, State(..)
+  , State(..)
   --, Output(..)
   --, toByteString
   --
@@ -23,6 +23,17 @@ module Terminal.Repl exposing
   --
   , Mode(..)
   , openedModule
+  --
+  , Env(..)
+  , Outcome(..)
+  , addLine
+  , categorize
+  , eval
+  , initialState
+  , initEnv
+  , printWelcomeMessage
+  , renderPrefill
+  , stripLegacyBackslash
   )
 
 
