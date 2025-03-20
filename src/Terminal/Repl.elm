@@ -7,13 +7,13 @@ module Terminal.Repl exposing
   , continueInterpreter
   , run
   --
-  --, Lines(..)
+  , Lines(..)
   --, Input(..)
   --, Prefill(..)
-  --, CategorizedInput(..)
+  , CategorizedInput(..)
   --, categorize
   --
-  --, State(..)
+  , State(..)
   --, Output(..)
   --, toByteString
   --
@@ -23,6 +23,17 @@ module Terminal.Repl exposing
   --
   , Mode(..)
   , openedModule
+  --
+  , Env(..)
+  , Outcome(..)
+  , addLine
+  , categorize
+  , eval
+  , initialState
+  , initEnv
+  , printWelcomeMessage
+  , renderPrefill
+  , stripLegacyBackslash
   )
 
 
@@ -164,12 +175,14 @@ type Flags h =
 type Mode
   = Normal
   | Module String
-  | Breakpoint String String String
+  | Breakpoint String (Map.Map String String)
+  | Configured (Map.Map String String) (Map.Map String String) (Map.Map String String)
+
 
 isBreakpoint : Mode -> Bool
 isBreakpoint mode =
   case mode of
-    Breakpoint _ _ _ -> True
+    Breakpoint _ _ -> True
     _ -> False
 
 
@@ -539,7 +552,8 @@ openedModule mode =
   case mode of
     Normal -> Nothing
     Module moduleName -> Just moduleName
-    Breakpoint moduleName _ _ -> Just moduleName
+    Breakpoint moduleName _ -> Just moduleName
+    Configured _ _ _ -> Nothing
 
 
 {- NEW: generatedModule -}
@@ -567,20 +581,15 @@ setDecls decls (State a b _) = State a b decls
 initialState : Env h -> State
 initialState (Env _ _ _ mode _ _) =
   case mode of
-    Breakpoint _ id bpName -> initialBreakpointState id bpName
-    {- NEW: force_quit_ -}
-    _ -> State Map.empty Map.empty <| Map.singleton "force_quit_" "force_quit_ () = False\n"
+    Breakpoint _ decls -> State Map.empty Map.empty (addForceQuit decls)
+    Configured imports types decls -> State imports types (addForceQuit decls)
+    _ -> State Map.empty Map.empty (addForceQuit Map.empty)
 
 
-{- NEW: initialBreakpointState -}
-initialBreakpointState : String -> String -> State
-initialBreakpointState id bpName =
-  State Map.empty Map.empty <| Map.fromList
-    [ ("bp", "bp = Breakpoint.initRepl \"" ++ id ++ "\" " ++ bpName ++ "\n")
-    , ("bpArg", "bpArg = case Breakpoint.arg bp of\n  Just x -> x\n  _ -> Debug.todo \"no suspended Breakpoint\"\n")
-    , ("bpTag", "bpTag = case Breakpoint.tag bp of\n  Just x -> x\n  _ -> Debug.todo \"no suspended Breakpoint\"\n")
-    , ("force_quit_", "force_quit_ () = not (Breakpoint.isSuspended bp)\n")
-    ]
+{- NEW: addForceQuit -}
+addForceQuit : Map.Map N.Name String -> Map.Map N.Name String
+addForceQuit decls =
+  Map.insertWith (\_ old -> old) "force_quit_" "force_quit_ () = False\n" decls
 
 
 
