@@ -17,5 +17,5 @@ type State a b c d e f g h
         f
         -- Repl
         g
-        -- Reactor
+        -- App
         h

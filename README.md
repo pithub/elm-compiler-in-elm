@@ -1,59 +1,49 @@
-# UI for Testing the Elm Compiler in Elm
+# Port of the Elm Compiler to Elm
 
 <br>
 
 
 ## What Is It?
 
-A port of the Elm compiler from Haskell to Elm,
-together with a simple Elm reactor like user interface.
+A port of the Elm compiler from Haskell to Elm.
 
 For more information see the recording of the August 2024 Elm Online Meetup:  
 https://www.youtube.com/watch?v=OK9S_HUdReA.
 
-<br>
-
-
-## How to Run It?
-
-
-#### Compile the App
-
-```sh
-elm make src/Main.elm --output dist/index.js
-```
-
-
-#### Start the CORS Proxy and File Server
-
-```sh
-cd cors-proxy
-npm install
-node cors-proxy.js
-```
-
-#### Run the App
-
- Open [localhost:8088](http://localhost:8088) in your browser.  
- 
-
-
-#### Show Help Message
-
- Enter "h" or an empty line in the command input field.
+This repository contains only the compiler backend, but no UI.
+As such, it is intended to be embedded into other apps.
 
 <br>
 
 
-## What's next?
+## How to Use It?
 
-As of today, I have no plans to further develop this application,
-except perhaps to fix the remaining issues.
-Instead, I want to use parts of the code for my "interactive
-tutorials" as I talked about in the Elm Online Meetup.
 
-If there is enough and serious interest, I could try to extract
-self-contained parts of the code and publish them,
-for example as Elm packages.
+#### Embed the Code
+
+One possibility to embed the compiler backend is to add it as a Git subtree or a Git submodule into your project.
+
+The following two repositories embed the compiler backend as a Git subtree:
+
+* [elm-compiler-in-elm-ui](https://github.com/pithub/elm-compiler-in-elm-ui) provides a simple `elm reactor`-like user interface
+
+* [elm-repl-worker](https://github.com/pithub/elm-repl-worker) implements an Elm `Platform.Worker` internally running `elm repl` that communicates with your app via ports
+
+<br>
+
+
+#### Compile the Code
+
+To test whether the code compiles you can run one of the following commands:
+
+```sh
+make
+```
+
+or
+
+```sh
+elm make src/Test/Main.elm --output /dev/null
+```
 
 <br>
