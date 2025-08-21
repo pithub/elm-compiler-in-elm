@@ -10,7 +10,7 @@ module Builder.Build exposing
   , ReplArtifacts(..)
   , DocsGoal, DocsGoalKind(..), ignoreDocs
   --
-  , State
+  , GlobalState
   , LocalState
   , initialState
   , lensMVCachedInterface
@@ -58,18 +58,18 @@ import Unicode as UChar
 -- PUBLIC STATE
 
 
-type alias State e f g h =
-  Details.State (LocalState e f g h) e f g h
+type alias GlobalState e f g h =
+  Details.GlobalState (LocalState e f g h) e f g h
 
 
 type LocalState e f g h = LocalState
-  {- mvStatus -} (MVar.State (State e f g h) Status)
-  {- mvStatusMap -} (MVar.State (State e f g h) (Map.Map ModuleName.Raw (MVar Status)))
-  {- mvRootStatus -} (MVar.State (State e f g h) RootStatus)
-  {- mvRootResult -} (MVar.State (State e f g h) RootResult)
-  {- mvResult -} (MVar.State (State e f g h) Result)
-  {- mvResultMap -} (MVar.State (State e f g h) ResultDict)
-  {- mvCachedInterface -} (MVar.State (State e f g h) CachedInterface)
+  {- mvStatus -} (MVar.State (GlobalState e f g h) Status)
+  {- mvStatusMap -} (MVar.State (GlobalState e f g h) (Map.Map ModuleName.Raw (MVar Status)))
+  {- mvRootStatus -} (MVar.State (GlobalState e f g h) RootStatus)
+  {- mvRootResult -} (MVar.State (GlobalState e f g h) RootResult)
+  {- mvResult -} (MVar.State (GlobalState e f g h) Result)
+  {- mvResultMap -} (MVar.State (GlobalState e f g h) ResultDict)
+  {- mvCachedInterface -} (MVar.State (GlobalState e f g h) CachedInterface)
 
 
 initialState : LocalState e f g h
@@ -83,43 +83,43 @@ initialState = LocalState
   {- mvCachedInterface -} (MVar.initialState "CachedInterface")
 
 
-lensMVStatus : Lens (State e f g h) (MVar.State (State e f g h) Status)
+lensMVStatus : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) Status)
 lensMVStatus =
   { getter = \(Global.State _ _ _ (LocalState x _ _ _ _ _ _) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState _ bi ci di ei fi gi) e f g h) -> Global.State a b c (LocalState x bi ci di ei fi gi) e f g h
   }
 
-lensMVStatusMap : Lens (State e f g h) (MVar.State (State e f g h) (Map.Map ModuleName.Raw (MVar Status)))
+lensMVStatusMap : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) (Map.Map ModuleName.Raw (MVar Status)))
 lensMVStatusMap =
   { getter = \(Global.State _ _ _ (LocalState _ x _ _ _ _ _) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState bi _ ci di ei fi gi) e f g h) -> Global.State a b c (LocalState bi x ci di ei fi gi) e f g h
   }
 
-lensMVRootStatus : Lens (State e f g h) (MVar.State (State e f g h) RootStatus)
+lensMVRootStatus : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) RootStatus)
 lensMVRootStatus =
   { getter = \(Global.State _ _ _ (LocalState _ _ x _ _ _ _) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState bi ci _ di ei fi gi) e f g h) -> Global.State a b c (LocalState bi ci x di ei fi gi) e f g h
   }
 
-lensMVRootResult : Lens (State e f g h) (MVar.State (State e f g h) RootResult)
+lensMVRootResult : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) RootResult)
 lensMVRootResult =
   { getter = \(Global.State _ _ _ (LocalState _ _ _ x _ _ _) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState bi ci di _ ei fi gi) e f g h) -> Global.State a b c (LocalState bi ci di x ei fi gi) e f g h
   }
 
-lensMVResult : Lens (State e f g h) (MVar.State (State e f g h) Result)
+lensMVResult : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) Result)
 lensMVResult =
   { getter = \(Global.State _ _ _ (LocalState _ _ _ _ x _ _) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState bi ci di ei _ fi gi) e f g h) -> Global.State a b c (LocalState bi ci di ei x fi gi) e f g h
   }
 
-lensMVResultMap : Lens (State e f g h) (MVar.State (State e f g h) ResultDict)
+lensMVResultMap : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) ResultDict)
 lensMVResultMap =
   { getter = \(Global.State _ _ _ (LocalState _ _ _ _ _ x _) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState bi ci di ei fi _ gi) e f g h) -> Global.State a b c (LocalState bi ci di ei fi x gi) e f g h
   }
 
-lensMVCachedInterface : Lens (State e f g h) (MVar.State (State e f g h) CachedInterface)
+lensMVCachedInterface : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) CachedInterface)
 lensMVCachedInterface =
   { getter = \(Global.State _ _ _ (LocalState _ _ _ _ _ _ x) _ _ _ _) -> x
   , setter = \x (Global.State a b c (LocalState bi ci di ei fi gi _) e f g h) -> Global.State a b c (LocalState bi ci di ei fi gi x) e f g h
@@ -131,7 +131,7 @@ lensMVCachedInterface =
 
 
 type alias IO e f g h v =
-  IO.IO (State e f g h) v
+  IO.IO (GlobalState e f g h) v
 
 
 
@@ -191,11 +191,11 @@ addRelative (AbsoluteSrcDir srcDir) segments =
 -- described in Chapter 13 of Parallel and Concurrent Programming in Haskell by Simon Marlow
 -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/ch13.html#sec_conc-par-overhead
 --
-fork : MVar.Lens (State e f g h) v -> (() -> IO e f g h v) -> IO e f g h (MVar v)
+fork : MVar.Lens (GlobalState e f g h) v -> (() -> IO e f g h v) -> IO e f g h (MVar v)
 fork = MVar.newWaiting
 
 
-forkWithKey : MVar.Lens (State e f g h) w -> (comparable -> v -> () -> IO e f g h w) -> Map.Map comparable v -> IO e f g h (Map.Map comparable (MVar w))
+forkWithKey : MVar.Lens (GlobalState e f g h) w -> (comparable -> v -> () -> IO e f g h w) -> Map.Map comparable v -> IO e f g h (Map.Map comparable (MVar w))
 forkWithKey lens func dict =
   Map.traverseWithKey IO.pure IO.liftA2 (\k v -> fork lens (func k v)) dict
 

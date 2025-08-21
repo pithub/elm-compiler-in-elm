@@ -40,7 +40,7 @@ import Extra.Type.Map as Map
 
 
 type alias IO b c d e f g h v =
-  IO.IO (Dir.State b c d e f g h) v
+  IO.IO (Dir.GlobalState b c d e f g h) v
 
 
 

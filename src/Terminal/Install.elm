@@ -27,7 +27,7 @@ import Terminal.Command as Command
 
 
 type alias IO g h v =
-  IO.IO (Command.State g h) v
+  IO.IO (Command.GlobalState g h) v
 
 
 
@@ -60,7 +60,7 @@ type Changes vsn
 
 
 type alias Task z g h v =
-  Task.Task z (Command.State g h) Exit.Install v
+  Task.Task z (Command.GlobalState g h) Exit.Install v
 
 
 attemptChanges : FilePath -> Solver.Env -> Outline.Outline -> (v -> String) -> Changes v -> Task z g h ()

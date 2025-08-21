@@ -19,7 +19,7 @@ module Builder.Http exposing
   --, jsonPart
   --, stringPart
   --
-  , State
+  , GlobalState
   , LocalState
   , initialState
   , setPrefix
@@ -41,8 +41,8 @@ import Zip
 
 -- PUBLIC STATE
 
-type alias State c d e f g h =
-  Dir.State LocalState c d e f g h
+type alias GlobalState c d e f g h =
+  Dir.GlobalState LocalState c d e f g h
 
 
 type alias LocalState =
@@ -53,7 +53,7 @@ initialState : LocalState
 initialState = Nothing
 
 
-lensPrefix : Lens (State c d e f g h) (Maybe String)
+lensPrefix : Lens (GlobalState c d e f g h) (Maybe String)
 lensPrefix =
   { getter = \(Global.State _ x _ _ _ _ _ _) -> x
   , setter = \x (Global.State a _ c d e f g h) -> Global.State a x c d e f g h
@@ -65,7 +65,7 @@ lensPrefix =
 
 
 type alias IO c d e f g h v =
-  IO.IO (State c d e f g h) v
+  IO.IO (GlobalState c d e f g h) v
 
 
 

@@ -39,7 +39,7 @@ import Extra.Class.Monad as Monad
 
 
 type alias IO c d e f g h v =
-  IO.IO (Http.State c d e f g h) v
+  IO.IO (Http.GlobalState c d e f g h) v
 
 
 

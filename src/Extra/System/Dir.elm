@@ -3,8 +3,8 @@ module Extra.System.Dir exposing
     , Entry(..)
     , FileName
     , FilePath
+    , GlobalState
     , LocalState
-    , State
     , addExtension
     , addName
     , addNames
@@ -55,7 +55,7 @@ import Time
 -- PUBLIC STATE
 
 
-type alias State b c d e f g h =
+type alias GlobalState b c d e f g h =
     Global.State (LocalState b c d e f g h) b c d e f g h
 
 
@@ -80,28 +80,28 @@ initialState =
         Nothing
 
 
-lensFileSystem : Lens (State b c d e f g h) (LocalState b c d e f g h)
+lensFileSystem : Lens (GlobalState b c d e f g h) (LocalState b c d e f g h)
 lensFileSystem =
     { getter = \(Global.State x _ _ _ _ _ _ _) -> x
     , setter = \x (Global.State _ b c d e f g h) -> Global.State x b c d e f g h
     }
 
 
-lensRoot : Lens (State b c d e f g h) (Directory b c d e f g h)
+lensRoot : Lens (GlobalState b c d e f g h) (Directory b c d e f g h)
 lensRoot =
     { getter = \(Global.State (LocalState x _ _) _ _ _ _ _ _ _) -> x
     , setter = \x (Global.State (LocalState _ bi ci) b c d e f g h) -> Global.State (LocalState x bi ci) b c d e f g h
     }
 
 
-lensCwd : Lens (State b c d e f g h) (TList FileName)
+lensCwd : Lens (GlobalState b c d e f g h) (TList FileName)
 lensCwd =
     { getter = \(Global.State (LocalState _ x _) _ _ _ _ _ _ _) -> x
     , setter = \x (Global.State (LocalState ai _ ci) b c d e f g h) -> Global.State (LocalState ai x ci) b c d e f g h
     }
 
 
-lensMountPrefix : Lens (State b c d e f g h) (Maybe String)
+lensMountPrefix : Lens (GlobalState b c d e f g h) (Maybe String)
 lensMountPrefix =
     { getter = \(Global.State (LocalState _ _ x) _ _ _ _ _ _ _) -> x
     , setter = \x (Global.State (LocalState ai bi _) b c d e f g h) -> Global.State (LocalState ai bi x) b c d e f g h
@@ -113,7 +113,7 @@ lensMountPrefix =
 
 
 type alias IO b c d e f g h v =
-    IO.IO (State b c d e f g h) v
+    IO.IO (GlobalState b c d e f g h) v
 
 
 resetFileSystem : IO b c d e f g h ()
@@ -399,7 +399,7 @@ mountStatic mountPoint filePath =
     IO.bind (Static.getTree (Just "") mountPoint) (mountHelper filePath)
 
 
-mountHelper : FilePath -> Util.Tree (State b c d e f g h) -> IO b c d e f g h ()
+mountHelper : FilePath -> Util.Tree (GlobalState b c d e f g h) -> IO b c d e f g h ()
 mountHelper filePath mountedTree =
     walkFileSystem True filePath <|
         \maybeNode _ ->
@@ -533,12 +533,12 @@ writeFile filePath contents =
 -- PURE IO
 
 
-getCurrentDirectoryNamesPure : State b c d e f g h -> TList FileName
+getCurrentDirectoryNamesPure : GlobalState b c d e f g h -> TList FileName
 getCurrentDirectoryNamesPure state =
     MList.reverse (lensCwd.getter state)
 
 
-getCurrentDirectoryEntryPure : State b c d e f g h -> Directory b c d e f g h
+getCurrentDirectoryEntryPure : GlobalState b c d e f g h -> Directory b c d e f g h
 getCurrentDirectoryEntryPure state =
     lensRoot.getter state
         |> walkFileSystemPure
@@ -562,7 +562,7 @@ getCurrentDirectoryEntryPure state =
 
 
 getCurrentDirectoryEntriesPure :
-    State b c d e f g h
+    GlobalState b c d e f g h
     -> (FileName -> Int -> Time.Posix -> z)
     -> ( TList z, TList z )
 getCurrentDirectoryEntriesPure state f =
@@ -679,17 +679,17 @@ getTime =
 -- MOUNTED TREES
 
 
-mapMountedTree : Util.Tree (State b c d e f g h) -> ( Time.Posix, Directory b c d e f g h )
+mapMountedTree : Util.Tree (GlobalState b c d e f g h) -> ( Time.Posix, Directory b c d e f g h )
 mapMountedTree mountedTree =
     Tuple.mapSecond mapMountedDirectory mountedTree
 
 
-mapMountedDirectory : Util.Directory (State b c d e f g h) -> Directory b c d e f g h
+mapMountedDirectory : Util.Directory (GlobalState b c d e f g h) -> Directory b c d e f g h
 mapMountedDirectory mountedDirectory =
     Map.map (Tuple.mapSecond mapMountedEntry) mountedDirectory
 
 
-mapMountedEntry : Util.Entry (State b c d e f g h) -> Entry b c d e f g h
+mapMountedEntry : Util.Entry (GlobalState b c d e f g h) -> Entry b c d e f g h
 mapMountedEntry mountedEntry =
     case mountedEntry of
         Util.UnreadFileEntry size io ->

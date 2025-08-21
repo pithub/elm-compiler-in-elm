@@ -32,7 +32,7 @@ import Terminal.Command as Command
 
 
 type alias IO g h v =
-  IO.IO (Command.State g h) v
+  IO.IO (Command.GlobalState g h) v
 
 
 
@@ -40,7 +40,7 @@ type alias IO g h v =
 
 
 type alias Task z g h v =
-  Task.Task z (Command.State g h) Exit.Make v
+  Task.Task z (Command.GlobalState g h) Exit.Make v
 
 
 {- NEW: async -}

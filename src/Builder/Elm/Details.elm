@@ -10,7 +10,7 @@ module Builder.Elm.Details exposing
   , loadInterfaces
   , verifyInstall
   --
-  , State
+  , GlobalState
   , LocalState
   , initialState
   , lensMVInterfaces
@@ -58,19 +58,19 @@ import Global
 
 -- PUBLIC STATE
 
-type alias State d e f g h =
-  Http.State (LocalState d e f g h) d e f g h
+type alias GlobalState d e f g h =
+  Http.GlobalState (LocalState d e f g h) d e f g h
 
 
 type LocalState d e f g h = LocalState
-  {- mvDep -} (MVar.State (State d e f g h) Dep)
-  {- mvDepMap -} (MVar.State (State d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
-  {- mvStatus -} (MVar.State (State d e f g h) (Maybe Status))
-  {- mvStatusMap -} (MVar.State (State d e f g h) StatusDict)
-  {- mvResult -} (MVar.State (State d e f g h) (Maybe TResult))
-  {- mvResultMap -} (MVar.State (State d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
-  {- mvInterfaces -} (MVar.State (State d e f g h) (Maybe Interfaces))
-  {- mvGlobalGraph -} (MVar.State (State d e f g h) (Maybe Opt.GlobalGraph))
+  {- mvDep -} (MVar.State (GlobalState d e f g h) Dep)
+  {- mvDepMap -} (MVar.State (GlobalState d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
+  {- mvStatus -} (MVar.State (GlobalState d e f g h) (Maybe Status))
+  {- mvStatusMap -} (MVar.State (GlobalState d e f g h) StatusDict)
+  {- mvResult -} (MVar.State (GlobalState d e f g h) (Maybe TResult))
+  {- mvResultMap -} (MVar.State (GlobalState d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
+  {- mvInterfaces -} (MVar.State (GlobalState d e f g h) (Maybe Interfaces))
+  {- mvGlobalGraph -} (MVar.State (GlobalState d e f g h) (Maybe Opt.GlobalGraph))
 
 
 initialState : LocalState d e f g h
@@ -85,49 +85,49 @@ initialState = LocalState
   {- mvGlobalGraph -} (MVar.initialState "GlobalGraph")
 
 
-lensMVDep : Lens (State d e f g h) (MVar.State (State d e f g h) Dep)
+lensMVDep : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) Dep)
 lensMVDep =
   { getter = \(Global.State _ _ (LocalState x _ _ _ _ _ _ _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState _ bi ci di ei fi gi hi) d e f g h) -> Global.State a b (LocalState x bi ci di ei fi gi hi) d e f g h
   }
 
-lensMVDepMap : Lens (State d e f g h) (MVar.State (State d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
+lensMVDepMap : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
 lensMVDepMap =
   { getter = \(Global.State _ _ (LocalState _ x _ _ _ _ _ _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai _ ci di ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai x ci di ei fi gi hi) d e f g h
   }
 
-lensMVStatus : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe Status))
+lensMVStatus : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe Status))
 lensMVStatus =
   { getter = \(Global.State _ _ (LocalState _ _ x _ _ _ _ _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai bi _ di ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi x di ei fi gi hi) d e f g h
   }
 
-lensMVStatusMap : Lens (State d e f g h) (MVar.State (State d e f g h) StatusDict)
+lensMVStatusMap : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) StatusDict)
 lensMVStatusMap =
   { getter = \(Global.State _ _ (LocalState _ _ _ x _ _ _ _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai bi ci _ ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci x ei fi gi hi) d e f g h
   }
 
-lensMVResult : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe TResult))
+lensMVResult : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe TResult))
 lensMVResult =
   { getter = \(Global.State _ _ (LocalState _ _ _ _ x _ _ _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai bi ci di _ fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci di x fi gi hi) d e f g h
   }
 
-lensMVResultMap : Lens (State d e f g h) (MVar.State (State d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
+lensMVResultMap : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
 lensMVResultMap =
   { getter = \(Global.State _ _ (LocalState _ _ _ _ _ x _ _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai bi ci di ei _ gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci di ei x gi hi) d e f g h
   }
 
-lensMVInterfaces : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe Interfaces))
+lensMVInterfaces : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe Interfaces))
 lensMVInterfaces =
   { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ x _) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai bi ci di ei fi _ hi) d e f g h) -> Global.State a b (LocalState ai bi ci di ei fi x hi) d e f g h
   }
 
-lensMVGlobalGraph : Lens (State d e f g h) (MVar.State (State d e f g h) (Maybe Opt.GlobalGraph))
+lensMVGlobalGraph : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe Opt.GlobalGraph))
 lensMVGlobalGraph =
   { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ _ x) _ _ _ _ _) -> x
   , setter = \x (Global.State a b (LocalState ai bi ci di ei fi gi _) d e f g h) -> Global.State a b (LocalState ai bi ci di ei fi gi x) d e f g h
@@ -139,7 +139,7 @@ lensMVGlobalGraph =
 
 
 type alias IO d e f g h v =
-  IO.IO (State d e f g h) v
+  IO.IO (GlobalState d e f g h) v
 
 
 
@@ -304,7 +304,7 @@ initEnv root =
 
 
 type alias Task z d e f g h v =
-  Task.Task z (State d e f g h) Exit.Details v
+  Task.Task z (GlobalState d e f g h) Exit.Details v
 
 
 verifyPkg : Env -> File.Time -> Outline.PkgOutline -> Task z d e f g h Details
@@ -379,7 +379,7 @@ allowEqualDups _ v1 v2 =
 
 
 fork :
-  MVar.Lens (State d e f g h) v
+  MVar.Lens (GlobalState d e f g h) v
   -> ((() -> IO d e f g h v) -> IO d e f g h (MVar v))
 fork =
   MVar.newWaiting

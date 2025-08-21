@@ -84,7 +84,7 @@ import Unicode as UChar
 
 
 type alias GlobalState h =
-  Command.State (LocalState h) h
+  Command.GlobalState (LocalState h) h
 
 
 type LocalState h =
