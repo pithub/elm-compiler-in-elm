@@ -14,7 +14,7 @@ import Compiler.Elm.Constraint as C
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D exposing (d)
-import Extra.System.File exposing (FilePath)
+import Extra.System.Dir exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)

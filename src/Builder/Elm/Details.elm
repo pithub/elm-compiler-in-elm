@@ -43,7 +43,7 @@ import Compiler.Json.Decode as D
 import Compiler.Parse.Module as Parse
 import Compiler.Reporting.Annotation as A
 import Extra.Data.Binary as B
-import Extra.System.File as SysFile exposing (FilePath)
+import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.System.MVar as MVar exposing (MVar)
 import Extra.Type.Either as Either exposing (Either(..))
@@ -166,7 +166,7 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 
 verifyInstall : FilePath -> Solver.Env -> Outline.Outline -> IO d e f g h (Either Exit.Details ())
 verifyInstall root (Solver.Env cache manager connection registry) outline =
-  IO.bind (File.getTime (SysFile.addName root "elm.json")) <| \time ->
+  IO.bind (File.getTime (Dir.addName root "elm.json")) <| \time ->
   let env = Env root cache manager connection registry in
   case outline of
     Outline.Pkg pkg -> Task.run (Task.bind (verifyPkg env time pkg) (\_ -> Task.return ()))
@@ -240,7 +240,7 @@ type alias Interfaces =
 
 load : FilePath -> IO d e f g h (Either Exit.Details Details)
 load root =
-  IO.bind (File.getTime (SysFile.addName root "elm.json")) <| \newTime ->
+  IO.bind (File.getTime (Dir.addName root "elm.json")) <| \newTime ->
   IO.bind (File.readBinary bDetails (Stuff.details root)) <| \maybeDetails ->
   case maybeDetails of
     Nothing ->
@@ -456,10 +456,10 @@ type alias Dep =
 verifyDep : Env -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Map.Map Pkg.Comparable Solver.Details -> Pkg.Name -> Solver.Details -> () -> IO d e f g h Dep
 verifyDep (Env _ cache manager _ _) depsMVar solution pkg ((Solver.Details vsn directDeps) as details) () =
   let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps in
-  IO.bind (SysFile.doesDirectoryExist (SysFile.addName (Stuff.package cache pkg vsn) "src")) <| \exists ->
+  IO.bind (Dir.doesDirectoryExist (Dir.addName (Stuff.package cache pkg vsn) "src")) <| \exists ->
   if exists
     then
-      IO.bind (File.readBinary bArtifactCache (SysFile.addName (Stuff.package cache pkg vsn) "artifacts.dat")) <| \maybeCache ->
+      IO.bind (File.readBinary bArtifactCache (Dir.addName (Stuff.package cache pkg vsn) "artifacts.dat")) <| \maybeCache ->
       case maybeCache of
         Nothing ->
           build cache depsMVar pkg details fingerprint Set.empty
@@ -523,7 +523,7 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
           IO.return <| Left <| Nothing
 
         Right directArtifacts ->
-          let src = SysFile.addName (Stuff.package cache pkg vsn) "src" in
+          let src = Dir.addName (Stuff.package cache pkg vsn) "src" in
           let foreignDeps = gatherForeignInterfaces directArtifacts in
           let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed) in
           IO.bind (getDocsStatus cache pkg vsn) <| \docsStatus ->
@@ -547,7 +547,7 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
 
                 Just results ->
                   let
-                    path = SysFile.addName (Stuff.package cache pkg vsn) "artifacts.dat"
+                    path = Dir.addName (Stuff.package cache pkg vsn) "artifacts.dat"
                     ifaces = gatherInterfaces exposedDict results
                     objects = gatherObjects results
                     artifacts = Artifacts ifaces objects
@@ -644,7 +644,7 @@ type Status
 
 crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> () -> IO d e f g h (Maybe Status)
 crawlModule foreignDeps mvar pkg src name () =
-  let path = SysFile.addExtension (SysFile.addNames src (ModuleName.toFileNames name)) "elm" in
+  let path = Dir.addExtension (Dir.addNames src (ModuleName.toFileNames name)) "elm" in
   IO.bind (File.exists path) <| \exists ->
   case Map.lookup name foreignDeps of
     Just ForeignAmbiguous ->
@@ -694,7 +694,7 @@ crawlImports foreignDeps mvar pkg src imports =
 
 crawlKernel : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO d e f g h (Maybe Status)
 crawlKernel foreignDeps mvar pkg src name =
-  let path = SysFile.addExtension (SysFile.addNames src (ModuleName.toFileNames name)) "js" in
+  let path = Dir.addExtension (Dir.addNames src (ModuleName.toFileNames name)) "js" in
   IO.bind (File.exists path) <| \exists ->
   if exists
     then
@@ -779,7 +779,7 @@ type DocsStatus
 
 getDocsStatus : Stuff.PackageCache -> Pkg.Name -> V.Version -> IO d e f g h DocsStatus
 getDocsStatus cache pkg vsn =
-  IO.bind (File.exists (SysFile.addName (Stuff.package cache pkg vsn) "docs.json")) <| \exists ->
+  IO.bind (File.exists (Dir.addName (Stuff.package cache pkg vsn) "docs.json")) <| \exists ->
   if exists
     then IO.return DocsNotNeeded
     else IO.return DocsNeeded
@@ -790,7 +790,7 @@ writeDocs _ _ _ status _ =
   case status of
     DocsNeeded ->
       -- TODO: Builder.Elm.Details.writeDocs
-      --E.writeUgly (SysFile.joinPath [Stuff.package cache pkg vsn, "docs.json"]) <|
+      --E.writeUgly (Dir.joinPath [Stuff.package cache pkg vsn, "docs.json"]) <|
       --  Docs.encode <| Map.mapMaybe toDocs results
       IO.return ()
 

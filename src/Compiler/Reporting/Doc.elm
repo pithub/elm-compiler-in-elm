@@ -58,7 +58,7 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Elm.Error as Client
 import Extra.Data.Pretty as P
-import Extra.System.File as SysFile
+import Extra.System.Dir as Dir
 import Extra.Type.List as MList exposing (TList)
 
 
@@ -215,9 +215,9 @@ fromPackage pkg =
     P.text (Pkg.toChars pkg)
 
 
-fromPath : SysFile.FilePath -> Doc
+fromPath : Dir.FilePath -> Doc
 fromPath path =
-    P.text (SysFile.toString path)
+    P.text (Dir.toString path)
 
 
 fromInt : Int -> Doc

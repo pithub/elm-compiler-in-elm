@@ -21,7 +21,8 @@ import Bytes exposing (Bytes)
 import Bytes.Decode
 import Bytes.Encode
 import Extra.Data.Binary as B
-import Extra.System.File as SysFile exposing (FilePath)
+import Extra.System.Dir as Dir exposing (FilePath)
+
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList
@@ -35,7 +36,7 @@ import Zip.Entry
 
 
 type alias IO b c d e f g h v =
-  IO.IO (SysFile.State b c d e f g h) v
+  IO.IO (Dir.State b c d e f g h) v
 
 
 
@@ -47,7 +48,7 @@ type Time = Time T.Posix
 
 getTime : FilePath -> IO b c d e f g h Time
 getTime path =
-  IO.fmap Time (SysFile.getModificationTime path)
+  IO.fmap Time (Dir.getModificationTime path)
 
 
 toMillis : Time -> Int
@@ -95,14 +96,14 @@ halfTimeFactor =
 
 writeBinary : B.Binary v -> FilePath -> v -> IO b c d e f g h ()
 writeBinary binA path value =
-  let dir = SysFile.dropLastName path in
-  IO.bind (SysFile.createDirectoryIfMissing True dir) <| \_ ->
+  let dir = Dir.dropLastName path in
+  IO.bind (Dir.createDirectoryIfMissing True dir) <| \_ ->
   B.encodeFile binA path value
 
 
 readBinary : B.Binary v -> FilePath -> IO b c d e f g h (Maybe v)
 readBinary binA path =
-  IO.bind (SysFile.doesFileExist path) <| \pathExists ->
+  IO.bind (Dir.doesFileExist path) <| \pathExists ->
   if pathExists
     then
       IO.bind (B.decodeFileOrFail binA path) <| \result ->
@@ -113,7 +114,7 @@ readBinary binA path =
         Left (offset, message) ->
           IO.bind (IO.log "readBinary" <|
             [ "+-------------------------------------------------------------------------------"
-            , "|  Corrupt File: " ++ SysFile.toString path
+            , "|  Corrupt File: " ++ Dir.toString path
             , "|   Byte Offset: " ++ String.fromInt offset
             , "|       Message: " ++ message
             , "|"
@@ -132,7 +133,7 @@ readBinary binA path =
 
 writeUtf8 : FilePath -> String -> IO b c d e f g h ()
 writeUtf8 filePath contents =
-  SysFile.writeFile filePath <| Bytes.Encode.encode <| Bytes.Encode.string contents
+  Dir.writeFile filePath <| Bytes.Encode.encode <| Bytes.Encode.string contents
 
 
 
@@ -141,7 +142,7 @@ writeUtf8 filePath contents =
 
 readUtf8 : FilePath -> IO b c d e f g h String
 readUtf8 path =
-  SysFile.readFile path |> IO.fmap (Maybe.andThen bytesToString >> Maybe.withDefault "")
+  Dir.readFile path |> IO.fmap (Maybe.andThen bytesToString >> Maybe.withDefault "")
 
 
 bytesToString : Bytes -> Maybe String
@@ -185,14 +186,14 @@ writeEntry destination root entry =
     || path == "elm.json"
   then
     if not (String.isEmpty path) && String.endsWith "/" path
-    then SysFile.createDirectoryIfMissing True (SysFile.combine destination (SysFile.fromString path))
+    then Dir.createDirectoryIfMissing True (Dir.combine destination (Dir.fromString path))
     else
       case Zip.Entry.toBytes entry of
         Err _ ->
           IO.return ()
 
         Ok bytes ->
-          SysFile.writeFile (SysFile.combine destination (SysFile.fromString path)) bytes
+          Dir.writeFile (Dir.combine destination (Dir.fromString path)) bytes
   else
     IO.return ()
 
@@ -203,7 +204,7 @@ writeEntry destination root entry =
 
 exists : FilePath -> IO b c d e f g h Bool
 exists path =
-  SysFile.doesFileExist path
+  Dir.doesFileExist path
 
 
 
@@ -212,7 +213,7 @@ exists path =
 
 remove : FilePath -> IO b c d e f g h ()
 remove path =
-  IO.bind (SysFile.doesFileExist path) <| \exists_ ->
+  IO.bind (Dir.doesFileExist path) <| \exists_ ->
     if exists_
-      then SysFile.removeFile path
+      then Dir.removeFile path
       else IO.return ()

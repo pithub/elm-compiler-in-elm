@@ -3,7 +3,7 @@ module Global exposing (State(..))
 
 type State a b c d e f g h
     = State
-        -- SysFile
+        -- Dir
         a
         -- Http
         b

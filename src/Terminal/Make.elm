@@ -19,7 +19,7 @@ import Builder.Reporting.Task as Task
 import Compiler.AST.Optimized as Opt
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.ModuleName as ModuleName
-import Extra.System.File as SysFile exposing (FilePath)
+import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either)
 import Extra.Type.List as MList exposing (TList)
@@ -154,7 +154,7 @@ getNoMain modules root =
 generate : FilePath -> String -> Task z g h ()
 generate target builder =
   Task.io <|
-    IO.bind (SysFile.createDirectoryIfMissing True (SysFile.dropLastName target)) <| \_ ->
+    IO.bind (Dir.createDirectoryIfMissing True (Dir.dropLastName target)) <| \_ ->
     File.writeUtf8 target builder
 
 

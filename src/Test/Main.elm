@@ -12,7 +12,7 @@ import Builder.Generate
 import Builder.Http
 import Builder.Reporting.Exit
 import Builder.Reporting.Exit.Help
-import Extra.System.File
+import Extra.System.Dir
 import Extra.System.IO
 import Global
 import Terminal.Command
@@ -31,7 +31,7 @@ main =
         initialModel : () -> Terminal.Repl.GlobalState ()
         initialModel _ =
             Global.State
-                Extra.System.File.initialState
+                Extra.System.Dir.initialState
                 Builder.Http.initialState
                 Builder.Elm.Details.initialState
                 Builder.Build.initialState
@@ -69,14 +69,14 @@ main =
                 , Builder.Reporting.Exit.toClient |> toIO
                 , Builder.Reporting.Exit.toDetailsReport |> toIO
                 , Builder.Reporting.Exit.toRegistryProblemReport |> toIO
-                , Extra.System.File.getCurrentDirectoryEntriesPure |> toIO
-                , Extra.System.File.getCurrentDirectoryNamesPure |> toIO
-                , Extra.System.File.mountRemote |> toIO
-                , Extra.System.File.mountStatic |> toIO
-                , Extra.System.File.removeDirectory |> toIO
-                , Extra.System.File.resetFileSystem |> toIO
-                , Extra.System.File.setCurrentDirectory |> toIO
-                , Extra.System.File.setMountPrefix |> toIO
+                , Extra.System.Dir.getCurrentDirectoryEntriesPure |> toIO
+                , Extra.System.Dir.getCurrentDirectoryNamesPure |> toIO
+                , Extra.System.Dir.mountRemote |> toIO
+                , Extra.System.Dir.mountStatic |> toIO
+                , Extra.System.Dir.removeDirectory |> toIO
+                , Extra.System.Dir.resetFileSystem |> toIO
+                , Extra.System.Dir.setCurrentDirectory |> toIO
+                , Extra.System.Dir.setMountPrefix |> toIO
                 , Extra.System.IO.join |> toIO
                 , Extra.System.IO.sleep |> toIO
                 , Extra.System.IO.when |> toIO
@@ -126,10 +126,10 @@ main =
                 [ Builder.Http.setPrefix |> toIO
                 , Builder.Reporting.Exit.replToReport |> toIO
                 , Builder.Reporting.Exit.Help.reportToDoc |> toIO
-                , Extra.System.File.mountRemote |> toIO
-                , Extra.System.File.mountStatic |> toIO
-                , Extra.System.File.setCurrentDirectory |> toIO
-                , Extra.System.File.setMountPrefix |> toIO
+                , Extra.System.Dir.mountRemote |> toIO
+                , Extra.System.Dir.mountStatic |> toIO
+                , Extra.System.Dir.setCurrentDirectory |> toIO
+                , Extra.System.Dir.setMountPrefix |> toIO
                 , Terminal.Command.clearStdOut |> toIO
                 , Terminal.Command.getText |> toIO
                 , Terminal.Command.lensStdOut |> toIO

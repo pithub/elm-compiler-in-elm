@@ -22,7 +22,7 @@ import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Render.Type.Localizer as L
 import Compiler.Reporting.Report as Report
 import Elm.Error as Client
-import Extra.System.File as SysFile exposing (FilePath)
+import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
 
 
@@ -145,7 +145,7 @@ moduleToDoc root (Module _ absolutePath _ source err) =
       toReports (Code.toSource source) err
 
     relativePath =
-      SysFile.makeRelative root absolutePath
+      Dir.makeRelative root absolutePath
   in
   D.vcat <| MList.map (reportToDoc relativePath) (NE.toList reports)
 
@@ -164,12 +164,12 @@ toMessageBar : String -> FilePath -> D.Doc
 toMessageBar title filePath =
   let
     usedSpace =
-      4 + String.length title + 1 + String.length (SysFile.toString filePath)
+      4 + String.length title + 1 + String.length (Dir.toString filePath)
   in
     D.dullcyan <| D.fromChars <|
       "-- " ++ title
       ++ " " ++ String.repeat (max 1 (80 - usedSpace)) "-"
-      ++ " " ++ (SysFile.toString filePath)
+      ++ " " ++ (Dir.toString filePath)
 
 
 
@@ -182,7 +182,7 @@ toClient (Module name path _ source err) =
         reports =
             toReports (Code.toSource source) err
     in
-    { path = SysFile.toString path
+    { path = Dir.toString path
     , name = name
     , problems = MList.map reportToClient (NE.toList reports)
     }

@@ -28,7 +28,7 @@ module Builder.Http exposing
 
 import Compiler.Elm.Version as V
 import Extra.System.Exception exposing (handle)
-import Extra.System.File as SysFile
+import Extra.System.Dir as Dir
 import Extra.System.Http as Sys
 import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
@@ -42,7 +42,7 @@ import Zip
 -- PUBLIC STATE
 
 type alias State c d e f g h =
-  SysFile.State LocalState c d e f g h
+  Dir.State LocalState c d e f g h
 
 
 type alias LocalState =

@@ -1,9 +1,9 @@
-module Extra.System.File exposing
+module Extra.System.Dir exposing
     ( Directory
     , Entry(..)
     , FileName
     , FilePath
-    , FileSystem
+    , LocalState
     , State
     , addExtension
     , addName
@@ -39,9 +39,9 @@ module Extra.System.File exposing
     )
 
 import Bytes exposing (Bytes)
-import Extra.System.File.Remote as Remote
-import Extra.System.File.Static as Static
-import Extra.System.File.Util as Util
+import Extra.System.Dir.Remote as Remote
+import Extra.System.Dir.Static as Static
+import Extra.System.Dir.Util as Util
 import Extra.System.IO as IO
 import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
@@ -56,12 +56,22 @@ import Time
 
 
 type alias State b c d e f g h =
-    Global.State (FileSystem b c d e f g h) b c d e f g h
+    Global.State (LocalState b c d e f g h) b c d e f g h
 
 
-initialState : FileSystem b c d e f g h
+type LocalState b c d e f g h
+    = LocalState
+        -- root
+        (Directory b c d e f g h)
+        -- cwd
+        (TList FileName)
+        -- mountPrefix
+        (Maybe String)
+
+
+initialState : LocalState b c d e f g h
 initialState =
-    FileSystem
+    LocalState
         -- root
         Map.empty
         -- cwd
@@ -70,7 +80,7 @@ initialState =
         Nothing
 
 
-lensFileSystem : Lens (State b c d e f g h) (FileSystem b c d e f g h)
+lensFileSystem : Lens (State b c d e f g h) (LocalState b c d e f g h)
 lensFileSystem =
     { getter = \(Global.State x _ _ _ _ _ _ _) -> x
     , setter = \x (Global.State _ b c d e f g h) -> Global.State x b c d e f g h
@@ -79,22 +89,22 @@ lensFileSystem =
 
 lensRoot : Lens (State b c d e f g h) (Directory b c d e f g h)
 lensRoot =
-    { getter = \(Global.State (FileSystem x _ _) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (FileSystem _ bi ci) b c d e f g h) -> Global.State (FileSystem x bi ci) b c d e f g h
+    { getter = \(Global.State (LocalState x _ _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (LocalState _ bi ci) b c d e f g h) -> Global.State (LocalState x bi ci) b c d e f g h
     }
 
 
 lensCwd : Lens (State b c d e f g h) (TList FileName)
 lensCwd =
-    { getter = \(Global.State (FileSystem _ x _) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (FileSystem ai _ ci) b c d e f g h) -> Global.State (FileSystem ai x ci) b c d e f g h
+    { getter = \(Global.State (LocalState _ x _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (LocalState ai _ ci) b c d e f g h) -> Global.State (LocalState ai x ci) b c d e f g h
     }
 
 
 lensMountPrefix : Lens (State b c d e f g h) (Maybe String)
 lensMountPrefix =
-    { getter = \(Global.State (FileSystem _ _ x) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (FileSystem ai bi _) b c d e f g h) -> Global.State (FileSystem ai bi x) b c d e f g h
+    { getter = \(Global.State (LocalState _ _ x) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (LocalState ai bi _) b c d e f g h) -> Global.State (LocalState ai bi x) b c d e f g h
     }
 
 
@@ -279,16 +289,6 @@ splitLastName path =
 
 
 -- FILE SYSTEM
-
-
-type FileSystem b c d e f g h
-    = FileSystem
-        -- root
-        (Directory b c d e f g h)
-        -- cwd
-        (TList FileName)
-        -- mountPrefix
-        (Maybe String)
 
 
 type alias Directory b c d e f g h =

@@ -1,7 +1,7 @@
-module Extra.System.File.Remote exposing (getTree)
+module Extra.System.Dir.Remote exposing (getTree)
 
 import Bytes exposing (Bytes)
-import Extra.System.File.Util as Util
+import Extra.System.Dir.Util as Util
 import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
 

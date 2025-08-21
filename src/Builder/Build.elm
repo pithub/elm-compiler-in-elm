@@ -41,7 +41,7 @@ import Compiler.Reporting.Error.Import as Import
 import Compiler.Reporting.Error.Syntax as Syntax
 import Compiler.Reporting.Render.Type.Localizer as L
 import Extra.Data.Graph as Graph
-import Extra.System.File as SysFile exposing (FileName, FilePath)
+import Extra.System.Dir as Dir exposing (FileName, FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either as Either exposing (Either(..))
 import Extra.Type.Lens exposing (Lens)
@@ -156,7 +156,7 @@ makeEnv root (Details.Details _ validOutline buildID locals foreigns _) =
       IO.return <| Env root Parse.Application srcDirs buildID locals foreigns
 
     Details.ValidPkg pkg _ _ ->
-      IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (SysFile.fromString "src"))) <| \srcDir ->
+      IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (Dir.fromString "src"))) <| \srcDir ->
       IO.return <| Env root (Parse.Package pkg) [srcDir] buildID locals foreigns
 
 
@@ -174,13 +174,13 @@ toAbsoluteSrcDir root srcDir =
     (
       case srcDir of
         Outline.AbsoluteSrcDir dir -> dir
-        Outline.RelativeSrcDir dir -> SysFile.combine root dir
+        Outline.RelativeSrcDir dir -> Dir.combine root dir
     )
 
 
 addRelative : AbsoluteSrcDir -> TList FileName -> FilePath
 addRelative (AbsoluteSrcDir srcDir) segments =
-  SysFile.addExtension (SysFile.addNames srcDir segments) "elm"
+  Dir.addExtension (Dir.addNames srcDir segments) "elm"
 
 
 
@@ -341,7 +341,7 @@ crawlModule ((Env root projectType srcDirs buildID locals foreigns) as env) mvar
               else crawlDeps env mvar deps (SCached local)
 
     p1::p2::ps ->
-      IO.return <| SBadImport <| Import.AmbiguousLocal (SysFile.makeRelative root p1) (SysFile.makeRelative root p2) (MList.map (SysFile.makeRelative root) ps)
+      IO.return <| SBadImport <| Import.AmbiguousLocal (Dir.makeRelative root p1) (Dir.makeRelative root p2) (MList.map (Dir.makeRelative root) ps)
 
     [] ->
       case Map.lookup name foreigns of
@@ -355,7 +355,7 @@ crawlModule ((Env root projectType srcDirs buildID locals foreigns) as env) mvar
 
         Nothing ->
           if Name.isKernel name && Parse.isKernel projectType then
-            IO.bind (File.exists (SysFile.addExtension (SysFile.addNames (SysFile.fromString "src") (ModuleName.toFileNames name)) "js")) <| \exists ->
+            IO.bind (File.exists (Dir.addExtension (Dir.addNames (Dir.fromString "src") (ModuleName.toFileNames name)) "js")) <| \exists ->
             IO.return <| if exists then SKernel else
               SBadImport Import.NotFound
           else
@@ -372,12 +372,12 @@ isEquivalent root path oldPath =
         ( _, [] ) -> False
         ( prefixHead :: prefixTail, testHead :: testTail ) -> prefixHead == testHead && startsWith prefixTail testTail
   in
-  startsWith (SysFile.getNames (SysFile.makeRelative root path)) (SysFile.getNames oldPath)
+  startsWith (Dir.getNames (Dir.makeRelative root path)) (Dir.getNames oldPath)
 
 
 crawlFile : Env -> MVar StatusDict -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO e f g h Status
 crawlFile ((Env root projectType _ buildID _ _) as env) mvar expectedName path time lastChange =
-  IO.bind (File.readUtf8 (SysFile.combine root path)) <| \source ->
+  IO.bind (File.readUtf8 (Dir.combine root path)) <| \source ->
 
   case Parse.fromByteString projectType source of
     Left err ->
@@ -943,7 +943,7 @@ checkRoots : NE.TList RootInfo -> Either Exit.BuildProjectProblem (NE.TList Root
 checkRoots infos =
   let
     toOneOrMore ((RootInfo absolute _ _) as loc) =
-      (SysFile.toString absolute, OneOrMore.one loc)
+      (Dir.toString absolute, OneOrMore.one loc)
 
     fromOneOrMore loc locs =
       case locs of
@@ -973,22 +973,22 @@ getRootInfo : Env -> FilePath -> IO e f g h (Either Exit.BuildProjectProblem Roo
 getRootInfo env path =
   IO.bind (File.exists path) <| \exists ->
   if exists
-    then IO.andThen (getRootInfoHelp env path) <| SysFile.makeAbsolute path
+    then IO.andThen (getRootInfoHelp env path) <| Dir.makeAbsolute path
     else IO.return (Left (Exit.BP_PathUnknown path))
 
 
 getRootInfoHelp : Env -> FilePath -> FilePath -> IO e f g h (Either Exit.BuildProjectProblem RootInfo)
 getRootInfoHelp (Env _ _ srcDirs _ _ _) path absolutePath =
   let
-    (dirs, file) = SysFile.splitLastName absolutePath
-    (final, ext) = SysFile.splitExtension file
+    (dirs, file) = Dir.splitLastName absolutePath
+    (final, ext) = Dir.splitExtension file
   in
   if ext /= "elm"
   then
     IO.return <| Left <| Exit.BP_WithBadExtension path
   else
     let
-      absoluteSegments = MList.reverse (final :: SysFile.getNames dirs)
+      absoluteSegments = MList.reverse (final :: Dir.getNames dirs)
     in
     case MMaybe.mapMaybe (isInsideSrcDirByPath absoluteSegments) srcDirs of
       [] ->
@@ -1021,7 +1021,7 @@ isInsideSrcDirByName names srcDir =
 
 isInsideSrcDirByPath : TList FileName -> AbsoluteSrcDir -> Maybe (FilePath, Either (TList FileName) (TList FileName))
 isInsideSrcDirByPath segments (AbsoluteSrcDir srcDir) =
-  MMaybe.bind (dropPrefix (MList.reverse (SysFile.getNames srcDir)) segments) <| \names ->
+  MMaybe.bind (dropPrefix (MList.reverse (Dir.getNames srcDir)) segments) <| \names ->
     if MList.all isGoodName names
     then Just (srcDir, Right names)
     else Just (srcDir, Left names)

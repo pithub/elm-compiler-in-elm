@@ -35,7 +35,7 @@ import Compiler.Json.String as Json
 import Compiler.Parse.Primitives as P exposing (Col, Row)
 import Compiler.Reporting.Suggest as Suggest
 import Extra.Data.Binary as B
-import Extra.System.File as SysFile exposing (FilePath)
+import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 
@@ -101,7 +101,7 @@ toUrl (Name author project) =
 
 toFilePath : Name -> FilePath
 toFilePath (Name author project) =
-    SysFile.addName (SysFile.fromString author) project
+    Dir.addName (Dir.fromString author) project
 
 
 toJsonString : Name -> Json.TString

@@ -23,7 +23,7 @@ module Compiler.Json.Encode exposing
 import Builder.File as File
 import Compiler.Data.Name as Name
 import Compiler.Json.String as Json
-import Extra.System.File as SysFile exposing (FilePath)
+import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
@@ -33,7 +33,7 @@ import Extra.Type.Map as Map
 
 
 type alias IO b c d e f g h v =
-  IO.IO (SysFile.State b c d e f g h) v
+  IO.IO (Dir.State b c d e f g h) v
 
 
 

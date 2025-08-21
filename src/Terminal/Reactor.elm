@@ -11,7 +11,7 @@ import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
 import Builder.Stuff as Stuff
 import Compiler.Data.NonEmptyList as NE
-import Extra.System.File exposing (FilePath)
+import Extra.System.Dir exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Terminal.Command as Command

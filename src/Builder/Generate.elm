@@ -29,7 +29,7 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Generate.JavaScript as JS
 import Compiler.Generate.Mode as Mode
 import Compiler.Nitpick.Debug as Nitpick
-import Extra.System.File exposing (FilePath)
+import Extra.System.Dir exposing (FilePath)
 import Extra.System.MVar exposing (MVar)
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.Lens exposing (Lens)

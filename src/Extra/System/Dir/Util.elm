@@ -1,4 +1,4 @@
-module Extra.System.File.Util exposing
+module Extra.System.Dir.Util exposing
     ( AfterDirStep
     , BeforeDirStep
     , Directory
@@ -7,8 +7,8 @@ module Extra.System.File.Util exposing
     , InternalDirectory
     , InternalEntry(..)
     , Tree
-    , getTreeError
     , getTree
+    , getTreeError
     , requestBytes
     , requestString
     , sliceBytes

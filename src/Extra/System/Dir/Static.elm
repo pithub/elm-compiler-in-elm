@@ -1,8 +1,8 @@
-module Extra.System.File.Static exposing (getTree)
+module Extra.System.Dir.Static exposing (getTree)
 
 import Bytes exposing (Bytes)
 import Bytes.Decode
-import Extra.System.File.Util as Util
+import Extra.System.Dir.Util as Util
 import Extra.System.IO as IO exposing (IO)
 import Extra.Type.Either exposing (Either(..))
 

@@ -31,7 +31,7 @@ import Compiler.Json.Decode as D
 import Compiler.Parse.Primitives as P
 import Compiler.Parse.Variable as Var
 import Extra.Data.Binary as B
-import Extra.System.File exposing (FileName)
+import Extra.System.Dir exposing (FileName)
 import Extra.Type.List exposing (TList)
 
 
