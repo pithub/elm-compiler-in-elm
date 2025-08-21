@@ -59,7 +59,7 @@ import Global
 -- PUBLIC STATE
 
 type alias GlobalState d e f g h =
-  Http.GlobalState (LocalState d e f g h) d e f g h
+  Dir.GlobalState (LocalState d e f g h) d e f g h
 
 
 type LocalState d e f g h = LocalState

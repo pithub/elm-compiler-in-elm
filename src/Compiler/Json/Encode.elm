@@ -32,8 +32,8 @@ import Extra.Type.Map as Map
 -- PRIVATE IO
 
 
-type alias IO b c d e f g h v =
-  IO.IO (Dir.GlobalState b c d e f g h) v
+type alias IO c d e f g h v =
+  IO.IO (Dir.GlobalState c d e f g h) v
 
 
 
@@ -99,7 +99,7 @@ escape chrs =
 -- WRITE TO FILE
 
 
-write : FilePath -> Value -> IO b c d e f g h ()
+write : FilePath -> Value -> IO c d e f g h ()
 write path value =
   File.writeBuilder path (encode value ++ "\n")
 

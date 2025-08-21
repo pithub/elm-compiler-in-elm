@@ -9,9 +9,9 @@ module Test.Main exposing (main)
 import Builder.Build
 import Builder.Elm.Details
 import Builder.Generate
-import Builder.Http
 import Builder.Reporting.Exit
 import Builder.Reporting.Exit.Help
+import Extra.System.Config
 import Extra.System.Dir
 import Extra.System.IO
 import Global
@@ -31,8 +31,8 @@ main =
         initialModel : () -> Terminal.Repl.GlobalState ()
         initialModel _ =
             Global.State
+                Extra.System.Config.initialState
                 Extra.System.Dir.initialState
-                Builder.Http.initialState
                 Builder.Elm.Details.initialState
                 Builder.Build.initialState
                 Builder.Generate.initialState
@@ -58,8 +58,7 @@ main =
         compilerUiInterface : Extra.System.IO.IO (Terminal.Repl.GlobalState ()) ()
         compilerUiInterface =
             Extra.System.IO.sequence
-                [ Builder.Http.setPrefix |> toIO
-                , Builder.Reporting.Exit.MakeNoOutline |> toIO
+                [ Builder.Reporting.Exit.MakeNoOutline |> toIO
                 , Builder.Reporting.Exit.initToReport |> toIO
                 , Builder.Reporting.Exit.installToReport |> toIO
                 , Builder.Reporting.Exit.makeToReport |> toIO
@@ -69,6 +68,8 @@ main =
                 , Builder.Reporting.Exit.toClient |> toIO
                 , Builder.Reporting.Exit.toDetailsReport |> toIO
                 , Builder.Reporting.Exit.toRegistryProblemReport |> toIO
+                , Extra.System.Config.setHttpPrefix |> toIO
+                , Extra.System.Config.setMountPrefix |> toIO
                 , Extra.System.Dir.getCurrentDirectoryEntriesPure |> toIO
                 , Extra.System.Dir.getCurrentDirectoryNamesPure |> toIO
                 , Extra.System.Dir.mountRemote |> toIO
@@ -76,7 +77,6 @@ main =
                 , Extra.System.Dir.removeDirectory |> toIO
                 , Extra.System.Dir.resetFileSystem |> toIO
                 , Extra.System.Dir.setCurrentDirectory |> toIO
-                , Extra.System.Dir.setMountPrefix |> toIO
                 , Extra.System.IO.join |> toIO
                 , Extra.System.IO.sleep |> toIO
                 , Extra.System.IO.when |> toIO
@@ -123,13 +123,13 @@ main =
         replWorkerInterface : Extra.System.IO.IO (Terminal.Repl.GlobalState ()) ()
         replWorkerInterface =
             Extra.System.IO.sequence
-                [ Builder.Http.setPrefix |> toIO
-                , Builder.Reporting.Exit.replToReport |> toIO
+                [ Builder.Reporting.Exit.replToReport |> toIO
                 , Builder.Reporting.Exit.Help.reportToDoc |> toIO
+                , Extra.System.Config.setHttpPrefix |> toIO
+                , Extra.System.Config.setMountPrefix |> toIO
                 , Extra.System.Dir.mountRemote |> toIO
                 , Extra.System.Dir.mountStatic |> toIO
                 , Extra.System.Dir.setCurrentDirectory |> toIO
-                , Extra.System.Dir.setMountPrefix |> toIO
                 , Terminal.Command.clearStdOut |> toIO
                 , Terminal.Command.getText |> toIO
                 , Terminal.Command.lensStdOut |> toIO

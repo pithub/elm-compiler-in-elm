@@ -60,8 +60,8 @@ import Extra.Type.Set as Set
 -- PRIVATE IO
 
 
-type alias IO b c d e f g h v =
-    IO.IO (Dir.GlobalState b c d e f g h) v
+type alias IO c d e f g h v =
+    IO.IO (Dir.GlobalState c d e f g h) v
 
 
 
@@ -78,12 +78,12 @@ type alias ByteOffset =
     Get.ByteOffset
 
 
-encodeFile : Binary v -> FilePath -> v -> IO b c d e f g h ()
+encodeFile : Binary v -> FilePath -> v -> IO c d e f g h ()
 encodeFile binV path v =
     Dir.writeFile path (Put.runPut (binV.put v))
 
 
-decodeFileOrFail : Binary v -> FilePath -> IO b c d e f g h (Either ( ByteOffset, String ) v)
+decodeFileOrFail : Binary v -> FilePath -> IO c d e f g h (Either ( ByteOffset, String ) v)
 decodeFileOrFail binV path =
     Dir.readFile path
         |> IO.fmap

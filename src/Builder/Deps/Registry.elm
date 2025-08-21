@@ -21,6 +21,7 @@ import Compiler.Elm.Version as V
 import Compiler.Json.Decode as D
 import Compiler.Parse.Primitives as P
 import Extra.Data.Binary as B
+import Extra.System.Dir as Dir
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
@@ -32,7 +33,7 @@ import Extra.Type.Map as Map
 
 
 type alias IO c d e f g h v =
-  IO.IO (Http.GlobalState c d e f g h) v
+  IO.IO (Dir.GlobalState c d e f g h) v
 
 
 
