@@ -492,7 +492,7 @@ toOutlineProblemReport path source _ region problem =
               ( D.reflow <|
                   "I got stuck while reading your elm.json file. I ran into an invalid version constraint:"
               , D.fillSep
-                  [d"Elm",d"checks",d"that",d"all",d"package",d"APIs",d"follow",d"semantic",d"versioning,d"
+                  [d"Elm",d"checks",d"that",d"all",d"package",d"APIs",d"follow",d"semantic",d"versioning,"
                   ,d"so",d"it",d"is",d"best",d"to",d"use",d"wide",d"constraints.",d"I",d"recommend"
                   ,D.green <| da[d"\"", D.fromVersion before, d" <= v < ", D.fromVersion (V.bumpMajor after), d"\""]
                   ,d"since",d"it",d"is",d"guaranteed",d"that",d"breaking",d"API",d"changes",d"cannot"
@@ -508,7 +508,7 @@ toOutlineProblemReport path source _ region problem =
                   [d"Maybe",d"you",d"want",d"something",d"like"
                   ,D.green <| da[d"\"", D.fromVersion before, d" <= v < ", D.fromVersion (V.bumpMajor before), d"\""]
                   ,d"instead?",d"Elm",d"checks",d"that",d"all",d"package",d"APIs",d"follow",d"semantic"
-                  ,d"versioning,d",d"so",d"it",d"is",d"guaranteed",d"that",d"breaking",d"API",d"changes"
+                  ,d"versioning,",d"so",d"it",d"is",d"guaranteed",d"that",d"breaking",d"API",d"changes"
                   ,d"cannot",d"happen",d"in",d"any",d"of",d"the",d"versions",d"in",d"that",d"range."
                   ]
               )
@@ -548,7 +548,7 @@ toOutlineProblemReport path source _ region problem =
             "I got stuck while reading your elm.json file. There is something wrong with this dependency name:"
         , D.stack
             [ D.fillSep
-                [d"Package",d"names",d"always",d"include",d"the",d"name",d"of",d"the",d"author,d"
+                [d"Package",d"names",d"always",d"include",d"the",d"name",d"of",d"the",d"author,"
                 ,d"so",d"I",d"am",d"expecting",d"to",d"see",d"dependencies",d"like"
                 ,D.dullyellowS "\"mdgriffith/elm-ui\"",d"and"
                 ,da[D.dullyellowS "\"Microsoft/elm-json-tree-view\"", d"."]
@@ -652,7 +652,7 @@ toDetailsReport details =
             "Are you able to connect to the internet? These dependencies may work once you"
             ++ " get access to the registry!"
         , D.toFancyNote
-            [d"If",d"you",d"changed",d"your",d"dependencies",d"by",d"hand,d",d"try",d"to",d"change",d"them",d"back!"
+            [d"If",d"you",d"changed",d"your",d"dependencies",d"by",d"hand,",d"try",d"to",d"change",d"them",d"back!"
             ,d"It",d"is",d"much",d"more",d"reliable",d"to",d"add",d"dependencies",d"with",da[D.greenS "elm install", d"."]
             ]
         ]

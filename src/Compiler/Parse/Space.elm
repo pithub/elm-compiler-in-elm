@@ -253,7 +253,7 @@ docComment toExpectation toSpaceError =
         col3 = col + 3
 
         ((status, newPos), (newRow, newCol)) =
-           eatMultiCommentHelp src pos3 end row col3 1
+          eatMultiCommentHelp src pos3 end row col3 1
       in
       case status of
         MultiGood ->

@@ -1,9 +1,12 @@
+{- MANUALLY FORMATTED -}
 module Compiler.Reporting.Error exposing
-    ( Error(..)
-    , Module(..)
-    , toDoc
-    , toClient
-    )
+  ( Module(..)
+  , Error(..)
+  , toDoc
+  --, toJson
+  , toClient
+  )
+
 
 import Builder.File as File
 import Compiler.Data.NonEmptyList as NE
@@ -30,19 +33,17 @@ import Extra.Type.List as MList exposing (TList)
 -- MODULE
 
 
-type Module
-    = Module
-        --{ name : ModuleName.Raw
-        --, absolutePath : FilePath
-        --, modificationTime : File.Time
-        --, source : String
-        --, error : Error
-        --}
-        ModuleName.Raw
-        FilePath
-        File.Time
-        String
-        Error
+type Module =
+  Module
+    {- name -} ModuleName.Raw
+    {- absolutePath -} FilePath
+    {- modificationTime -} File.Time
+    {- source -} String
+    {- error -} Error
+
+
+getName (Module name _ _ _ _) = name
+getModificationTime (Module _ _ time _ _) = File.toMillis time
 
 
 
@@ -50,12 +51,12 @@ type Module
 
 
 type Error
-    = BadSyntax Syntax.Error
-    | BadImports (NE.TList Import.Error)
-    | BadNames (OneOrMore.OneOrMore Canonicalize.Error)
-    | BadTypes L.Localizer (NE.TList Type.Error)
-    | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
-    | BadPatterns (NE.TList PatternMatches.Error)
+  = BadSyntax Syntax.Error
+  | BadImports (NE.TList Import.Error)
+  | BadNames (OneOrMore.OneOrMore Canonicalize.Error)
+  | BadTypes L.Localizer (NE.TList Type.Error)
+  | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
+  | BadPatterns (NE.TList PatternMatches.Error)
 
 
 
@@ -64,24 +65,24 @@ type Error
 
 toReports : Code.Source -> Error -> NE.TList Report.Report
 toReports source err =
-    case err of
-        BadSyntax syntaxError ->
-            NE.CList (Syntax.toReport source syntaxError) []
+  case err of
+    BadSyntax syntaxError ->
+      NE.CList (Syntax.toReport source syntaxError) []
 
-        BadImports errs ->
-            NE.fmap (Import.toReport source) errs
+    BadImports errs ->
+      NE.fmap (Import.toReport source) errs
 
-        BadNames errs ->
-            NE.fmap (Canonicalize.toReport source) (OneOrMore.destruct NE.CList errs)
+    BadNames errs ->
+      NE.fmap (Canonicalize.toReport source) (OneOrMore.destruct NE.CList errs)
 
-        BadTypes localizer errs ->
-            NE.fmap (Type.toReport source localizer) errs
+    BadTypes localizer errs ->
+      NE.fmap (Type.toReport source localizer) errs
 
-        BadMains localizer errs ->
-            NE.fmap (Main.toReport localizer source) (OneOrMore.destruct NE.CList errs)
+    BadMains localizer errs ->
+      NE.fmap (Main.toReport localizer source) (OneOrMore.destruct NE.CList errs)
 
-        BadPatterns errs ->
-            NE.fmap (Pattern.toReport source) errs
+    BadPatterns errs ->
+      NE.fmap (Pattern.toReport source) errs
 
 
 
@@ -123,15 +124,6 @@ toSeparator beforeModule afterModule =
       , d""
       , d""
       ]
-
-
-getName : Module -> ModuleName.Raw
-getName (Module name _ _ _ _) =
-  name
-
-getModificationTime : Module -> Int
-getModificationTime (Module _ _ time _ _) =
-  File.toMillis time
 
 
 
@@ -178,26 +170,32 @@ toMessageBar title filePath =
 
 toClient : Module -> Client.BadModule
 toClient (Module name path _ source err) =
-    let
-        reports =
-            toReports (Code.toSource source) err
-    in
-    { path = Dir.toString path
-    , name = name
-    , problems = MList.map reportToClient (NE.toList reports)
-    }
+  let
+    reports =
+      toReports (Code.toSource source) err
+  in
+  { path = Dir.toString path
+  , name = name
+  , problems = MList.map reportToClient (NE.toList reports)
+  }
 
 
 reportToClient : Report.Report -> Client.Problem
 reportToClient (Report.Report title region message) =
-    { title = title
-    , region = toClientRegion region
-    , message = D.toClient message
-    }
+  { title = title
+  , region = toClientRegion region
+  , message = D.toClient message
+  }
 
 
 toClientRegion : A.Region -> Client.Region
 toClientRegion (A.Region (A.Position sr sc) (A.Position er ec)) =
-    { start = { line = sr, column = sc }
-    , end = { line = er, column = ec }
-    }
+  { start =
+      { line = sr
+      , column = sc
+      }
+  , end =
+      { line = er
+      , column = ec
+      }
+  }

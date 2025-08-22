@@ -84,7 +84,7 @@ parseErrorToReport path source parseError reason =
         ,
           D.stack
             [ D.fillSep
-                [d"I",d"saw",d"a",d"comma",d"right",d"before",d"I",d"got",d"stuck",d"here,d"
+                [d"I",d"saw",d"a",d"comma",d"right",d"before",d"I",d"got",d"stuck",d"here,"
                 ,d"so",d"I",d"was",d"expecting",d"to",d"see",d"a",d"field",d"name",d"like"
                 ,D.dullyellowS "\"type\"",d"or",D.dullyellowS "\"dependencies\"",d"next."
                 ]
