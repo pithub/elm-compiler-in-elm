@@ -72,7 +72,7 @@ main =
                 , Extra.System.Config.setMountPrefix |> toIO
                 , Extra.System.Dir.getCurrentDirectoryEntriesPure |> toIO
                 , Extra.System.Dir.getCurrentDirectoryNamesPure |> toIO
-                , Extra.System.Dir.mountRemote |> toIO
+                , Extra.System.Dir.mountLocal |> toIO
                 , Extra.System.Dir.mountStatic |> toIO
                 , Extra.System.Dir.mountZip |> toIO
                 , Extra.System.Dir.removeDirectory |> toIO
@@ -129,7 +129,7 @@ main =
                 , Extra.System.Config.addAdditionalSrcDir |> toIO
                 , Extra.System.Config.setHttpPrefix |> toIO
                 , Extra.System.Config.setMountPrefix |> toIO
-                , Extra.System.Dir.mountRemote |> toIO
+                , Extra.System.Dir.mountLocal |> toIO
                 , Extra.System.Dir.mountStatic |> toIO
                 , Extra.System.Dir.setCurrentDirectory |> toIO
                 , Terminal.Command.clearStdOut |> toIO

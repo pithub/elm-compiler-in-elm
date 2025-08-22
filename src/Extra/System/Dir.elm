@@ -24,7 +24,7 @@ module Extra.System.Dir exposing
     , isRelative
     , makeAbsolute
     , makeRelative
-    , mountRemote
+    , mountLocal
     , mountStatic
     , mountZip
     , readFile
@@ -40,7 +40,7 @@ module Extra.System.Dir exposing
 
 import Bytes exposing (Bytes)
 import Extra.System.Config as Config
-import Extra.System.Dir.Remote as Remote
+import Extra.System.Dir.Local as Local
 import Extra.System.Dir.Static as Static
 import Extra.System.Dir.Util as Util
 import Extra.System.Dir.Zip as Zip
@@ -373,11 +373,11 @@ makeAbsolute path =
             IO.rmap getCurrentDirectory (\cwd -> combine cwd path)
 
 
-mountRemote : String -> FilePath -> IO c d e f g h ()
-mountRemote mountPoint filePath =
+mountLocal : String -> FilePath -> IO c d e f g h ()
+mountLocal mountPoint filePath =
     IO.bind Config.mountPrefix <|
         \mountPrefix ->
-            IO.bind (Remote.getTree mountPrefix mountPoint) (mountHelper filePath)
+            IO.bind (Local.getTree mountPrefix mountPoint) (mountHelper filePath)
 
 
 mountStatic : String -> FilePath -> IO c d e f g h ()
