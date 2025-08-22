@@ -192,9 +192,11 @@ post manager path decoder callback =
 -- BINARY
 
 
+bRegistry : B.Binary Registry
 bRegistry = B.bin2 Registry (\(Registry a b) -> B.T2 a b)
   B.bWord64 (B.bMap Pkg.bComparable bKnownVersions)
 
 
+bKnownVersions : B.Binary KnownVersions
 bKnownVersions = B.bin2 KnownVersions (\(KnownVersions a b) -> B.T2 a b)
   V.bVersion (B.bTList V.bVersion)

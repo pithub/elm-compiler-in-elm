@@ -49,7 +49,7 @@ toChars =
 
 toFileNames : Raw -> TList FileName
 toFileNames name =
-    String.split "." name
+  String.split "." name
 
 
 toHyphenName : Raw -> FileName
@@ -130,27 +130,27 @@ getModule (Canonical _ name) = name
 
 
 type alias Comparable =
-    ( String, Pkg.Comparable )
+  ( String, Pkg.Comparable )
 
 
 toComparable : Canonical -> Comparable
 toComparable (Canonical pkg name) =
-    ( name, Pkg.toComparable pkg )
+  ( name, Pkg.toComparable pkg )
 
 
 fromComparable : Comparable -> Canonical
 fromComparable ( name, pkg ) =
-    Canonical (Pkg.fromComparable pkg) name
+  Canonical (Pkg.fromComparable pkg) name
 
 
 comparison : Canonical -> Canonical -> Order
 comparison can1 can2 =
-    compare (toComparable can1) (toComparable can2)
+  compare (toComparable can1) (toComparable can2)
 
 
 toString : Canonical -> String
 toString (Canonical pkg name) =
-    Pkg.toString pkg ++ "/" ++ name
+  Pkg.toString pkg ++ "/" ++ name
 
 
 
