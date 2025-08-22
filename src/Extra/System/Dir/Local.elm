@@ -1,4 +1,4 @@
-module Extra.System.Dir.Remote exposing (getTree)
+module Extra.System.Dir.Local exposing (getTree)
 
 import Bytes exposing (Bytes)
 import Extra.System.Dir.Util as Util
