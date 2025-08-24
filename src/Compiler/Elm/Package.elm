@@ -12,7 +12,7 @@ module Compiler.Elm.Package exposing
   --
   , dummyName, kernel, core
   , browser, virtualDom, html
-  , json, http, url
+  , json--, http, url
   , webgl--, linearAlgebra
   --
   , suggestions
