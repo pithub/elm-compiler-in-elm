@@ -28,6 +28,7 @@ import Compiler.Json.Encode as E
 import Compiler.Json.String as Json
 import Compiler.Parse.Primitives as P
 import Extra.Data.Binary as B
+import Extra.System.Config as Config
 import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
@@ -200,7 +201,7 @@ read root =
             then Left Exit.OutlineNoPkgCore
             else Right outline
 
-        App (AppOutline _ srcDirs direct indirect _ _) ->
+        App (AppOutline _ orgSrcDirs direct indirect _ _) ->
           if not (Map.member (Pkg.toComparable Pkg.core) direct) then
             IO.return <| Left Exit.OutlineNoAppCore
 
@@ -208,6 +209,7 @@ read root =
             IO.return <| Left Exit.OutlineNoAppJson
 
           else
+            IO.bind (addSrcDirs orgSrcDirs) <| \srcDirs ->
             IO.bind (MList.filterM IO.pure IO.liftA2 (isSrcDirMissing root) (NE.toList srcDirs)) <| \badDirs ->
             case MList.map toGiven badDirs of
               d::ds ->
@@ -221,6 +223,14 @@ read root =
 
                   Just (canonicalDir, (dir1,dir2)) ->
                     IO.return <| Left (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
+
+
+{- NEW: addAdditionalSrcDirs -}
+addSrcDirs : NE.TList SrcDir -> IO c d e f g h (NE.TList SrcDir)
+addSrcDirs (NE.CList head tail) =
+  IO.bind Config.additionalSrcDirs <| \additionalSrcDirNames ->
+  let additionalSrcDirs = MList.map (toSrcDir << Dir.fromString) additionalSrcDirNames in
+  IO.return (NE.CList head (additionalSrcDirs ++ tail))
 
 
 isSrcDirMissing : FilePath -> SrcDir -> IO c d e f g h Bool

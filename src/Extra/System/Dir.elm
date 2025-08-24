@@ -26,6 +26,7 @@ module Extra.System.Dir exposing
     , makeRelative
     , mountRemote
     , mountStatic
+    , mountZip
     , readFile
     , removeDirectory
     , removeFile
@@ -42,6 +43,7 @@ import Extra.System.Config as Config
 import Extra.System.Dir.Remote as Remote
 import Extra.System.Dir.Static as Static
 import Extra.System.Dir.Util as Util
+import Extra.System.Dir.Zip as Zip
 import Extra.System.IO as IO
 import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
@@ -381,6 +383,13 @@ mountRemote mountPoint filePath =
 mountStatic : String -> FilePath -> IO c d e f g h ()
 mountStatic mountPoint filePath =
     IO.bind (Static.getTree (Just "") mountPoint) (mountHelper filePath)
+
+
+mountZip : String -> FilePath -> IO c d e f g h ()
+mountZip mountPoint filePath =
+    IO.bind Config.httpPrefix <|
+        \httpPrefix ->
+            IO.bind (Zip.getTree httpPrefix mountPoint) (mountHelper filePath)
 
 
 mountHelper : FilePath -> Util.Tree (LocalState c d e f g h) c d e f g h -> IO c d e f g h ()

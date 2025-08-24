@@ -1,6 +1,8 @@
 module Extra.System.Config exposing
     ( GlobalState
     , LocalState
+    , addAdditionalSrcDir
+    , additionalSrcDirs
     , httpPrefix
     , initialState
     , mountPrefix
@@ -10,6 +12,7 @@ module Extra.System.Config exposing
 
 import Extra.System.IO as IO
 import Extra.Type.Lens exposing (Lens)
+import Extra.Type.List exposing (TList)
 import Global
 
 
@@ -27,6 +30,8 @@ type LocalState
         (Maybe String)
         -- mountPrefix
         (Maybe String)
+        -- additionalSrcDirs
+        (TList String)
 
 
 initialState : LocalState
@@ -36,19 +41,28 @@ initialState =
         Nothing
         -- mountPrefix
         Nothing
+        -- additionalSrcDirs
+        []
 
 
 lensHttpPrefix : Lens (GlobalState b c d e f g h) (Maybe String)
 lensHttpPrefix =
-    { getter = \(Global.State (LocalState x _) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (LocalState _ bi) b c d e f g h) -> Global.State (LocalState x bi) b c d e f g h
+    { getter = \(Global.State (LocalState x _ _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (LocalState _ bi ci) b c d e f g h) -> Global.State (LocalState x bi ci) b c d e f g h
     }
 
 
 lensMountPrefix : Lens (GlobalState b c d e f g h) (Maybe String)
 lensMountPrefix =
-    { getter = \(Global.State (LocalState _ x) _ _ _ _ _ _ _) -> x
-    , setter = \x (Global.State (LocalState ai _) b c d e f g h) -> Global.State (LocalState ai x) b c d e f g h
+    { getter = \(Global.State (LocalState _ x _) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (LocalState ai _ ci) b c d e f g h) -> Global.State (LocalState ai x ci) b c d e f g h
+    }
+
+
+lensAdditionalSrcDirs : Lens (GlobalState b c d e f g h) (TList String)
+lensAdditionalSrcDirs =
+    { getter = \(Global.State (LocalState _ _ x) _ _ _ _ _ _ _) -> x
+    , setter = \x (Global.State (LocalState ai bi _) b c d e f g h) -> Global.State (LocalState ai bi x) b c d e f g h
     }
 
 
@@ -82,3 +96,13 @@ mountPrefix =
 setMountPrefix : Maybe String -> IO b c d e f g h ()
 setMountPrefix prefix =
     IO.putLens lensMountPrefix prefix
+
+
+additionalSrcDirs : IO b c d e f g h (TList String)
+additionalSrcDirs =
+    IO.getLens lensAdditionalSrcDirs
+
+
+addAdditionalSrcDir : String -> IO b c d e f g h ()
+addAdditionalSrcDir srcDir =
+    IO.modifyLens lensAdditionalSrcDirs ((::) srcDir)

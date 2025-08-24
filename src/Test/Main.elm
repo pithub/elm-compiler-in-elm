@@ -74,6 +74,7 @@ main =
                 , Extra.System.Dir.getCurrentDirectoryNamesPure |> toIO
                 , Extra.System.Dir.mountRemote |> toIO
                 , Extra.System.Dir.mountStatic |> toIO
+                , Extra.System.Dir.mountZip |> toIO
                 , Extra.System.Dir.removeDirectory |> toIO
                 , Extra.System.Dir.resetFileSystem |> toIO
                 , Extra.System.Dir.setCurrentDirectory |> toIO
@@ -125,10 +126,12 @@ main =
             Extra.System.IO.sequence
                 [ Builder.Reporting.Exit.replToReport |> toIO
                 , Builder.Reporting.Exit.Help.reportToDoc |> toIO
+                , Extra.System.Config.addAdditionalSrcDir |> toIO
                 , Extra.System.Config.setHttpPrefix |> toIO
                 , Extra.System.Config.setMountPrefix |> toIO
                 , Extra.System.Dir.mountRemote |> toIO
                 , Extra.System.Dir.mountStatic |> toIO
+                , Extra.System.Dir.mountZip |> toIO
                 , Extra.System.Dir.setCurrentDirectory |> toIO
                 , Terminal.Command.clearStdOut |> toIO
                 , Terminal.Command.getText |> toIO
