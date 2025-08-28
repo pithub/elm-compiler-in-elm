@@ -125,6 +125,7 @@ main =
             Extra.System.IO.sequence
                 [ Builder.Reporting.Exit.replToReport |> toIO
                 , Builder.Reporting.Exit.Help.reportToDoc |> toIO
+                , Extra.System.Config.addAdditionalSrcDir |> toIO
                 , Extra.System.Config.setHttpPrefix |> toIO
                 , Extra.System.Config.setMountPrefix |> toIO
                 , Extra.System.Dir.mountRemote |> toIO

@@ -41,6 +41,7 @@ import Compiler.Reporting.Error.Import as Import
 import Compiler.Reporting.Error.Syntax as Syntax
 import Compiler.Reporting.Render.Type.Localizer as L
 import Extra.Data.Graph as Graph
+import Extra.System.Config as Config
 import Extra.System.Dir as Dir exposing (FileName, FilePath)
 import Extra.System.IO as IO
 import Extra.Type.Either as Either exposing (Either(..))
@@ -153,7 +154,10 @@ makeEnv root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
     Details.ValidApp givenSrcDirs ->
       IO.bind (MList.traverse IO.pure IO.liftA2 (toAbsoluteSrcDir root) (NE.toList givenSrcDirs)) <| \srcDirs ->
-      IO.return <| Env root Parse.Application srcDirs buildID locals foreigns
+      IO.bind Config.additionalSrcDirs <| \additionalSrcDirNames ->
+      let makeAbsolute name = IO.fmap AbsoluteSrcDir (Dir.makeAbsolute (Dir.fromString name)) in
+      IO.bind (MList.traverse IO.pure IO.liftA2 makeAbsolute additionalSrcDirNames) <| \additionalSrcDirs ->
+      IO.return <| Env root Parse.Application (srcDirs ++ additionalSrcDirs) buildID locals foreigns
 
     Details.ValidPkg pkg _ _ ->
       IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (Dir.fromString "src"))) <| \srcDir ->
