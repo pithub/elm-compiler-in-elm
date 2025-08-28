@@ -74,6 +74,7 @@ main =
                 , Extra.System.Dir.getCurrentDirectoryNamesPure |> toIO
                 , Extra.System.Dir.mountRemote |> toIO
                 , Extra.System.Dir.mountStatic |> toIO
+                , Extra.System.Dir.mountZip |> toIO
                 , Extra.System.Dir.removeDirectory |> toIO
                 , Extra.System.Dir.resetFileSystem |> toIO
                 , Extra.System.Dir.setCurrentDirectory |> toIO
