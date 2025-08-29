@@ -883,6 +883,8 @@ type Make
   | MakeBadDetails Details
   | MakeAppNeedsFileNames
   | MakePkgNeedsExposing
+  | MakeMultipleFilesIntoHtml
+  | MakeNoMain
   | MakeNonMainFilesIntoJavaScript ModuleName.Raw (TList ModuleName.Raw)
   | MakeCannotBuild BuildProblem
   | MakeBadGenerate Generate
@@ -937,6 +939,50 @@ makeToReport make =
         , D.reflow <|
             "You can also entries to the \"exposed-modules\" list in your elm.json file, and"
             ++ " I will try to compile the relevant files."
+        ]
+
+    MakeMultipleFilesIntoHtml ->
+      Help.report "TOO MANY FILES" Nothing
+        (
+          "When producing an HTML file, I can only handle one file."
+        )
+        [ D.fillSep
+            [d"Switch",d"to",D.dullyellowS "--output=/dev/null",d"if",d"you",d"just",d"want"
+            ,d"to",d"get",d"compile",d"errors.",d"This",d"skips",d"the",d"code",d"gen",d"phase,"
+            ,d"so",d"it",d"can",d"be",d"a",d"bit",d"faster",d"than",d"other",d"options",d"sometimes."
+            ]
+        , D.fillSep
+            [d"Switch",d"to",D.dullyellowS "--output=elm.js",d"if",d"you",d"want",d"multiple"
+            ,d"`main`",d"values",d"available",d"in",d"a",d"single",d"JavaScript",d"file.",d"Then"
+            ,d"you",d"can",d"make",d"your",d"own",d"customized",d"HTML",d"file",d"that",d"embeds"
+            ,d"multiple",d"Elm",d"nodes.",d"The",d"generated",d"JavaScript",d"also",d"shares"
+            ,d"dependencies",d"between",d"modules,",d"so",d"it",d"should",d"be",d"smaller",d"than"
+            ,d"compiling",d"each",d"module",d"separately."
+            ]
+        ]
+
+    MakeNoMain ->
+      Help.report "NO MAIN" Nothing
+        (
+          "When producing an HTML file, I require that the given file has a `main` value."
+          ++ " That way I have something to show on screen!"
+        )
+        [ D.reflow <|
+            "Try adding a `main` value to your file? Or if you just want to verify that this"
+            ++ " module compiles, switch to --output=/dev/null to skip the code gen phase"
+            ++ " altogether."
+        , D.toSimpleNote <|
+            "Adding a `main` value can be as brief as adding something like this:"
+        , D.vcat
+            [ D.fillSep [D.cyanS "import",d"Html"]
+            , d""
+            , D.fillSep [D.greenS "main",d"="]
+            , D.indent 2 <| D.fillSep [da[D.cyanS "Html", d".text"],D.dullyellowS "\"Hello!\""]
+            ]
+        , D.reflow <|
+            "From there I can create an HTML file that says \"Hello!\" on screen. I recommend"
+            ++ " looking through https://guide.elm-lang.org for more guidance on how to fill in"
+            ++ " the `main` value."
         ]
 
     MakeNonMainFilesIntoJavaScript m ms ->

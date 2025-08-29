@@ -96,11 +96,13 @@ main =
                 , Terminal.Helpers.parsePackage |> toIO
                 , Terminal.Init.run |> toIO
                 , Terminal.Install.install |> toIO
+                , Terminal.Make.Flags |> toIO
+                , Terminal.Make.JS |> toIO
+                , Terminal.Make.Html |> toIO
                 , Terminal.Main.runMain |> toIO
                 , Terminal.Make.run |> toIO
                 , Terminal.Reactor.compile |> toIO
                 , Terminal.Repl.Breakpoint |> toIO
-                , Terminal.Repl.Flags |> toIO
                 , Terminal.Repl.InterpreterFailure |> toIO
                 , Terminal.Repl.InterpreterSuccess |> toIO
                 , Terminal.Repl.Module |> toIO
