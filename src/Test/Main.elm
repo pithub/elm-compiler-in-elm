@@ -98,11 +98,8 @@ main =
                 , Terminal.Main.runMain |> toIO
                 , Terminal.Make.run |> toIO
                 , Terminal.Reactor.compile |> toIO
-                , Terminal.Repl.Breakpoint |> toIO
                 , Terminal.Repl.InterpreterFailure |> toIO
                 , Terminal.Repl.InterpreterSuccess |> toIO
-                , Terminal.Repl.Module |> toIO
-                , Terminal.Repl.Normal |> toIO
                 , Terminal.Repl.continueInterpreter |> toIO
                 , Terminal.Repl.run |> toIO
                 , (\interpreterInput ->
@@ -133,7 +130,6 @@ main =
                 , Terminal.Command.clearStdOut |> toIO
                 , Terminal.Command.getText |> toIO
                 , Terminal.Command.lensStdOut |> toIO
-                , Terminal.Repl.Configured |> toIO
                 , Terminal.Repl.Flags |> toIO
                 , Terminal.Repl.InterpreterFailure |> toIO
                 , Terminal.Repl.InterpreterSuccess |> toIO

@@ -17,7 +17,6 @@ module Terminal.Repl exposing
   , initialLocalState
   --
   , Env(..)
-  , Mode(..)
   , Outcome(..)
   , addLine
   , categorize
@@ -160,23 +159,8 @@ continueInterpreter noCont result =
 type Flags h =
   Flags
     {- interpreter -} (Interpreter h)
-    {- mode -} Mode
-    {- htmlEnabled -} Bool
-
-
-{- NEW: Mode -}
-type Mode
-  = Normal
-  | Module String
-  | Breakpoint String (Map.Map String String)
-  | Configured (Map.Map String String) (Map.Map String String) (Map.Map String String)
-
-
-isBreakpoint : Mode -> Bool
-isBreakpoint mode =
-  case mode of
-    Breakpoint _ _ -> True
-    _ -> False
+    {- openedModule -} (Maybe String)
+    {- inBreakpoint -} Bool
 
 
 run : Flags h -> IO h (Either Exit.Repl ())
@@ -188,7 +172,7 @@ run flags =
 
       Right env ->
         IO.bind printWelcomeMessage <| \_ ->
-        IO.fmap Right <| loop env (initialState env)
+        IO.fmap Right <| loop env initialState
 
 
 
@@ -220,22 +204,24 @@ type Env h =
     {- root -} FilePath
     {- interpreter -} (Interpreter h)
     {- ansi -} Bool
-    {- mode -} Mode
+    {- moduleName -} N.Name
     {- modulePrefix -} String
-    {- htmlEnabled -} Bool
+    {- inBreakpoint -} Bool
 
 
 initEnv : Flags h -> IO h (Either Exit.Repl (Env h))
-initEnv (Flags interpreter mode htmlEnabled) =
+initEnv (Flags interpreter openedModule inBreakpoint) =
   IO.bind getRoot <| \root ->
-  IO.bind (MMaybe.traverse IO.pure IO.fmap (Task.run << openModule root) (openedModule mode)) <| \openResult ->
+  IO.bind (MMaybe.traverse IO.pure IO.fmap (Task.run << openModule root) openedModule) <| \openResult ->
   case MMaybe.sequenceA Either.pure Either.fmap openResult of
     Left err ->
       IO.return (Left err)
 
     Right source ->
-      IO.return <| Right <| Env root interpreter False mode
-        (Maybe.withDefault defaultHeader source) htmlEnabled
+      IO.return <| Right <| Env root interpreter False
+        (Maybe.withDefault N.replModule openedModule)
+        (Maybe.withDefault defaultHeader source)
+        inBreakpoint
 
 
 
@@ -248,8 +234,8 @@ type Outcome
 
 
 loop : Env h -> State -> IO h ()
-loop (Env _ _ _ mode _ _ as env) state =
-  IO.bind (read mode) <| \input ->
+loop (Env _ _ _ _ _ inBreakpoint as env) state =
+  IO.bind (read inBreakpoint) <| \input ->
   IO.bind (eval env state input) <| \outcome ->
   case outcome of
     Loop state_ ->
@@ -276,8 +262,8 @@ type Input
   | Help (Maybe String)
 
 
-read : Mode -> IO h Input
-read mode =
+read : Bool -> IO h Input
+read inBreakpoint =
   IO.bind Command.clearInput <| \_ ->
   IO.bind (Command.getLineWithInitial ">\u{2000}" "") <| \maybeLine ->
   case maybeLine of
@@ -289,13 +275,13 @@ read mode =
       let
         lines = Lines (stripLegacyBackslash chars) []
       in
-      case categorize mode lines of
+      case categorize inBreakpoint lines of
         Done input -> IO.return input
-        Continue p -> readMore mode lines p
+        Continue p -> readMore inBreakpoint lines p
 
 
-readMore : Mode -> Lines -> Prefill -> IO h Input
-readMore mode previousLines prefill =
+readMore : Bool -> Lines -> Prefill -> IO h Input
+readMore inBreakpoint previousLines prefill =
   IO.bind (Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
   case input of
     {- Nothing ->
@@ -306,9 +292,9 @@ readMore mode previousLines prefill =
       let
         lines = addLine (stripLegacyBackslash chars) previousLines
       in
-      case categorize mode lines of
+      case categorize inBreakpoint lines of
         Done input_ -> IO.return input_
-        Continue p -> readMore mode lines p
+        Continue p -> readMore inBreakpoint lines p
 
 
 -- For compatibility with 0.19.0 such that readers of "Programming Elm" by @jfairbank
@@ -390,10 +376,10 @@ type CategorizedInput
   | Continue Prefill
 
 
-categorize : Mode -> Lines -> CategorizedInput
-categorize mode lines =
+categorize : Bool -> Lines -> CategorizedInput
+categorize inBreakpoint lines =
   if isBlank lines                         then Done Skip
-  else if startsWithColon lines            then toCommand mode lines
+  else if startsWithColon lines            then toCommand inBreakpoint lines
   else if startsWithKeyword "import" lines then attemptImport lines
   else                                          attemptDeclOrExpr lines
 
@@ -470,23 +456,23 @@ startsWithColon lines =
 
 
 {- NEW: toCommand signature -}
-toCommand : Mode -> Lines -> CategorizedInput
-toCommand mode lines =
+toCommand : Bool -> Lines -> CategorizedInput
+toCommand inBreakpoint lines =
   case String.dropLeft 1 <| String.trimLeft (getFirstLine lines) of
     "reset"       -> Done <| Reset
     "exit"        -> Done <| Exit
-    "quit"        -> if isBreakpoint mode
-                     then toCommand mode (Lines ":resume" [])
+    "quit"        -> if inBreakpoint
+                     then toCommand inBreakpoint (Lines ":resume" [])
                      else Done <| Exit
     {- NEW: force_quit_ -}
     "force_quit_" -> Done <| Exit
     "help"        -> Done <| Help Nothing
     {- NEW: resume -}
-    "resume"      -> if isBreakpoint mode
-                     then categorize mode (Lines "Breakpoint.resume bp" [])
+    "resume"      -> if inBreakpoint
+                     then categorize inBreakpoint (Lines "Breakpoint.resume bp" [])
                      else Done <| Help (Just "resume")
-    rest          -> if isBreakpoint mode && String.startsWith "resume " rest && String.trimLeft (String.dropLeft 7 rest) /= ""
-                     then categorize mode (Lines ("Breakpoint.resumeWith bp <|" ++ String.dropLeft 6 rest) [])
+    rest          -> if inBreakpoint && String.startsWith "resume " rest && String.trimLeft (String.dropLeft 7 rest) /= ""
+                     then categorize inBreakpoint (Lines ("Breakpoint.resumeWith bp <|" ++ String.dropLeft 6 rest) [])
                      else Done <| Help (List.head <| String.words rest)
 
 
@@ -536,26 +522,6 @@ annotation =
 
 
 
--- MODE
-
-
-{- NEW: openedModule -}
-openedModule : Mode -> Maybe String
-openedModule mode =
-  case mode of
-    Normal -> Nothing
-    Module moduleName -> Just moduleName
-    Breakpoint moduleName _ -> Just moduleName
-    Configured _ _ _ -> Nothing
-
-
-{- NEW: generatedModule -}
-generatedModule : Mode -> String
-generatedModule mode =
-  (Maybe.withDefault N.replModule (openedModule mode))
-
-
-
 -- STATE
 
 
@@ -570,19 +536,9 @@ setTypes types (State a _ c) = State a types c
 setDecls decls (State a b _) = State a b decls
 
 
-{- NEW: initialState env -}
-initialState : Env h -> State
-initialState (Env _ _ _ mode _ _) =
-  case mode of
-    Breakpoint _ decls -> State Map.empty Map.empty (addForceQuit decls)
-    Configured imports types decls -> State imports types (addForceQuit decls)
-    _ -> State Map.empty Map.empty (addForceQuit Map.empty)
-
-
-{- NEW: addForceQuit -}
-addForceQuit : Map.Map N.Name String -> Map.Map N.Name String
-addForceQuit decls =
-  Map.insertWith (\_ old -> old) "force_quit_" "force_quit_ () = False\n" decls
+initialState : State
+initialState =
+  State Map.empty Map.empty (Map.singleton "force_quit_" "force_quit_ () = False\n")
 
 
 
@@ -590,7 +546,7 @@ addForceQuit decls =
 
 
 eval : Env h -> State -> Input -> IO h Outcome
-eval ((Env _ _ _ mode _ _) as env) ((State imports types decls) as state) input =
+eval ((Env _ _ _ _ _ inBreakpoint) as env) ((State imports types decls) as state) input =
   case input of
     Skip ->
       IO.return (Loop state)
@@ -601,10 +557,10 @@ eval ((Env _ _ _ mode _ _) as env) ((State imports types decls) as state) input 
     Reset ->
       IO.bindSequence
         [ Command.putLine "<reset>" ]
-        (IO.return (Loop (initialState env)))
+        (IO.return (Loop initialState))
 
     Help maybeUnknownCommand ->
-      IO.bind (Command.putTemporary (toHelpMessage (isBreakpoint mode) maybeUnknownCommand)) <| \_ ->
+      IO.bind (Command.putTemporary (toHelpMessage inBreakpoint maybeUnknownCommand)) <| \_ ->
       IO.return (Loop state)
 
     Import name src ->
@@ -638,7 +594,7 @@ type Output
 
 
 attemptEval : Env h -> State -> State -> Output -> IO h State
-attemptEval (Env root interpreter ansi mode modulePrefix htmlEnabled) oldState newState output =
+attemptEval (Env root interpreter ansi moduleName modulePrefix _) oldState newState output =
   IO.bind
     (Task.run <|
       Task.bind
@@ -649,7 +605,7 @@ attemptEval (Env root interpreter ansi mode modulePrefix htmlEnabled) oldState n
         (Task.eio identity <|
           Build.fromRepl root details (toByteString modulePrefix newState output)) <| \artifacts ->
 
-      MMaybe.traverse Task.pure Task.fmap (Task.mapError Exit.ReplBadGenerate << Generate.repl root details ansi htmlEnabled artifacts) (toPrintName output)) <| \result ->
+      MMaybe.traverse Task.pure Task.fmap (Task.mapError Exit.ReplBadGenerate << Generate.repl root details ansi True artifacts) (toPrintName output)) <| \result ->
 
   case result of
     Left exit ->
@@ -660,7 +616,7 @@ attemptEval (Env root interpreter ansi mode modulePrefix htmlEnabled) oldState n
       IO.return newState
 
     Right (Just (kind, javascript)) ->
-      IO.bind (interpret interpreter (inputForKind kind (generatedModule mode) javascript)) <| \interpreterResult ->
+      IO.bind (interpret interpreter (inputForKind kind moduleName javascript)) <| \interpreterResult ->
       case interpreterResult of
         InterpreterSuccess -> IO.return newState
         InterpreterFailure -> IO.return oldState
