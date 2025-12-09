@@ -67,11 +67,7 @@ bTime =
 
 bigToTime : BigInt -> Time
 bigToTime big =
-  case BigInt.divmod big bigTimeFactor of
-    Just (div, rem) ->
-      Time (T.millisToPosix (B.bigToInt div + if B.bigToInt rem < halfTimeFactor then 0 else 1))
-    Nothing ->
-      zeroTime
+  Time (T.millisToPosix (B.bigToInt (BigInt.div big bigTimeFactor)))
 
 
 timeToBig : Time -> BigInt
