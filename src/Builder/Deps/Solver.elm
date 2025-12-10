@@ -1,12 +1,11 @@
 {- MANUALLY FORMATTED -}
 module Builder.Deps.Solver exposing
-  ( {-Solver
-  ,-} Result(..)
+  ( Result(..)
   , Connection(..)
-  ----
+  --
   , Details(..)
   , verify
-  ----
+  --
   , AppSolution(..)
   , addToApp
   --

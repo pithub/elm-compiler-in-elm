@@ -2,11 +2,7 @@
 module Terminal.Make exposing
   ( Flags(..)
   , Output(..)
-  --, ReportType(..)
   , run, IO
-  --, reportType
-  --, output
-  --, docsFile
   )
 
 

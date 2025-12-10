@@ -8,7 +8,7 @@ module Builder.Build exposing
   , Module(..)
   , CachedInterface(..)
   , ReplArtifacts(..)
-  , DocsGoal, DocsGoalKind(..), ignoreDocs
+  , DocsGoal, DocsGoalKind, ignoreDocs
   --
   , GlobalState
   , LocalState

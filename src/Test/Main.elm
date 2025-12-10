@@ -43,13 +43,10 @@ main =
         initialIO : () -> Extra.System.IO.IO (Terminal.Repl.GlobalState ()) ()
         initialIO _ =
             Extra.System.IO.sequence
+                -- these interfaces don't need to be complete
                 [ compilerUiInterface
                 , replWorkerInterface
                 ]
-
-        toUnit : a -> ()
-        toUnit _ =
-            ()
 
         toIO : a -> Extra.System.IO.IO (Terminal.Repl.GlobalState ()) ()
         toIO _ =
@@ -58,8 +55,7 @@ main =
         compilerUiInterface : Extra.System.IO.IO (Terminal.Repl.GlobalState ()) ()
         compilerUiInterface =
             Extra.System.IO.sequence
-                [ Builder.Reporting.Exit.MakeNoOutline |> toIO
-                , Builder.Reporting.Exit.initToReport |> toIO
+                [ Builder.Reporting.Exit.initToReport |> toIO
                 , Builder.Reporting.Exit.installToReport |> toIO
                 , Builder.Reporting.Exit.makeToReport |> toIO
                 , Builder.Reporting.Exit.reactorToReport |> toIO
@@ -107,20 +103,20 @@ main =
                 , Terminal.Repl.InterpreterSuccess |> toIO
                 , Terminal.Repl.Module |> toIO
                 , Terminal.Repl.Normal |> toIO
+                , Terminal.Repl.continueInterpreter |> toIO
+                , Terminal.Repl.run |> toIO
                 , (\interpreterInput ->
                     case interpreterInput of
                         Terminal.Repl.InterpretHtml a b ->
-                            ( a, b ) |> toUnit
+                            ( a, b ) |> toIO
 
                         Terminal.Repl.InterpretValue a ->
-                            a |> toUnit
+                            a |> toIO
 
                         Terminal.Repl.ShowError a ->
-                            a |> toUnit
+                            a |> toIO
                   )
                     |> toIO
-                , Terminal.Repl.continueInterpreter |> toIO
-                , Terminal.Repl.run |> toIO
                 ]
 
         replWorkerInterface : Extra.System.IO.IO (Terminal.Repl.GlobalState ()) ()
@@ -141,9 +137,9 @@ main =
                 , Terminal.Repl.Flags |> toIO
                 , Terminal.Repl.InterpreterFailure |> toIO
                 , Terminal.Repl.InterpreterSuccess |> toIO
-                , Terminal.Repl.continueInterpreter |> toIO
                 , Terminal.Repl.addLine |> toIO
                 , Terminal.Repl.categorize |> toIO
+                , Terminal.Repl.continueInterpreter |> toIO
                 , Terminal.Repl.eval |> toIO
                 , Terminal.Repl.initialState |> toIO
                 , Terminal.Repl.initEnv |> toIO
@@ -153,13 +149,13 @@ main =
                 , (\interpreterInput ->
                     case interpreterInput of
                         Terminal.Repl.InterpretValue a ->
-                            a |> toUnit
+                            a |> toIO
 
                         Terminal.Repl.ShowError a ->
-                            a |> toUnit
+                            a |> toIO
 
                         x ->
-                            x |> toUnit
+                            x |> toIO
                   )
                     |> toIO
                 ]

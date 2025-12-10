@@ -8,14 +8,9 @@ module Terminal.Repl exposing
   , run
   --
   , Lines(..)
-  --, Input(..)
-  --, Prefill(..)
   , CategorizedInput(..)
-  --, categorize
   --
-  , State(..)
-  --, Output(..)
-  --, toByteString
+  , State
   --
   , GlobalState
   , LocalState

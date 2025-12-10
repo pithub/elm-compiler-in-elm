@@ -1,6 +1,6 @@
 {- MANUALLY FORMATTED -}
 module Builder.File exposing
-  ( Time(..), bTime
+  ( Time, bTime
   , getTime
   , zeroTime
   , writeBinary
@@ -11,7 +11,6 @@ module Builder.File exposing
   , writePackage
   , exists
   , remove
-  --, removeDir
   , toMillis
   )
 

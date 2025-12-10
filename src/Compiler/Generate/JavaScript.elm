@@ -2,7 +2,6 @@
 module Compiler.Generate.JavaScript exposing
   ( generate
   , generateForRepl
-  --, generateForReplEndpoint
   --
   , CodeKind(..)
   )
