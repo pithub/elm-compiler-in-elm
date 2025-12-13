@@ -360,7 +360,7 @@ initEnv =
       IO.bind (Registry.fetch manager cache) <| \eitherRegistry ->
       case eitherRegistry of
         Right latestRegistry ->
-          IO.return <| Right <| Env cache manager (Online manager) (addSpecialVersions latestRegistry)
+          IO.return <| Right <| Env cache manager (Online manager) latestRegistry
 
         Left problem ->
           IO.return <| Left <| problem
@@ -369,18 +369,10 @@ initEnv =
       IO.bind (Registry.update manager cache cachedRegistry) <| \eitherRegistry ->
       case eitherRegistry of
         Right latestRegistry ->
-          IO.return <| Right <| Env cache manager (Online manager) (addSpecialVersions latestRegistry)
+          IO.return <| Right <| Env cache manager (Online manager) latestRegistry
 
         Left _ ->
-          IO.return <| Right <| Env cache manager Offline (addSpecialVersions cachedRegistry)
-
-
-{- NEW: addSpecialVersions -}
-addSpecialVersions : Registry.Registry -> Registry.Registry
-addSpecialVersions (Registry.Registry count registry) =
-  Registry.Registry
-    (count + 1)
-    (Map.insert ("elm", "breakpoint") (Registry.KnownVersions V.one []) registry)
+          IO.return <| Right <| Env cache manager Offline cachedRegistry
 
 
 

@@ -13,7 +13,6 @@ import Compiler.Data.Index as Index
 import Compiler.Data.Name as Name
 import Compiler.Elm.Kernel as K
 import Compiler.Elm.ModuleName as ModuleName
-import Compiler.Elm.Package as Pkg
 import Compiler.Generate.JavaScript.Builder as JS
 import Compiler.Generate.JavaScript.Expression as Expr
 import Compiler.Generate.JavaScript.Functions as Functions
@@ -59,18 +58,13 @@ perfNote mode =
     Mode.Prod _ ->
       ""
 
-    Mode.Dev Mode.DevNormal ->
+    Mode.Dev Nothing ->
       "console.warn('Compiled in DEV mode. Follow the advice at "
       ++ (D.makeNakedLink "optimize")
       ++ " for better performance and smaller assets.');"
 
-    Mode.Dev (Mode.DevDebug _) ->
+    Mode.Dev (Just _) ->
       "console.warn('Compiled in DEBUG mode. Follow the advice at "
-      ++ (D.makeNakedLink "optimize")
-      ++ " for better performance and smaller assets.');"
-
-    Mode.Dev (Mode.DevAsync _ _) ->
-      "console.warn('Compiled in ASYNC mode. Follow the advice at "
       ++ (D.makeNakedLink "optimize")
       ++ " for better performance and smaller assets.');"
 
@@ -91,17 +85,9 @@ generateForRepl ansi htmlEnabled localizer (Opt.GlobalGraph graph _ as globalGra
   else
     ( ValueKind
     , let
-        mode = Mode.Dev Mode.DevNormal
-
-        pipeAddGlobal moduleName defName state =
-          addGlobal mode graph state (Opt.toGlobalComparable <| Opt.Global moduleName defName)
-
-        evalState =
-          emptyState
-            |> pipeAddGlobal ModuleName.debug "toString"
-            {- NEW: force_quit_ -}
-            |> pipeAddGlobal home "force_quit_"
-            |> pipeAddGlobal home name
+        mode = Mode.Dev Nothing
+        debugState = addGlobal mode graph emptyState (Opt.toGlobalComparable <| Opt.Global ModuleName.debug "toString")
+        evalState = addGlobal mode graph debugState (Opt.toGlobalComparable <| Opt.Global home name)
       in
       ""--"process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
       ++ Functions.functions
@@ -135,16 +121,13 @@ print ansi localizer home name tipe =
   ++ "var _result = (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0)\n"
   ++ "  ? _print('\\n    : ' + _type.split('\\n').join('\\n      '))\n"
   ++ "  : _print(' : ' + _type);\n"
-  {- NEW: force_quit_ -}
-  ++ "var force_quit_ = " ++ JsName.toBuilder (JsName.fromGlobal home "force_quit_") ++ "();\n"
-  --++ "console.log(_result);\n"
 
 
 {- NEW: generateHtmlForRepl -}
 generateHtmlForRepl : Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> String
 generateHtmlForRepl (Opt.GlobalGraph graph _) home name =
   let
-    mode = Mode.Dev Mode.DevNormal
+    mode = Mode.Dev Nothing
     mains = Map.singleton (ModuleName.toComparable home) Opt.Static
     state = addGlobal mode graph emptyState (Opt.toGlobalComparable <| Opt.Global home name)
     evalState = addStmt state (JS.Var (JsName.fromGlobal home Name.l_main) (JS.Ref (JsName.fromGlobal home name)))
@@ -200,32 +183,13 @@ addGlobalHelp : Mode.Mode -> Graph -> Opt.GlobalComparable -> State -> State
 addGlobalHelp mode graph comparable state =
   let
     global = Opt.fromGlobalComparable comparable
-
     addDeps deps someState =
       Set.foldl (addGlobal mode graph) someState deps
   in
   case Map.ex graph comparable of
     Opt.Define expr deps ->
-      {- NEW: Expr.generateAsync -}
-      let
-        ( isLocalAppDef, moduleName, defName ) =
-          case global of
-            Opt.Global (ModuleName.Canonical pkg mName) dName -> ( pkg == Pkg.dummyName, mName, dName )
-
-        ( isAsyncDef, maybeBpNames ) =
-          case expr of
-            Opt.Function _ _ ->
-              ( Mode.isAsyncActive mode && isLocalAppDef, Nothing )
-            Opt.Call func args ->
-              ( Mode.isAsyncActive mode && isLocalAppDef && Expr.isBreakpointDef func args, Just ( moduleName, defName ) )
-            _ ->
-              ( False, Nothing )
-
-        exprMode =
-          if isAsyncDef then mode else Mode.deActivate mode
-      in
       addStmt (addDeps deps state) (
-        var global (Expr.generateAsync isAsyncDef maybeBpNames exprMode expr)
+        var global (Expr.generate mode expr)
       )
 
     Opt.DefineTailFunc argNames body deps ->
@@ -416,14 +380,6 @@ addChunk mode chunk builder =
         Mode.Prod _ ->
           builder
 
-    K.Async ->
-      case mode of
-        Mode.Dev (Mode.DevAsync _ _) ->
-          builder
-
-        _ ->
-          "_UNUSED" ++ builder
-
 
 
 -- GENERATE ENUM
@@ -560,20 +516,16 @@ generateExports mode (Trie maybeMain subs) =
           "{'init':"
           ++ JS.exprToBuilder (Expr.generateMain mode home main)
           ++ end
-
-    {- NEW: lastLine -}
-    lastLine =
-      if Mode.isAsyncActive mode then ", 'get_state': _Breakpoint_get_state }" else "}"
   in
     case Map.toList subs of
       [] ->
-        starter "" ++ lastLine
+        starter "" ++ "}"
 
       (name, subTrie) :: otherSubTries ->
         starter "," ++
         "'" ++ name ++ "':"
-        ++ generateExports (Mode.deActivate mode) subTrie
-        ++ MList.foldl (addSubTrie mode) lastLine otherSubTries
+        ++ generateExports mode subTrie
+        ++ MList.foldl (addSubTrie mode) "}" otherSubTries
 
 
 addSubTrie : Mode.Mode -> String -> (Name.Name, Trie) -> String
