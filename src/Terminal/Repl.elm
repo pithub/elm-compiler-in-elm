@@ -32,12 +32,14 @@ module Terminal.Repl exposing
 import Builder.Build as Build
 import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
+import Builder.File as File
 import Builder.Generate as Generate
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
 import Builder.Stuff as Stuff
 import Compiler.AST.Source as Src
 import Compiler.Data.Name as N
+import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.Constraint as C
 import Compiler.Elm.Licenses as Licenses
 import Compiler.Elm.ModuleName as ModuleName
@@ -52,16 +54,19 @@ import Compiler.Parse.Type as PT
 import Compiler.Parse.Variable as PV
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D exposing (d)
+import Compiler.Reporting.Error as E
+import Compiler.Reporting.Error.Import as EI
 import Compiler.Reporting.Error.Syntax as ES
 import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Report as Report
 import Extra.System.Dir as Dir exposing (FilePath)
 import Extra.System.IO as IO
-import Extra.Type.Either exposing (Either(..))
+import Extra.Type.Either as Either exposing (Either(..))
 import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Extra.Type.Maybe as MMaybe
+import Extra.Type.Set as Set
 import Global
 import Terminal.Command as Command
 import Unicode as UChar
@@ -152,13 +157,19 @@ continueInterpreter noCont result =
 type Flags h =
   Flags
     {- interpreter -} (Interpreter h)
+    {- openedModule -} (Maybe String)
 
 
-run : Flags h -> IO h ()
+run : Flags h -> IO h (Either Exit.Repl ())
 run flags =
-  IO.bind printWelcomeMessage <| \_ ->
-  IO.bind (initEnv flags) <| \env ->
-  loop env initialState
+  IO.bind (initEnv flags) <| \envResult ->
+    case envResult of
+      Left exit ->
+        IO.return <| Left exit
+
+      Right env ->
+        IO.bind printWelcomeMessage <| \_ ->
+        IO.fmap Right <| loop env initialState
 
 
 
@@ -190,12 +201,20 @@ type Env h =
     {- root -} FilePath
     {- interpreter -} (Interpreter h)
     {- ansi -} Bool
+    {- modulePrefix -} String
 
 
-initEnv : Flags h -> IO h (Env h)
-initEnv (Flags interpreter) =
+initEnv : Flags h -> IO h (Either Exit.Repl (Env h))
+initEnv (Flags interpreter openedModule) =
   IO.bind getRoot <| \root ->
-  IO.return <| Env root interpreter False
+  IO.bind (MMaybe.traverse IO.pure IO.fmap (Task.run << openModule root) openedModule) <| \openResult ->
+  case MMaybe.sequenceA Either.pure Either.fmap openResult of
+    Left err ->
+      IO.return (Left err)
+
+    Right source ->
+      IO.return <| Right <| Env root interpreter False
+        (Maybe.withDefault defaultHeader source)
 
 
 
@@ -553,7 +572,7 @@ type Output
 
 
 attemptEval : Env h -> State -> State -> Output -> IO h State
-attemptEval (Env root interpreter ansi) oldState newState output =
+attemptEval (Env root interpreter ansi modulePrefix) oldState newState output =
   IO.bind
     (Task.run <|
       Task.bind
@@ -562,7 +581,7 @@ attemptEval (Env root interpreter ansi) oldState newState output =
 
       Task.bind
         (Task.eio identity <|
-          Build.fromRepl root details (toByteString newState output)) <| \artifacts ->
+          Build.fromRepl root details (toByteString modulePrefix newState output)) <| \artifacts ->
 
       MMaybe.traverse Task.pure Task.fmap (Task.mapError Exit.ReplBadGenerate << Generate.repl root details ansi artifacts) (toPrintName output)) <| \result ->
 
@@ -585,15 +604,20 @@ attemptEval (Env root interpreter ansi) oldState newState output =
 -- TO BYTESTRING
 
 
-toByteString : State -> Output -> String
-toByteString (State imports types decls) output =
+toByteString : String -> State -> Output -> String
+toByteString modulePrefix (State imports types decls) output =
   String.concat
-    [ "module " ++ N.toBuilder N.replModule ++ " exposing (..)\n"
+    [ modulePrefix, "\n"
     , Map.foldr (++) "" imports
     , Map.foldr (++) "" types
     , Map.foldr (++) "" decls
     , outputToBuilder output
     ]
+
+
+defaultHeader : String
+defaultHeader =
+  "module " ++ N.toBuilder N.replModule ++ " exposing (..)"
 
 
 outputToBuilder : Output -> String
@@ -683,3 +707,44 @@ defaultDeps =
     , (Pkg.toComparable Pkg.json, C.anything)
     , (Pkg.toComparable Pkg.html, C.anything)
     ]
+
+
+
+-- OPEN MODULE
+
+
+{- NEW: openModule -}
+openModule : FilePath -> String -> Task g h String
+openModule root input =
+  let src = "import " ++ input ++ "\n" in
+  Task.bind (Task.eio (Exit.ReplBadInput src) <| parseOpenModuleName src) <| \name ->
+  Task.bind (Task.eio Exit.ReplBadDetails <| Details.load root) <| \details ->
+  Task.bind (Task.eio (Exit.ReplBadInput src) <| findOpenModulePath root details src name) <| \path ->
+  Task.io (File.readUtf8 path)
+
+
+type alias Task z h v =
+  Task.Task z (GlobalState h) Exit.Repl v
+
+
+parseOpenModuleName : String -> IO h (Either E.Error N.Name)
+parseOpenModuleName src =
+  IO.return <| case P.fromByteString PM.chompImport ES.ModuleBadEnd src of
+    Right (Src.Import (A.At _ name) _ _) ->
+      Right name
+
+    Left err ->
+      Left <| E.BadSyntax <| ES.ParseError err
+
+
+findOpenModulePath : FilePath -> Details.Details -> String -> N.Name -> IO h (Either E.Error FilePath)
+findOpenModulePath root details src name =
+  IO.rmap (Build.findModulePath root details name) <| \maybePath ->
+    case maybePath of
+      Just path ->
+        Right path
+
+      Nothing ->
+        Left <| E.BadImports <| NE.singleton <|
+          let region = A.Region (A.Position 1 8) (A.Position 1 (String.length src)) in
+          EI.Error region name Set.empty EI.NotFound
