@@ -152,6 +152,7 @@ continueInterpreter noCont result =
 type Flags h =
   Flags
     {- interpreter -} (Interpreter h)
+    {- inBreakpoint -} Bool
 
 
 run : Flags h -> IO h ()
@@ -190,12 +191,13 @@ type Env h =
     {- root -} FilePath
     {- interpreter -} (Interpreter h)
     {- ansi -} Bool
+    {- inBreakpoint -} Bool
 
 
 initEnv : Flags h -> IO h (Env h)
-initEnv (Flags interpreter) =
+initEnv (Flags interpreter inBreakpoint) =
   IO.bind getRoot <| \root ->
-  IO.return <| Env root interpreter False
+  IO.return <| Env root interpreter False inBreakpoint
 
 
 
@@ -208,8 +210,8 @@ type Outcome
 
 
 loop : Env h -> State -> IO h ()
-loop env state =
-  IO.bind read <| \input ->
+loop (Env _ _ _ inBreakpoint as env) state =
+  IO.bind (read inBreakpoint) <| \input ->
   IO.bind (eval env state input) <| \outcome ->
   case outcome of
     Loop state_ ->
@@ -236,8 +238,8 @@ type Input
   | Help (Maybe String)
 
 
-read : IO h Input
-read =
+read : Bool -> IO h Input
+read inBreakpoint =
   IO.bind Command.clearInput <| \_ ->
   IO.bind (Command.getLineWithInitial ">\u{2000}" "") <| \maybeLine ->
   case maybeLine of
@@ -249,13 +251,13 @@ read =
       let
         lines = Lines (stripLegacyBackslash chars) []
       in
-      case categorize lines of
+      case categorize inBreakpoint lines of
         Done input -> IO.return input
-        Continue p -> readMore lines p
+        Continue p -> readMore inBreakpoint lines p
 
 
-readMore : Lines -> Prefill -> IO h Input
-readMore previousLines prefill =
+readMore : Bool -> Lines -> Prefill -> IO h Input
+readMore inBreakpoint previousLines prefill =
   IO.bind (Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
   case input of
     {- Nothing ->
@@ -266,9 +268,9 @@ readMore previousLines prefill =
       let
         lines = addLine (stripLegacyBackslash chars) previousLines
       in
-      case categorize lines of
+      case categorize inBreakpoint lines of
         Done input_ -> IO.return input_
-        Continue p -> readMore lines p
+        Continue p -> readMore inBreakpoint lines p
 
 
 -- For compatibility with 0.19.0 such that readers of "Programming Elm" by @jfairbank
@@ -350,10 +352,10 @@ type CategorizedInput
   | Continue Prefill
 
 
-categorize : Lines -> CategorizedInput
-categorize lines =
+categorize : Bool -> Lines -> CategorizedInput
+categorize inBreakpoint lines =
   if isBlank lines                         then Done Skip
-  else if startsWithColon lines            then Done (toCommand lines)
+  else if startsWithColon lines            then toCommand inBreakpoint lines
   else if startsWithKeyword "import" lines then attemptImport lines
   else                                          attemptDeclOrExpr lines
 
@@ -429,14 +431,25 @@ startsWithColon lines =
     Just (c,_) -> c == ':'
 
 
-toCommand : Lines -> Input
-toCommand lines =
+{- NEW: toCommand signature -}
+toCommand : Bool -> Lines -> CategorizedInput
+toCommand inBreakpoint lines =
   case String.dropLeft 1 <| String.trimLeft (getFirstLine lines) of
-    "reset"       -> Reset
-    "exit"        -> Exit
-    "quit"        -> Exit
-    "help"        -> Help Nothing
-    rest          -> Help (List.head <| String.words rest)
+    "reset"       -> Done <| Reset
+    "exit"        -> Done <| Exit
+    "quit"        -> if inBreakpoint
+                     then toCommand inBreakpoint (Lines ":resume" [])
+                     else Done <| Exit
+    {- NEW: force_quit_ -}
+    "force_quit_" -> Done <| Exit
+    "help"        -> Done <| Help Nothing
+    {- NEW: resume -}
+    "resume"      -> if inBreakpoint
+                     then categorize inBreakpoint (Lines "Breakpoint.resume bp" [])
+                     else Done <| Help (Just "resume")
+    rest          -> if inBreakpoint && String.startsWith "resume " rest && String.trimLeft (String.dropLeft 7 rest) /= ""
+                     then categorize inBreakpoint (Lines ("Breakpoint.resumeWith bp <|" ++ String.dropLeft 6 rest) [])
+                     else Done <| Help (List.head <| String.words rest)
 
 
 startsWithKeyword : String -> Lines -> Bool
@@ -497,7 +510,7 @@ type State =
 
 initialState : State
 initialState =
-  State Map.empty Map.empty Map.empty
+  State Map.empty Map.empty (Map.singleton "force_quit_" "force_quit_ () = False\n")
 
 
 
@@ -505,7 +518,7 @@ initialState =
 
 
 eval : Env h -> State -> Input -> IO h Outcome
-eval env ((State imports types decls) as state) input =
+eval ((Env _ _ _ inBreakpoint) as env) ((State imports types decls) as state) input =
   case input of
     Skip ->
       IO.return (Loop state)
@@ -519,7 +532,7 @@ eval env ((State imports types decls) as state) input =
         (IO.return (Loop initialState))
 
     Help maybeUnknownCommand ->
-      IO.bind (Command.putTemporary (toHelpMessage maybeUnknownCommand)) <| \_ ->
+      IO.bind (Command.putTemporary (toHelpMessage inBreakpoint maybeUnknownCommand)) <| \_ ->
       IO.return (Loop state)
 
     Import name src ->
@@ -553,7 +566,7 @@ type Output
 
 
 attemptEval : Env h -> State -> State -> Output -> IO h State
-attemptEval (Env root interpreter ansi) oldState newState output =
+attemptEval (Env root interpreter ansi _) oldState newState output =
   IO.bind
     (Task.run <|
       Task.bind
@@ -626,23 +639,24 @@ toPrintName output =
 -- HELP MESSAGES
 
 
-toHelpMessage : Maybe String -> String
-toHelpMessage maybeBadCommand =
+toHelpMessage : Bool -> Maybe String -> String
+toHelpMessage showResume maybeBadCommand =
   case maybeBadCommand of
     Nothing ->
-      genericHelpMessage
+      (genericHelpMessage showResume)
 
     Just command ->
-      "I do not recognize the :" ++ command ++ " command. " ++ genericHelpMessage
+      "I do not recognize the :" ++ command ++ " command. " ++ (genericHelpMessage showResume)
 
 
-genericHelpMessage : String
-genericHelpMessage =
+genericHelpMessage : Bool -> String
+genericHelpMessage showResume =
   "Valid commands include:\n"
   ++ "\n"
   ++ "  :exit    Exit the REPL\n"
   ++ "  :help    Show this information\n"
   ++ "  :reset   Clear all previous imports and definitions\n"
+  ++ (if showResume then "  :resume  Resume from current breakpoint\n" else "")
   ++ "\n"
   ++ "More info at " ++ D.makeLink "repl" ++ "\n"
 

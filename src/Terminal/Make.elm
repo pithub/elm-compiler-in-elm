@@ -37,10 +37,12 @@ type alias IO g h v =
 -- FLAGS
 
 
+{- NEW: async -}
 type Flags =
   Flags
     {- debug -} Bool
     {- optimize -} Bool
+    {- async -} Bool
     {- output -} (Maybe Output)
 
 
@@ -66,9 +68,9 @@ run paths flags =
 
 
 runHelp : FilePath -> TList FilePath -> Flags -> IO g h (Either Exit.Make ())
-runHelp root paths (Flags debug optimize maybeOutput) =
+runHelp root paths (Flags debug optimize async maybeOutput) =
   Task.run <|
-  Task.bind (getMode debug optimize) <| \desiredMode ->
+  Task.bind (getMode debug optimize async) <| \desiredMode ->
   Task.bind (Task.eio Exit.MakeBadDetails (Details.load root)) <| \details ->
   case paths of
     [] ->
@@ -111,13 +113,14 @@ runHelp root paths (Flags debug optimize maybeOutput) =
 -- GET INFORMATION
 
 
-getMode : Bool -> Bool -> Task z g h DesiredMode
-getMode debug optimize =
-  case (debug, optimize) of
-    (True , True ) -> Task.throw Exit.MakeCannotOptimizeAndDebug
-    (True , False) -> Task.return Debug
-    (False, False) -> Task.return Dev
-    (False, True ) -> Task.return Prod
+getMode : Bool -> Bool -> Bool -> Task z g h DesiredMode
+getMode debug optimize async =
+  case (debug, optimize, async) of
+    (True , True , _    ) -> Task.throw Exit.MakeCannotOptimizeAndDebug
+    (True , False, _    ) -> Task.return Debug
+    (False, False, True ) -> Task.return Async
+    (False, False, False) -> Task.return Dev
+    (False, True , _    ) -> Task.return Prod
 
 
 getExposed : Details.Details -> Task z g h (NE.TList ModuleName.Raw)
@@ -231,7 +234,7 @@ generate target builder =
 -- TO BUILDER
 
 
-type DesiredMode = Debug | Dev | Prod
+type DesiredMode = Debug | Async | Dev | Prod
 
 
 toBuilder : FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task z g h String
@@ -239,5 +242,6 @@ toBuilder root details desiredMode artifacts =
   Task.mapError Exit.MakeBadGenerate <|
     case desiredMode of
       Debug -> Generate.debug root details artifacts
+      Async -> Generate.async root details artifacts
       Dev   -> Generate.dev   root details artifacts
       Prod  -> Generate.prod  root details artifacts

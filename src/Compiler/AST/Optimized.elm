@@ -214,6 +214,7 @@ addKernelDep chunk deps =
     K.JsEnum _          -> deps
     K.Debug             -> deps
     K.Prod              -> deps
+    K.Async             -> deps
 
 
 toKernelGlobal : Name -> Global
