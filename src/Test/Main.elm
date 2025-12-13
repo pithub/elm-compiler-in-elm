@@ -104,9 +104,6 @@ main =
                 , Terminal.Repl.run |> toIO
                 , (\interpreterInput ->
                     case interpreterInput of
-                        Terminal.Repl.InterpretHtml a b ->
-                            ( a, b ) |> toIO
-
                         Terminal.Repl.InterpretValue a ->
                             a |> toIO
 
@@ -149,9 +146,6 @@ main =
 
                         Terminal.Repl.ShowError a ->
                             a |> toIO
-
-                        x ->
-                            x |> toIO
                   )
                     |> toIO
                 ]

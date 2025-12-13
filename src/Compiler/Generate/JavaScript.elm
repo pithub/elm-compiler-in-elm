@@ -2,8 +2,6 @@
 module Compiler.Generate.JavaScript exposing
   ( generate
   , generateForRepl
-  --
-  , CodeKind(..)
   )
 
 
@@ -73,38 +71,17 @@ perfNote mode =
 -- GENERATE FOR REPL
 
 
-{- NEW: CodeKind -}
-type CodeKind = ValueKind | HtmlKind
-
-generateForRepl : Bool -> Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> (CodeKind, String)
-generateForRepl ansi htmlEnabled localizer (Opt.GlobalGraph graph _ as globalGraph) home name (Can.Forall _ tipe) =
-  if htmlEnabled && isStaticHtml tipe then
-    ( HtmlKind
-    , generateHtmlForRepl globalGraph home name
-    )
-  else
-    ( ValueKind
-    , let
-        mode = Mode.Dev Nothing
-        debugState = addGlobal mode graph emptyState (Opt.toGlobalComparable <| Opt.Global ModuleName.debug "toString")
-        evalState = addGlobal mode graph debugState (Opt.toGlobalComparable <| Opt.Global home name)
-      in
-      ""--"process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
-      ++ Functions.functions
-      ++ stateToBuilder evalState
-      ++ print ansi localizer home name tipe
-    )
-
-
-{- NEW: isStaticHtml -}
-isStaticHtml : Can.Type -> Bool
-isStaticHtml tipe =
-  case tipe of
-    Can.TAlias _ _ _ (Can.Filled (Can.TType valModule valType _)) ->
-      valModule == ModuleName.virtualDom && valType == Name.node
-
-    _ ->
-      False
+generateForRepl : Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> String
+generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
+  let
+    mode = Mode.Dev Nothing
+    debugState = addGlobal mode graph emptyState (Opt.toGlobalComparable <| Opt.Global ModuleName.debug "toString")
+    evalState = addGlobal mode graph debugState (Opt.toGlobalComparable <| Opt.Global home name)
+  in
+  ""--"process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
+  ++ Functions.functions
+  ++ stateToBuilder evalState
+  ++ print ansi localizer home name tipe
 
 
 print : Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Type -> String
@@ -121,23 +98,6 @@ print ansi localizer home name tipe =
   ++ "var _result = (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0)\n"
   ++ "  ? _print('\\n    : ' + _type.split('\\n').join('\\n      '))\n"
   ++ "  : _print(' : ' + _type);\n"
-
-
-{- NEW: generateHtmlForRepl -}
-generateHtmlForRepl : Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> String
-generateHtmlForRepl (Opt.GlobalGraph graph _) home name =
-  let
-    mode = Mode.Dev Nothing
-    mains = Map.singleton (ModuleName.toComparable home) Opt.Static
-    state = addGlobal mode graph emptyState (Opt.toGlobalComparable <| Opt.Global home name)
-    evalState = addStmt state (JS.Var (JsName.fromGlobal home Name.l_main) (JS.Ref (JsName.fromGlobal home name)))
-  in
-  "(function(scope){\n'use strict';"
-  ++ Functions.functions
-  ++ stateToBuilder evalState
-  ++ toMainExports mode mains
-  ++ "}(this));"
-
 
 
 
