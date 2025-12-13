@@ -5,6 +5,7 @@ module Extra.Type.Maybe exposing
     , mapMaybe
     , maybe
     , maybeToList
+    , sequenceA
     , traverse
     )
 
@@ -66,6 +67,14 @@ maybeToList l =
 
         Just x ->
             [ x ]
+
+
+sequenceA :
+    Applicative.Pure (Maybe a) fma
+    -> Functor.Fmap a fa (Maybe a) fma
+    -> Traversable.SequenceA (Maybe fa) fma
+sequenceA pPure pFmap mfa =
+    Traversable.sequenceA (traverse pPure pFmap) mfa
 
 
 traverse :

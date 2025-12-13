@@ -2,6 +2,8 @@
 module Compiler.Generate.JavaScript exposing
   ( generate
   , generateForRepl
+  --
+  , CodeKind(..)
   )
 
 
@@ -77,25 +79,46 @@ perfNote mode =
 -- GENERATE FOR REPL
 
 
-generateForRepl : Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> String
-generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
-  let
-    mode = Mode.Dev Mode.DevNormal
+{- NEW: CodeKind -}
+type CodeKind = ValueKind | HtmlKind
 
-    pipeAddGlobal moduleName defName state =
-      addGlobal mode graph state (Opt.toGlobalComparable <| Opt.Global moduleName defName)
+generateForRepl : Bool -> Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> (CodeKind, String)
+generateForRepl ansi htmlEnabled localizer (Opt.GlobalGraph graph _ as globalGraph) home name (Can.Forall _ tipe) =
+  if htmlEnabled && isStaticHtml tipe then
+    ( HtmlKind
+    , generateHtmlForRepl globalGraph home name
+    )
+  else
+    ( ValueKind
+    , let
+        mode = Mode.Dev Mode.DevNormal
 
-    evalState =
-      emptyState
-        |> pipeAddGlobal ModuleName.debug "toString"
-        {- NEW: force_quit_ -}
-        |> pipeAddGlobal home "force_quit_"
-        |> pipeAddGlobal home name
-  in
-  ""--"process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
-  ++ Functions.functions
-  ++ stateToBuilder evalState
-  ++ print ansi localizer home name tipe
+        pipeAddGlobal moduleName defName state =
+          addGlobal mode graph state (Opt.toGlobalComparable <| Opt.Global moduleName defName)
+
+        evalState =
+          emptyState
+            |> pipeAddGlobal ModuleName.debug "toString"
+            {- NEW: force_quit_ -}
+            |> pipeAddGlobal home "force_quit_"
+            |> pipeAddGlobal home name
+      in
+      ""--"process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
+      ++ Functions.functions
+      ++ stateToBuilder evalState
+      ++ print ansi localizer home name tipe
+    )
+
+
+{- NEW: isStaticHtml -}
+isStaticHtml : Can.Type -> Bool
+isStaticHtml tipe =
+  case tipe of
+    Can.TAlias _ _ _ (Can.Filled (Can.TType valModule valType _)) ->
+      valModule == ModuleName.virtualDom && valType == Name.node
+
+    _ ->
+      False
 
 
 print : Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Type -> String
@@ -115,6 +138,23 @@ print ansi localizer home name tipe =
   {- NEW: force_quit_ -}
   ++ "var force_quit_ = " ++ JsName.toBuilder (JsName.fromGlobal home "force_quit_") ++ "();\n"
   --++ "console.log(_result);\n"
+
+
+{- NEW: generateHtmlForRepl -}
+generateHtmlForRepl : Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> String
+generateHtmlForRepl (Opt.GlobalGraph graph _) home name =
+  let
+    mode = Mode.Dev Mode.DevNormal
+    mains = Map.singleton (ModuleName.toComparable home) Opt.Static
+    state = addGlobal mode graph emptyState (Opt.toGlobalComparable <| Opt.Global home name)
+    evalState = addStmt state (JS.Var (JsName.fromGlobal home Name.l_main) (JS.Ref (JsName.fromGlobal home name)))
+  in
+  "(function(scope){\n'use strict';"
+  ++ Functions.functions
+  ++ stateToBuilder evalState
+  ++ toMainExports mode mains
+  ++ "}(this));"
+
 
 
 
