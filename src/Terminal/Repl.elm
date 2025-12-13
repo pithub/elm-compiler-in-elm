@@ -45,6 +45,7 @@ import Compiler.Elm.Licenses as Licenses
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
+import Compiler.Generate.JavaScript as JS
 import Compiler.Parse.Declaration as PD
 import Compiler.Parse.Expression as PE
 import Compiler.Parse.Module as PM
@@ -118,6 +119,7 @@ type alias Interpreter h =
 
 type InterpreterInput
   = InterpretValue String
+  | InterpretHtml N.Name String
   | ShowError Exit.Repl
 
 
@@ -583,7 +585,7 @@ attemptEval (Env root interpreter ansi modulePrefix) oldState newState output =
         (Task.eio identity <|
           Build.fromRepl root details (toByteString modulePrefix newState output)) <| \artifacts ->
 
-      MMaybe.traverse Task.pure Task.fmap (Task.mapError Exit.ReplBadGenerate << Generate.repl root details ansi artifacts) (toPrintName output)) <| \result ->
+      MMaybe.traverse Task.pure Task.fmap (Task.mapError Exit.ReplBadGenerate << Generate.repl root details ansi True artifacts) (toPrintName output)) <| \result ->
 
   case result of
     Left exit ->
@@ -593,11 +595,22 @@ attemptEval (Env root interpreter ansi modulePrefix) oldState newState output =
     Right Nothing ->
       IO.return newState
 
-    Right (Just javascript) ->
-      IO.bind (interpret interpreter (InterpretValue javascript)) <| \interpreterResult ->
+    Right (Just (kind, javascript)) ->
+      IO.bind (interpret interpreter (inputForKind kind javascript)) <| \interpreterResult ->
       case interpreterResult of
         InterpreterSuccess -> IO.return newState
         InterpreterFailure -> IO.return oldState
+
+
+{- NEW: inputForKind -}
+inputForKind : JS.CodeKind -> String -> InterpreterInput
+inputForKind kind =
+  case kind of
+    JS.ValueKind ->
+      InterpretValue
+
+    JS.HtmlKind ->
+      InterpretHtml N.replModule
 
 
 
