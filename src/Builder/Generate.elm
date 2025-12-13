@@ -121,11 +121,11 @@ prod root details (Build.Artifacts pkg _ roots modules) =
   Task.return <| JS.generate mode graph mains
 
 
-repl : FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task z f g h String
-repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
+repl : FilePath -> Details.Details -> Bool -> Bool -> Build.ReplArtifacts -> N.Name -> Task z f g h (JS.CodeKind, String)
+repl root details ansi htmlEnabled (Build.ReplArtifacts home modules localizer annotations) name =
   Task.bind (Task.andThen finalizeObjects <| loadObjects root details modules) <| \objects ->
   let graph = objectsToGlobalGraph objects in
-  Task.return <| JS.generateForRepl ansi localizer graph home name (Map.ex annotations name)
+  Task.return <| JS.generateForRepl ansi htmlEnabled localizer graph home name (Map.ex annotations name)
 
 
 
