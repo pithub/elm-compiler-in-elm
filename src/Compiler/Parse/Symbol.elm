@@ -67,4 +67,4 @@ binopCharSet =
 
 isBinopChar : Char -> Bool
 isBinopChar char =
-    isBinopCharHelp (Char.toCode char)
+  isBinopCharHelp (Char.toCode char)

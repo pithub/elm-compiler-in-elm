@@ -152,13 +152,13 @@ toDecisionTree rawBranches =
           decisionTree
 
         (_, []) ->
-            Decision path decisionEdges Nothing
+          Decision path decisionEdges Nothing
 
         ([], _ :: _) ->
           toDecisionTree fallback
 
         _ ->
-            Decision path decisionEdges (Just (toDecisionTree fallback))
+          Decision path decisionEdges (Just (toDecisionTree fallback))
 
 
 isComplete : TList Test -> Bool

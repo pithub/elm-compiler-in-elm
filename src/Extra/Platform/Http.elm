@@ -1,4 +1,4 @@
-module Extra.System.Http exposing
+module Extra.Platform.Http exposing
     ( Exception
     , Header
     , Manager
@@ -7,7 +7,6 @@ module Extra.System.Http exposing
     , defaultManager
     , methodGet
     , methodPost
-    , newManager
     , parseUrlThrow
     , urlEncodeVars
     , userAgent
@@ -16,8 +15,8 @@ module Extra.System.Http exposing
     )
 
 import Bytes exposing (Bytes)
-import Extra.System.Config as Config
-import Extra.System.IO as IO exposing (IO)
+import Extra.Platform as Platform
+import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
@@ -25,11 +24,11 @@ import Http
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO b c d e f g h v =
-    IO.IO (Config.GlobalState b c d e f g h) v
+type alias IO b c d e v =
+    Platform.IO b c d e v
 
 
 
@@ -40,12 +39,12 @@ type Manager
     = Manager (Maybe String)
 
 
-defaultManager : IO b c d e f g h Manager
+defaultManager : IO b c d e Manager
 defaultManager =
-    IO.bind Config.httpPrefix newManager
+    IO.bind Platform.httpPrefix newManager
 
 
-newManager : Maybe String -> IO b c d e f g h Manager
+newManager : Maybe String -> IO b c d e Manager
 newManager maybePrefix =
     IO.return (Manager maybePrefix)
 
@@ -94,7 +93,7 @@ type alias Request =
     }
 
 
-parseUrlThrow : String -> IO b c d e f g h Request
+parseUrlThrow : String -> IO b c d e Request
 parseUrlThrow url =
     IO.return
         { method = methodGet
@@ -116,17 +115,17 @@ type alias Exception =
 -- IO
 
 
-withStringResponse : Request -> Manager -> (Either Exception String -> IO b c d e f g h v) -> IO b c d e f g h v
+withStringResponse : Request -> Manager -> (Either Exception String -> IO b c d e v) -> IO b c d e v
 withStringResponse request manager handler =
     withExpect stringExpect request manager handler
 
 
-withBytesResponse : Request -> Manager -> (Either Exception Bytes -> IO b c d e f g h v) -> IO b c d e f g h v
+withBytesResponse : Request -> Manager -> (Either Exception Bytes -> IO b c d e v) -> IO b c d e v
 withBytesResponse request manager handler =
     withExpect bytesExpect request manager handler
 
 
-withExpect : ((Either Exception v -> IO b c d e f g h w) -> Http.Expect (IO b c d e f g h w)) -> Request -> Manager -> (Either Exception v -> IO b c d e f g h w) -> IO b c d e f g h w
+withExpect : ((Either Exception v -> IO b c d e w) -> Http.Expect (IO b c d e w)) -> Request -> Manager -> (Either Exception v -> IO b c d e w) -> IO b c d e w
 withExpect expectFun request manager handler =
     case managedUrl manager request.url of
         Just url ->
@@ -145,17 +144,17 @@ withExpect expectFun request manager handler =
             handler (Left Http.NetworkError)
 
 
-stringExpect : (Either Exception String -> IO b c d e f g h v) -> Http.Expect (IO b c d e f g h v)
+stringExpect : (Either Exception String -> IO b c d e v) -> Http.Expect (IO b c d e v)
 stringExpect handler =
     Http.expectString (mapHandler handler)
 
 
-bytesExpect : (Either Exception Bytes -> IO b c d e f g h v) -> Http.Expect (IO b c d e f g h v)
+bytesExpect : (Either Exception Bytes -> IO b c d e v) -> Http.Expect (IO b c d e v)
 bytesExpect handler =
     Http.expectBytesResponse (mapHandler handler) toResult
 
 
-mapHandler : (Either Exception v -> IO b c d e f g h w) -> Result Http.Error v -> IO b c d e f g h w
+mapHandler : (Either Exception v -> IO b c d e w) -> Result Http.Error v -> IO b c d e w
 mapHandler handler result =
     handler <|
         case result of

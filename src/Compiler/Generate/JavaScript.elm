@@ -95,7 +95,7 @@ print ansi localizer home name tipe =
   "var _value = " ++ toString ++ "(" ++ bool ++ ", " ++ value ++ ");\n"
   ++ "var _type = " ++ JE.encodeUgly (JE.chars (D.toString tipeDoc)) ++ ";\n"
   ++ "function _print(t) { return _value + (" ++ bool ++ " ? '\u{001b}[90m' + t + '\u{001b}[0m' : t); }\n"
-  ++ "var _result = (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0)\n"
+  ++ "(_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0)\n"
   ++ "  ? _print('\\n    : ' + _type.split('\\n').join('\\n      '))\n"
   ++ "  : _print(' : ' + _type);\n"
 

@@ -5,11 +5,12 @@ module Extra.System.IO exposing
     , andThen
     , bind
     , bindSequence
+    , catch
+    , error
     , fmap
     , get
     , getLens
     , init
-    , join
     , liftA2
     , liftCmd
     , liftCmdIO
@@ -55,6 +56,7 @@ type ION s a
     = Pure a
     | ImpureCmd (Cmd (IO s a))
     | ImpureCont (Cont s (IO s a))
+    | Error String
 
 
 
@@ -107,6 +109,9 @@ update msg model =
 
         ( ImpureCont cont, newModel ) ->
             update (cont identity) newModel
+
+        ( Error _, newModel ) ->
+            ( newModel, Cmd.none )
 
 
 
@@ -193,15 +198,34 @@ bind ma f s0 =
         ( ImpureCont cont, s1 ) ->
             ( ImpureCont (contFmap (\ima -> bind ima f) cont), s1 )
 
+        ( Error err, s1 ) ->
+            ( Error err, s1 )
+
+
+catch : (String -> IO s a) -> IO s a -> IO s a
+catch fromErr ma s0 =
+    case ma s0 of
+        ( Pure a, s1 ) ->
+            ( Pure a, s1 )
+
+        ( ImpureCmd cmd, s1 ) ->
+            ( ImpureCmd (Cmd.map (catch fromErr) cmd), s1 )
+
+        ( ImpureCont cont, s1 ) ->
+            ( ImpureCont (contFmap (catch fromErr) cont), s1 )
+
+        ( Error err, s1 ) ->
+            fromErr err s1
+
+
+error : String -> IO s a
+error err s =
+    ( Error err, s )
+
 
 fmap : Functor.Fmap a (IO s a) b (IO s b)
 fmap f ma =
     bind ma (\a -> return (f a))
-
-
-join : IO s (IO s a) -> IO s a
-join mma =
-    bind mma identity
 
 
 liftA2 : Applicative.LiftA2 a (IO s a) b (IO s b) c (IO s c)

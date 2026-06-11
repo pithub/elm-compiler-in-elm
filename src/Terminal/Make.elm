@@ -1,8 +1,12 @@
 {- MANUALLY FORMATTED -}
 module Terminal.Make exposing
   ( Flags(..)
-  , Output(..)
-  , run, IO
+  , Output
+  , ReportType
+  , run
+  , reportType
+  , output
+  , docsFile
   )
 
 
@@ -10,6 +14,7 @@ import Builder.Build as Build
 import Builder.Elm.Details as Details
 import Builder.File as File
 import Builder.Generate as Generate
+import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
 import Builder.Stuff as Stuff
@@ -17,20 +22,25 @@ import Compiler.AST.Optimized as Opt
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Generate.Html as Html
-import Extra.System.Dir as Dir exposing (FilePath)
+import Extra.Platform as Platform
 import Extra.System.IO as IO
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Maybe as MMaybe
-import Terminal.Command as Command
+import Terminal.Impl.Terminal as Terminal
 
 
 
--- PRIVATE IO
+-- STATE AND IO
 
 
-type alias IO g h v =
-  IO.IO (Command.GlobalState g h) v
+type alias GlobalState e =
+  Generate.GlobalState e
+
+
+type alias IO e v =
+  Generate.IO e v
 
 
 
@@ -42,41 +52,55 @@ type Flags =
     {- debug -} Bool
     {- optimize -} Bool
     {- output -} (Maybe Output)
+    {- report -} (Maybe ReportType)
+    {- docs -} (Maybe FilePath)
 
 
 type Output
   = JS FilePath
   | Html FilePath
+  | DevNull
+
+
+type ReportType
+  = Json
 
 
 
 -- RUN
 
 
-type alias Task z g h v =
-  Task.Task z (Command.GlobalState g h) Exit.Make v
+type alias Task z e v =
+  Task.Task z (GlobalState e) Exit.Make v
 
 
-run : TList FilePath -> Flags -> IO g h (Either Exit.Make ())
-run paths flags =
+run : TList FilePath -> Flags -> IO e ()
+run paths (Flags _ _ _ report _ as flags) =
+  IO.bind (getStyle report) <| \style ->
+  Reporting.attemptWithStyle style Exit.makeToReport <|
+    runEither paths style flags
+
+
+runEither : TList FilePath -> Reporting.Style -> Flags -> IO e (Either Exit.Make ())
+runEither paths style flags =
   IO.bind Stuff.findRoot <| \maybeRoot ->
   case maybeRoot of
-    Just root -> runHelp root paths flags
+    Just root -> runHelp root paths style flags
     Nothing   -> IO.return <| Left <| Exit.MakeNoOutline
 
 
-runHelp : FilePath -> TList FilePath -> Flags -> IO g h (Either Exit.Make ())
-runHelp root paths (Flags debug optimize maybeOutput) =
+runHelp : FilePath -> TList FilePath -> Reporting.Style -> Flags -> IO e (Either Exit.Make ())
+runHelp root paths style (Flags debug optimize maybeOutput _ _) =
   Task.run <|
   Task.bind (getMode debug optimize) <| \desiredMode ->
-  Task.bind (Task.eio Exit.MakeBadDetails (Details.load root)) <| \details ->
+  Task.bind (Task.eio Exit.MakeBadDetails (Details.load style root)) <| \details ->
   case paths of
     [] ->
       Task.bind (getExposed details) <| \exposed ->
-      buildExposed root details exposed
+      buildExposed style root details exposed
 
     p::ps ->
-      Task.bind (buildPaths root details (NE.CList p ps)) <| \artifacts ->
+      Task.bind (buildPaths style root details (NE.CList p ps)) <| \artifacts ->
       case maybeOutput of
         Nothing ->
           case getMains artifacts of
@@ -85,17 +109,20 @@ runHelp root paths (Flags debug optimize maybeOutput) =
 
             [name] ->
               Task.bind (toBuilder root details desiredMode artifacts) <| \builder ->
-              generate (Dir.fromString "index.html") (Html.sandwich name builder)
+              generate style (Path.fromString "index.html") (Html.sandwich name builder) (NE.CList name [])
 
-            _::_ ->
+            name::names ->
               Task.bind (toBuilder root details desiredMode artifacts) <| \builder ->
-              generate (Dir.fromString "elm.js") builder
+              generate style (Path.fromString "elm.js") builder (NE.CList name names)
+
+        Just DevNull ->
+          Task.return ()
 
         Just (JS target) ->
           case getNoMains artifacts of
             [] ->
               Task.bind (toBuilder root details desiredMode artifacts) <| \builder ->
-              generate target builder
+              generate style target builder (Build.getRootNames artifacts)
 
             name::names ->
               Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
@@ -103,7 +130,8 @@ runHelp root paths (Flags debug optimize maybeOutput) =
         Just (Html target) ->
           Task.bind (hasOneMain artifacts) <| \name ->
           Task.bind (toBuilder root details desiredMode artifacts) <| \builder ->
-          generate target (Html.sandwich name builder)
+          generate style target (Html.sandwich name builder) (NE.CList name [])
+
 
 
 
@@ -111,7 +139,14 @@ runHelp root paths (Flags debug optimize maybeOutput) =
 -- GET INFORMATION
 
 
-getMode : Bool -> Bool -> Task z g h DesiredMode
+getStyle : Maybe ReportType -> IO e Reporting.Style
+getStyle report =
+  case report of
+    Nothing -> Reporting.terminal
+    Just Json -> IO.return Reporting.json
+
+
+getMode : Bool -> Bool -> Task z e DesiredMode
 getMode debug optimize =
   case (debug, optimize) of
     (True , True ) -> Task.throw Exit.MakeCannotOptimizeAndDebug
@@ -120,7 +155,7 @@ getMode debug optimize =
     (False, True ) -> Task.return Prod
 
 
-getExposed : Details.Details -> Task z g h (NE.TList ModuleName.Raw)
+getExposed : Details.Details -> Task z e (NE.TList ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
     Details.ValidApp _ ->
@@ -136,19 +171,19 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 -- BUILD PROJECTS
 
 
-buildExposed : FilePath -> Details.Details -> NE.TList ModuleName.Raw -> Task z g h ()
-buildExposed root details exposed =
+buildExposed : Reporting.Style -> FilePath -> Details.Details -> NE.TList ModuleName.Raw -> Task z e ()
+buildExposed style root details exposed =
   let
     docsGoal = Build.ignoreDocs
   in
   Task.eio Exit.MakeCannotBuild <|
-    Build.fromExposed root details docsGoal exposed
+    Build.fromExposed style root details docsGoal exposed
 
 
-buildPaths : FilePath -> Details.Details -> NE.TList FilePath -> Task z g h Build.Artifacts
-buildPaths root details paths =
+buildPaths : Reporting.Style -> FilePath -> Details.Details -> NE.TList FilePath -> Task z e Build.Artifacts
+buildPaths style root details paths =
   Task.eio Exit.MakeCannotBuild <|
-    Build.fromPaths root details paths
+    Build.fromPaths style root details paths
 
 
 
@@ -186,7 +221,7 @@ isMain targetName modul =
 -- HAS ONE MAIN
 
 
-hasOneMain : Build.Artifacts -> Task z g h ModuleName.Raw
+hasOneMain : Build.Artifacts -> Task z e ModuleName.Raw
 hasOneMain (Build.Artifacts _ _ roots modules) =
   case roots of
     NE.CList root [] -> Task.mio Exit.MakeNoMain (IO.return <| getMain modules root)
@@ -220,11 +255,12 @@ getNoMain modules root =
 -- GENERATE
 
 
-generate : FilePath -> String -> Task z g h ()
-generate target builder =
+generate : Reporting.Style -> FilePath -> String -> NE.TList ModuleName.Raw -> Task z e ()
+generate style target builder names =
   Task.io <|
-    IO.bind (Dir.createDirectoryIfMissing True (Dir.dropLastName target)) <| \_ ->
-    File.writeUtf8 target builder
+    IO.bind (Platform.createDirectoryIfMissing (Path.dropLastName target)) <| \_ ->
+    IO.bind (File.writeUtf8 target builder) <| \_ ->
+    Reporting.reportGenerate style names target
 
 
 
@@ -234,10 +270,62 @@ generate target builder =
 type DesiredMode = Debug | Dev | Prod
 
 
-toBuilder : FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task z g h String
+toBuilder : FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task z e String
 toBuilder root details desiredMode artifacts =
   Task.mapError Exit.MakeBadGenerate <|
     case desiredMode of
       Debug -> Generate.debug root details artifacts
       Dev   -> Generate.dev   root details artifacts
       Prod  -> Generate.prod  root details artifacts
+
+
+
+-- PARSERS
+
+
+reportType : Terminal.Parser (GlobalState e) ReportType
+reportType =
+  Terminal.parser
+    {- singular -} "report type"
+    {- plural -} "report types"
+    {- parser -} (\string -> if string == "json" then Just Json else Nothing)
+    {- suggest -} (\_ -> IO.return ["json"])
+    {- examples -} (\_ -> IO.return ["json"])
+
+
+output : Terminal.Parser (GlobalState e) Output
+output =
+  Terminal.parser
+    {- singular -} "output file"
+    {- plural -} "output files"
+    {- parser -} parseOutput
+    {- suggest -} (\_ -> IO.return [])
+    {- examples -} (\_ -> IO.return [ "elm.js", "index.html", "/dev/null" ])
+
+
+parseOutput : String -> Maybe Output
+parseOutput name =
+  if      isDevNull name      then Just DevNull
+  else if hasExt ".html" name then Just (Html (Path.fromString name))
+  else if hasExt ".js"   name then Just (JS (Path.fromString name))
+  else                             Nothing
+
+
+docsFile : Terminal.Parser (GlobalState e) FilePath
+docsFile =
+  Terminal.parser
+    {- singular -} "json file"
+    {- plural -} "json files"
+    {- parser -} (\name -> if hasExt ".json" name then Just (Path.fromString name) else Nothing)
+    {- suggest -} (\_ -> IO.return [])
+    {- examples -} (\_ -> IO.return ["docs.json","documentation.json"])
+
+
+hasExt : String -> String -> Bool
+hasExt ext path =
+  String.endsWith ext path && String.length path > String.length ext
+
+
+isDevNull : String -> Bool
+isDevNull name =
+  name == "/dev/null" || name == "NUL" || name == "$null"

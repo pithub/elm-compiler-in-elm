@@ -109,9 +109,19 @@ stronglyConnCompR edges0 =
                         AcyclicSCC (getNode vertex)
 
                 _ ->
-                    CyclicSCC (MList.map getNode component)
+                    CyclicSCC (revMap getNode component [])
     in
-    MList.map toSCC components
+    revMap toSCC components []
+
+
+revMap : (a -> b) -> TList a -> TList b -> TList b
+revMap fn list result =
+    case list of
+        [] ->
+            result
+
+        x :: xs ->
+            revMap fn xs (fn x :: result)
 
 
 
@@ -126,50 +136,35 @@ type alias Graph =
     Map Vertex (TList Vertex)
 
 
-type VisitTask
-    = CheckVisited Vertex
-    | Output Vertex
-
-
 sccs : Graph -> TList (TList Vertex)
 sccs graph =
-    assign (reverse graph) (visit graph)
+    assign graph (visit (reverse graph))
 
 
 visit : Graph -> TList Vertex
 visit graph =
     let
-        check : TList Vertex -> TList VisitTask
-        check vertices =
-            MList.map CheckVisited vertices
+        go : ( Set Vertex, TList Vertex ) -> Vertex -> ( Set Vertex, TList Vertex )
+        go ( visited, output ) vertex =
+            if Set.member vertex visited then
+                ( visited, output )
 
-        go : TList VisitTask -> Set Vertex -> TList Vertex -> ( Set Vertex, TList Vertex )
-        go tasks visited output =
-            case tasks of
-                [] ->
-                    ( visited, output )
+            else
+                let
+                    nextVisited =
+                        Set.insert vertex visited
 
-                (CheckVisited vertex) :: rest ->
-                    if Set.member vertex visited then
-                        go rest visited output
+                    ( finalVisited, finalOutput ) =
+                        case Map.lookup vertex graph of
+                            Nothing ->
+                                ( nextVisited, output )
 
-                    else
-                        let
-                            neighbors =
-                                Map.lookup vertex graph |> Maybe.withDefault []
-
-                            newTasks =
-                                check neighbors ++ (Output vertex :: rest)
-
-                            newVisited =
-                                Set.insert vertex visited
-                        in
-                        go newTasks newVisited output
-
-                (Output vertex) :: rest ->
-                    go rest visited (vertex :: output)
+                            Just neighbours ->
+                                MList.foldl go ( nextVisited, output ) neighbours
+                in
+                ( finalVisited, vertex :: finalOutput )
     in
-    go (check (Map.keys graph)) Set.empty [] |> Tuple.second
+    MList.foldl go ( Set.empty, [] ) (Map.keys graph) |> Tuple.second
 
 
 reverse : Graph -> Graph
@@ -185,58 +180,43 @@ reverse originalGraph =
 
         addAllReversedEdges : Graph -> Graph
         addAllReversedEdges graph =
-            Map.foldlWithKey addReversedEdges Map.empty graph
+            Map.foldlWithKey addReversedEdges (Map.map (\_ -> []) graph) graph
     in
     addAllReversedEdges originalGraph
-
-
-type AssignTask
-    = CheckAssigned Vertex
-    | FinishComponent
 
 
 assign : Graph -> TList Vertex -> TList (TList Vertex)
 assign graph orderedVertices =
     let
-        check : TList Vertex -> TList AssignTask
-        check vertices =
-            MList.map CheckAssigned vertices
+        finishScc : ( Set Vertex, TList Vertex, TList (TList Vertex) ) -> ( Set Vertex, TList Vertex, TList (TList Vertex) )
+        finishScc ( assigned, scc, output ) =
+            ( assigned, [], scc :: output )
 
-        go : TList AssignTask -> Set Vertex -> TList Vertex -> TList (TList Vertex) -> ( Set Vertex, TList Vertex, TList (TList Vertex) )
-        go tasks assigned scc output =
-            case tasks of
-                [] ->
-                    ( assigned, scc, output )
+        go :
+            (( Set Vertex, TList Vertex, TList (TList Vertex) ) -> ( Set Vertex, TList Vertex, TList (TList Vertex) ))
+            -> ( Set Vertex, TList Vertex, TList (TList Vertex) )
+            -> Vertex
+            -> ( Set Vertex, TList Vertex, TList (TList Vertex) )
+        go finishFun ( assigned, scc, output ) vertex =
+            if Set.member vertex assigned then
+                ( assigned, scc, output )
 
-                (CheckAssigned vertex) :: rest ->
-                    if Set.member vertex assigned then
-                        go rest assigned scc output
+            else
+                let
+                    nextAssigned =
+                        Set.insert vertex assigned
 
-                    else
-                        let
-                            neighborTasks =
-                                Map.lookup vertex graph |> Maybe.withDefault [] |> check
+                    nextScc =
+                        vertex :: scc
 
-                            finishTasks =
-                                case scc of
-                                    [] ->
-                                        [ FinishComponent ]
+                    ( finalAssigned, finalScc, finalOutput ) =
+                        case Map.lookup vertex graph of
+                            Nothing ->
+                                ( nextAssigned, nextScc, output )
 
-                                    _ ->
-                                        []
-
-                            newTasks =
-                                neighborTasks ++ finishTasks ++ rest
-
-                            newAssigned =
-                                Set.insert vertex assigned
-
-                            newScc =
-                                vertex :: scc
-                        in
-                        go newTasks newAssigned newScc output
-
-                FinishComponent :: rest ->
-                    go rest assigned [] (scc :: output)
+                            Just neighbours ->
+                                MList.foldl (go identity) ( nextAssigned, nextScc, output ) neighbours
+                in
+                finishFun ( finalAssigned, finalScc, finalOutput )
     in
-    go (check orderedVertices) Set.empty [] [] |> (\( _, _, output ) -> output)
+    MList.foldl (go finishScc) ( Set.empty, [], [] ) orderedVertices |> (\( _, _, output ) -> output)

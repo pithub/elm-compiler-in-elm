@@ -1,10 +1,11 @@
+{- MANUALLY FORMATTED -}
 module Compiler.AST.Utils.Binop exposing
-    ( Associativity(..)
-    , Precedence(..)
-    , bAssociativity
-    , bPrecedence
-    , toInt
-    )
+  ( Precedence(..), bPrecedence
+  , Associativity(..), bAssociativity
+  --
+  , toInt
+  )
+
 
 import Extra.Data.Binary as B
 
@@ -13,14 +14,13 @@ import Extra.Data.Binary as B
 -- BINOP STUFF
 
 
-type Precedence
-    = Precedence Int
+type Precedence = Precedence Int
 
 
 type Associativity
-    = Left
-    | Non
-    | Right
+  = Left
+  | Non
+  | Right
 
 
 
@@ -29,7 +29,7 @@ type Associativity
 
 toInt : Precedence -> Int
 toInt (Precedence n) =
-    n
+  n
 
 
 
@@ -38,10 +38,11 @@ toInt (Precedence n) =
 
 bPrecedence : B.Binary Precedence
 bPrecedence =
-    B.bin1 Precedence (\(Precedence n) -> n) B.bWord64
+  B.bin1 Precedence (\(Precedence n) -> n)
+    B.bWord64
 
 
 bAssociativity : B.Binary Associativity
 bAssociativity =
-    B.enum "Error reading valid associativity from serialized string"
-        [ Left, Non, Right ]
+  B.enum "Error reading valid associativity from serialized string"
+    [ Left, Non, Right ]

@@ -75,7 +75,7 @@ chompModule projectType =
   P.bind chompHeader <| \header ->
   P.bind (chompImports (if isCore projectType then [] else Imports.defaults)) <| \imports ->
   P.bind (if isKernel projectType then chompInfixes [] else P.return []) <| \infixes ->
-  P.bind (P.specialize (\decl _ _ -> E.Declarations decl) <| chompDecls) <| \decls ->
+  P.bind (P.specialize E.Declarations <| chompDecls) <| \decls ->
   P.return (Module header imports infixes decls)
 
 

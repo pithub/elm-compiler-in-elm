@@ -183,13 +183,13 @@ getEdges edges (A.At _ tipe) =
 checkUnionFreeVars : A.Located Src.Union -> TResult i w Int
 checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
   let
-    addArg (A.At region arg) dict =
+    addArg dict (A.At region arg) =
       Dups.insert arg region region dict
 
     addCtorFreeVars (_, tipes) freeVars =
       MList.foldl addFreeVars freeVars tipes
   in
-  MResult.bind (Dups.detect (Error.DuplicateUnionArg name) (MList.foldr addArg Dups.none args)) <| \boundVars ->
+  MResult.bind (Dups.detect (Error.DuplicateUnionArg name) (MList.foldl addArg Dups.none args)) <| \boundVars ->
   let freeVars = MList.foldr addCtorFreeVars Map.empty ctors in
   case Map.toList (Map.difference freeVars boundVars) of
     [] ->
@@ -203,10 +203,10 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
 checkAliasFreeVars : A.Located Src.Alias -> TResult i w (TList Name.Name)
 checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
   let
-    addArg (A.At region arg) dict =
+    addArg dict (A.At region arg) =
       Dups.insert arg region region dict
   in
-  MResult.bind (Dups.detect (Error.DuplicateAliasArg name) (MList.foldr addArg Dups.none args)) <| \boundVars ->
+  MResult.bind (Dups.detect (Error.DuplicateAliasArg name) (MList.foldl addArg Dups.none args)) <| \boundVars ->
   let freeVars = addFreeVars Map.empty tipe in
   let overlap = Map.size (Map.intersection boundVars freeVars) in
   if Map.size boundVars == overlap && Map.size freeVars == overlap
@@ -331,11 +331,11 @@ canonicalizeUnion ((Env.Env home _ _ _ _ _ _ _) as env) (A.At _ (Src.Union (A.At
 
 canonicalizeCtor : Env.Env -> Index.ZeroBased -> ( A.Located Name.Name, TList Src.Type ) -> TResult i w (A.Located Can.Ctor)
 canonicalizeCtor env index ( A.At region ctor, tipes ) =
-    MResult.bind (MResult.traverseList (Type.canonicalize env) tipes) <|
-        \ctipes ->
-            MResult.ok <|
-                A.At region <|
-                    Can.Ctor ctor index (MList.length ctipes) ctipes
+  MResult.bind (MResult.traverseList (Type.canonicalize env) tipes) <|
+    \ctipes ->
+      MResult.ok <|
+        A.At region <|
+          Can.Ctor ctor index (MList.length ctipes) ctipes
 
 
 toOpts : TList (A.Located Name.Name, TList Src.Type) -> Can.CtorOpts

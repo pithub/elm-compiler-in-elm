@@ -82,51 +82,51 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
   MResult.bind (Type.toAnnotation env tipe) <| \(Can.Forall freeVars ctipe) ->
   case MList.reverse (UType.delambda (UType.deepDealias ctipe)) of
     Can.TType home name [msg] :: revArgs ->
-       if home == ModuleName.cmd && name == Name.cmd then
-            case revArgs of
-              [] ->
-                MResult.throw (Error.PortTypeInvalid region portName Error.CmdNoArg)
+      if home == ModuleName.cmd && name == Name.cmd then
+        case revArgs of
+          [] ->
+            MResult.throw (Error.PortTypeInvalid region portName Error.CmdNoArg)
 
-              [outgoingType] ->
-                case msg of
-                  Can.TVar _ ->
-                    case checkPayload outgoingType of
-                      Right () ->
-                        MResult.ok (portName, Can.Outgoing freeVars outgoingType ctipe)
+          [outgoingType] ->
+            case msg of
+              Can.TVar _ ->
+                case checkPayload outgoingType of
+                  Right () ->
+                    MResult.ok (portName, Can.Outgoing freeVars outgoingType ctipe)
 
-                      Left (_, err) ->
-                        MResult.throw (Error.PortPayloadInvalid region portName err)
-
-                  _ ->
-                    MResult.throw (Error.PortTypeInvalid region portName Error.CmdBadMsg)
+                  Left (_, err) ->
+                    MResult.throw (Error.PortPayloadInvalid region portName err)
 
               _ ->
-                MResult.throw (Error.PortTypeInvalid region portName (Error.CmdExtraArgs (MList.length revArgs)))
+                MResult.throw (Error.PortTypeInvalid region portName Error.CmdBadMsg)
 
-        else if home == ModuleName.sub && name == Name.sub then
-            case revArgs of
-              [Can.TLambda incomingType (Can.TVar msg1)] ->
-                case msg of
-                  Can.TVar msg2 ->
-                    if msg1 == msg2 then
-                        case checkPayload incomingType of
-                          Right () ->
-                            MResult.ok (portName, Can.Incoming freeVars incomingType ctipe)
+          _ ->
+            MResult.throw (Error.PortTypeInvalid region portName (Error.CmdExtraArgs (MList.length revArgs)))
 
-                          Left (_, err) ->
-                            MResult.throw (Error.PortPayloadInvalid region portName err)
+      else if home == ModuleName.sub && name == Name.sub then
+        case revArgs of
+          [Can.TLambda incomingType (Can.TVar msg1)] ->
+            case msg of
+              Can.TVar msg2 ->
+                if msg1 == msg2 then
+                  case checkPayload incomingType of
+                    Right () ->
+                      MResult.ok (portName, Can.Incoming freeVars incomingType ctipe)
 
-                    else
-                      MResult.throw (Error.PortTypeInvalid region portName Error.SubBad)
+                    Left (_, err) ->
+                      MResult.throw (Error.PortPayloadInvalid region portName err)
 
-                  _ ->
-                    MResult.throw (Error.PortTypeInvalid region portName Error.SubBad)
+                else
+                  MResult.throw (Error.PortTypeInvalid region portName Error.SubBad)
 
               _ ->
                 MResult.throw (Error.PortTypeInvalid region portName Error.SubBad)
 
-        else
-          MResult.throw (Error.PortTypeInvalid region portName Error.NotCmdOrSub)
+          _ ->
+            MResult.throw (Error.PortTypeInvalid region portName Error.SubBad)
+
+      else
+        MResult.throw (Error.PortTypeInvalid region portName Error.NotCmdOrSub)
 
     _ ->
       MResult.throw (Error.PortTypeInvalid region portName Error.NotCmdOrSub)
@@ -187,29 +187,29 @@ checkPayload tipe =
           Left (tipe, Error.UnsupportedType name)
 
     Can.TUnit ->
-        Right ()
+      Right ()
 
     Can.TTuple a b maybeC ->
-        Either.bind (checkPayload a) <| \() ->
-        Either.bind (checkPayload b) <| \() ->
-        case maybeC of
-          Nothing ->
-            Right ()
+      Either.bind (checkPayload a) <| \() ->
+      Either.bind (checkPayload b) <| \() ->
+      case maybeC of
+        Nothing ->
+          Right ()
 
-          Just c ->
-            checkPayload c
+        Just c ->
+          checkPayload c
 
     Can.TVar name ->
-        Left (tipe, Error.TypeVariable name)
+      Left (tipe, Error.TypeVariable name)
 
     Can.TLambda _ _ ->
-        Left (tipe, Error.Function)
+      Left (tipe, Error.Function)
 
     Can.TRecord _ (Just _) ->
-        Left (tipe, Error.ExtendedRecord)
+      Left (tipe, Error.ExtendedRecord)
 
     Can.TRecord fields Nothing ->
-        Map.traverse_ Either.pure Either.liftA2 checkFieldPayload fields
+      Map.traverse_ Either.pure Either.liftA2 checkFieldPayload fields
 
 
 checkFieldPayload : Can.FieldType -> Either (Can.Type, Error.InvalidPayload) ()

@@ -74,16 +74,16 @@ type Expr
 type Global = Global ModuleName.Canonical Name
 
 
-type alias GlobalComparable = ( ModuleName.Comparable, Name )
+type alias GlobalComparable = ( Name, ModuleName.Comparable )
 
 
 toGlobalComparable : Global -> GlobalComparable
 toGlobalComparable (Global moduleName name) =
-  ( ModuleName.toComparable moduleName, name )
+  ( name, ModuleName.toComparable moduleName )
 
 
 fromGlobalComparable : GlobalComparable -> Global
-fromGlobalComparable (moduleName, name) =
+fromGlobalComparable (name, moduleName) =
   Global (ModuleName.fromComparable moduleName) name
 
 
@@ -232,7 +232,7 @@ bGlobal =
 
 bGlobalComparable : B.Binary GlobalComparable
 bGlobalComparable =
-  B.bTuple ModuleName.bComparable Name.bName
+  B.iso toGlobalComparable fromGlobalComparable bGlobal
 
 
 bExpr : B.Binary Expr

@@ -1,7 +1,8 @@
+{- MANUALLY FORMATTED -}
 module Compiler.Reporting.Warning exposing
-    ( Context(..)
-    , Warning(..)
-    )
+  ( Warning(..)
+  , Context(..)
+  )
 
 
 
@@ -9,10 +10,8 @@ module Compiler.Reporting.Warning exposing
 
 
 type Warning
-    = UnusedVariable
-    | MissingTypeAnnotation
+  = UnusedVariable
+  | MissingTypeAnnotation
 
 
-type Context
-    = Def
-    | Pattern
+type Context = Def | Pattern

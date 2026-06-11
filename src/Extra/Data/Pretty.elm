@@ -9,6 +9,7 @@ module Extra.Data.Pretty exposing
     , cyan
     , cyanS
     , dullcyan
+    , dullcyanS
     , dullred
     , dullyellow
     , dullyellowS
@@ -20,6 +21,7 @@ module Extra.Data.Pretty exposing
     , hcat
     , hsep
     , indent
+    , plain
     , pretty
     , red
     , redS
@@ -29,6 +31,7 @@ module Extra.Data.Pretty exposing
     , underline
     , vcat
     , yellow
+    , yellowS
     )
 
 -- Substitute for Text.PrettyPrint.ANSI.Leijen
@@ -93,6 +96,11 @@ cyanS str =
 dullcyan : Doc t -> Doc t
 dullcyan =
     P.setTag .dullcyan
+
+
+dullcyanS : String -> Doc t
+dullcyanS str =
+    P.taggedString str .dullcyan
 
 
 dullred : Doc t -> Doc t
@@ -162,6 +170,11 @@ indent n doc =
     P.indent n doc
 
 
+plain : Doc t -> Doc t
+plain doc =
+    P.updateTag (\_ _ -> Nothing) doc
+
+
 red : Doc t -> Doc t
 red =
     P.setTag .red
@@ -208,6 +221,11 @@ vsep =
 yellow : Doc t -> Doc t
 yellow =
     P.setTag .yellow
+
+
+yellowS : String -> Doc t
+yellowS str =
+    P.taggedString str .yellow
 
 
 

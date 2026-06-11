@@ -1,6 +1,7 @@
 {- MANUALLY FORMATTED -}
 module Terminal.Install exposing
-  ( install
+  ( Args(..)
+  , run
   )
 
 
@@ -8,33 +9,63 @@ import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
 import Builder.Deps.Registry as Registry
 import Builder.Deps.Solver as Solver
+import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
+import Builder.Stuff as Stuff
 import Compiler.Elm.Constraint as C
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D exposing (d)
-import Extra.System.Dir exposing (FilePath)
+import Extra.Platform as Platform
 import Extra.System.IO as IO
+import Extra.System.Path exposing (FilePath)
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
-import Terminal.Command as Command
 
 
 
--- PRIVATE IO
+-- STATE AND IO
 
 
-type alias IO g h v =
-  IO.IO (Command.GlobalState g h) v
+type alias GlobalState c d e =
+  Details.GlobalState c d e
+
+
+type alias IO c d e v =
+  Details.IO c d e v
 
 
 
 -- INSTALL
 
-install : FilePath -> Pkg.Name -> IO g h (Either Exit.Install ())
-install root pkg =
+
+type Args
+  = NoArgs
+  | Install Pkg.Name
+
+
+run : Args -> () -> IO c d e ()
+run args () =
+  Reporting.attempt Exit.installToReport <|
+    IO.bind Stuff.findRoot <| \maybeRoot ->
+    case maybeRoot of
+      Nothing ->
+        IO.return (Left Exit.InstallNoOutline)
+
+      Just root ->
+        case args of
+          NoArgs ->
+            IO.bind Stuff.getElmHome <| \elmHome ->
+            IO.return (Left (Exit.InstallNoArgs elmHome))
+
+          Install pkg ->
+            runEither root pkg
+
+
+runEither : FilePath -> Pkg.Name -> IO c d e (Either Exit.Install ())
+runEither root pkg =
   Task.run <|
     Task.bind (Task.eio Exit.InstallBadRegistry Solver.initEnv) <| \env ->
     Task.bind (Task.eio Exit.InstallBadOutline <| Outline.read root) <| \oldOutline ->
@@ -59,15 +90,15 @@ type Changes vsn
   | Changes (Map.Map Pkg.Comparable (Change vsn)) Outline.Outline
 
 
-type alias Task z g h v =
-  Task.Task z (Command.GlobalState g h) Exit.Install v
+type alias Task z c d e v =
+  Task.Task z (GlobalState c d e) Exit.Install v
 
 
-attemptChanges : FilePath -> Solver.Env -> Outline.Outline -> (v -> String) -> Changes v -> Task z g h ()
+attemptChanges : FilePath -> Solver.Env -> Outline.Outline -> (v -> String) -> Changes v -> Task z c d e ()
 attemptChanges root env oldOutline toChars changes =
   case changes of
     AlreadyInstalled ->
-      Task.io <| Command.putLine "It is already installed!"
+      Task.io <| Platform.consoleWrite "It is already installed!\n"
 
     PromoteIndirect newOutline ->
       attemptChangesHelp root env oldOutline newOutline <|
@@ -108,10 +139,10 @@ attemptChanges root env oldOutline toChars changes =
         ]
 
 
-attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task z g h ()
+attemptChangesHelp : FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task z c d e ()
 attemptChangesHelp root env oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails <|
-    IO.bind (Command.ask question) <| \approved ->
+    IO.bind (Reporting.ask question) <| \approved ->
     if approved
     then
       IO.bind (Outline.write root newOutline) <| \_ ->
@@ -122,10 +153,10 @@ attemptChangesHelp root env oldOutline newOutline question =
         IO.return (Left exit)
 
       Right () ->
-        IO.bind (Command.putLine "Success!") <| \_ ->
+        IO.bind (Platform.consoleWrite "Success!\n") <| \_ ->
         IO.return (Right ())
     else
-      IO.bind (Command.putLine "Okay, I did not change anything!") <| \_ ->
+      IO.bind (Platform.consoleWrite "Okay, I did not change anything!\n") <| \_ ->
       IO.return (Right ())
 
 
@@ -133,7 +164,7 @@ attemptChangesHelp root env oldOutline newOutline question =
 -- MAKE APP PLAN
 
 
-makeAppPlan : Solver.Env -> Pkg.Comparable -> Outline.AppOutline -> Task z g h (Changes V.Version)
+makeAppPlan : Solver.Env -> Pkg.Comparable -> Outline.AppOutline -> Task z c d e (Changes V.Version)
 makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline a b direct indirect testDirect testIndirect) as outline) =
   if Map.member pkg direct then
     Task.return AlreadyInstalled
@@ -199,7 +230,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg ((Outline.AppOutline a 
 -- MAKE PACKAGE PLAN
 
 
-makePkgPlan : Solver.Env -> Pkg.Comparable -> Outline.PkgOutline -> Task z g h (Changes C.Constraint)
+makePkgPlan : Solver.Env -> Pkg.Comparable -> Outline.PkgOutline -> Task z c d e (Changes C.Constraint)
 makePkgPlan (Solver.Env cache _ connection registry) pkg (Outline.PkgOutline a b c d e deps test h) =
   if Map.member pkg deps then
     Task.return AlreadyInstalled

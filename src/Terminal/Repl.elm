@@ -1,31 +1,15 @@
 {- MANUALLY FORMATTED -}
 module Terminal.Repl exposing
   ( Flags(..)
-  , Interpreter
-  , InterpreterInput(..)
-  , InterpreterResult(..)
-  , continueInterpreter
   , run
   --
   , Lines(..)
-  , CategorizedInput(..)
+  , CategorizedInput
   --
   , State
   --
-  , GlobalState
-  , LocalState
-  , initialLocalState
-  --
   , Env(..)
-  , Outcome(..)
-  , addLine
-  , categorize
-  , eval
-  , initialState
-  , initEnv
-  , printWelcomeMessage
-  , renderPrefill
-  , stripLegacyBackslash
+  , Outcome
   )
 
 
@@ -33,6 +17,7 @@ import Builder.Build as Build
 import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
 import Builder.Generate as Generate
+import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
 import Builder.Stuff as Stuff
@@ -55,48 +40,23 @@ import Compiler.Reporting.Doc as D exposing (d)
 import Compiler.Reporting.Error.Syntax as ES
 import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Report as Report
-import Extra.System.Dir as Dir exposing (FilePath)
+import Extra.Platform as Platform
+import Extra.Platform.Handle as Handle
 import Extra.System.IO as IO
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.Either exposing (Either(..))
-import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Extra.Type.Maybe as MMaybe
-import Global
-import Terminal.Command as Command
 import Unicode as UChar
 
 
 
--- PUBLIC STATE
+-- STATE AND IO
 
 
 type alias GlobalState h =
-  Command.GlobalState (LocalState h) h
-
-
-type LocalState h =
-  LocalState
-    -- cont
-    (Maybe (InterpreterResult -> IO h ()))
-
-
-initialLocalState : LocalState h
-initialLocalState =
-  LocalState
-    -- cont
-    Nothing
-
-
-lensCont : Lens (GlobalState h) (Maybe (InterpreterResult -> IO h ()))
-lensCont =
-  { getter = \(Global.State _ _ _ _ _ _ (LocalState x) _) -> x
-  , setter = \x (Global.State a b c d e f _ h) -> Global.State a b c d e f (LocalState x) h
-  }
-
-
-
--- PRIVATE IO
+  Generate.GlobalState h
 
 
 type alias IO h v =
@@ -104,58 +64,17 @@ type alias IO h v =
 
 
 
--- INTERPRETER
-
-
-type alias Interpreter h =
-  InterpreterInput -> IO h ()
-
-
-type InterpreterInput
-  = InterpretValue String
-  | ShowError Exit.Repl
-
-
-type InterpreterResult
-  = InterpreterSuccess
-  | InterpreterFailure
-
-
-interpret : Interpreter h -> InterpreterInput -> IO h InterpreterResult
-interpret interpreter input =
-  IO.liftCont <| \cont ->
-    IO.sequence
-      [ IO.putLens lensCont (Just cont)
-      , interpreter input
-      ]
-
-
-continueInterpreter : IO h () -> InterpreterResult -> IO h ()
-continueInterpreter noCont result =
-  IO.bind (IO.getLens lensCont) <| \maybeCont ->
-  case maybeCont of
-    Just cont ->
-      IO.sequence
-        [ IO.putLens lensCont Nothing
-        , cont result
-        ]
-
-    Nothing ->
-      noCont
-
-
-
 -- RUN
 
 
-{- NEW: Flags -}
-type Flags h =
+type Flags =
   Flags
-    {- interpreter -} (Interpreter h)
+    {- maybeInterpreter -} (Maybe FilePath)
+    {- noColors -} Bool
 
 
-run : Flags h -> IO h ()
-run flags =
+run : () -> Flags -> IO h ()
+run _ flags =
   IO.bind printWelcomeMessage <| \_ ->
   IO.bind (initEnv flags) <| \env ->
   loop env initialState
@@ -172,12 +91,13 @@ printWelcomeMessage =
     title = D.hsep [d"Elm", D.fromChars vsn]
     dashes = String.repeat (70 - String.length vsn) "-"
   in
-  Command.putDoc <|
+  D.toAnsi Handle.stdout <|
     D.vcat
       [ D.hsep [D.blackS "----", D.dullcyan title, D.blackS dashes]
       , D.blackS <| "Say :help for help and :exit to exit! More at " ++ D.makeLink "repl"
       , D.blackS "--------------------------------------------------------------------------------"
       , D.empty
+      , d""
       ]
 
 
@@ -188,14 +108,15 @@ printWelcomeMessage =
 type Env h =
   Env
     {- root -} FilePath
-    {- interpreter -} (Interpreter h)
+    {- interpreter -} (String -> IO h Bool)
     {- ansi -} Bool
 
 
-initEnv : Flags h -> IO h (Env h)
-initEnv (Flags interpreter) =
+initEnv : Flags -> IO h (Env h)
+initEnv (Flags maybeAlternateInterpreter noColors) =
   IO.bind getRoot <| \root ->
-  IO.return <| Env root interpreter False
+  IO.bind (Platform.getInterpreter maybeAlternateInterpreter) <| \interpreter ->
+  IO.return <| Env root interpreter (not noColors)
 
 
 
@@ -209,14 +130,27 @@ type Outcome
 
 loop : Env h -> State -> IO h ()
 loop env state =
-  IO.bind read <| \input ->
+  IO.bind (IO.catch handleReadError read) <| \input ->
   IO.bind (eval env state input) <| \outcome ->
   case outcome of
     Loop state_ ->
       loop env state_
 
     End ->
-      Command.clearPrompt
+      IO.return ()
+
+
+handleReadError : String -> IO h Input
+handleReadError err =
+  if err == "CTRL-C" then
+    IO.bind (Platform.consoleWrite "\n") <| \_ ->
+    IO.return Skip
+  else if err == "CTRL-D" then
+    IO.bind (Platform.consoleWrite "\n") <| \_ ->
+    IO.return Exit
+  else
+    IO.bind (Platform.consoleError (err ++ "\n")) <| \_ ->
+    Platform.exitFailure 1
 
 
 
@@ -238,37 +172,24 @@ type Input
 
 read : IO h Input
 read =
-  IO.bind Command.clearInput <| \_ ->
-  IO.bind (Command.getLineWithInitial ">\u{2000}" "") <| \maybeLine ->
-  case maybeLine of
-    {- Nothing ->
-      return Exit
-
-    Just -}
-    chars ->
-      let
-        lines = Lines (stripLegacyBackslash chars) []
-      in
-      case categorize lines of
-        Done input -> IO.return input
-        Continue p -> readMore lines p
+  IO.bind (Platform.consoleRead "> " "") <| \line ->
+  let
+    lines = Lines (stripLegacyBackslash line) []
+  in
+  case categorize lines of
+    Done input -> IO.return input
+    Continue p -> readMore lines p
 
 
 readMore : Lines -> Prefill -> IO h Input
 readMore previousLines prefill =
-  IO.bind (Command.getLineWithInitial "|\u{2000}" (renderPrefill prefill)) <| \input ->
-  case input of
-    {- Nothing ->
-      return Skip
-
-    Just -}
-    chars ->
-      let
-        lines = addLine (stripLegacyBackslash chars) previousLines
-      in
-      case categorize lines of
-        Done input_ -> IO.return input_
-        Continue p -> readMore lines p
+  IO.bind (Platform.consoleRead "| " (renderPrefill prefill)) <| \input ->
+  let
+    lines = addLine (stripLegacyBackslash input) previousLines
+  in
+  case categorize lines of
+    Done input_ -> IO.return input_
+    Continue p -> readMore lines p
 
 
 -- For compatibility with 0.19.0 such that readers of "Programming Elm" by @jfairbank
@@ -391,7 +312,7 @@ attemptDeclOrExpr lines =
   let
     src = linesToByteString lines
     exprParser = P.specialize (toExprPosition src) PE.expression
-    declParser = P.specialize (\decl _ _ -> toDeclPosition src decl) PD.declaration
+    declParser = P.specialize (toDeclPosition src) PD.declaration
   in
   case P.fromByteString declParser Tuple.pair src of
     Right (decl, _) ->
@@ -455,13 +376,13 @@ toExprPosition src expr row col =
   let
     decl = ES.DeclDef N.replValueToPrint (ES.DeclDefBody expr row col) row col
   in
-  toDeclPosition src decl
+  toDeclPosition src decl row col
 
 
-toDeclPosition : String -> ES.Decl -> (Row, Col)
-toDeclPosition src decl =
+toDeclPosition : String -> ES.Decl -> Row -> Col -> (Row, Col)
+toDeclPosition src decl r c =
   let
-    err = ES.ParseError (ES.Declarations decl)
+    err = ES.ParseError (ES.Declarations decl r c)
     report = ES.toReport (Code.toSource src) err
 
     (Report.Report _ (A.Region (A.Position row col) _) _) = report
@@ -515,11 +436,11 @@ eval env ((State imports types decls) as state) input =
 
     Reset ->
       IO.bindSequence
-        [ Command.putLine "<reset>" ]
+        [ Platform.consoleWrite "<reset>\n" ]
         (IO.return (Loop initialState))
 
     Help maybeUnknownCommand ->
-      IO.bind (Command.putTemporary (toHelpMessage maybeUnknownCommand)) <| \_ ->
+      IO.bind (Platform.consoleWrite (toHelpMessage maybeUnknownCommand)) <| \_ ->
       IO.return (Loop state)
 
     Import name src ->
@@ -531,7 +452,7 @@ eval env ((State imports types decls) as state) input =
       IO.fmap Loop <| attemptEval env state newState OutputNothing
 
     Port ->
-      IO.bind (Command.putLine "I cannot handle port declarations.") <| \_ ->
+      IO.bind (Platform.consoleWrite "I cannot handle port declarations.\n") <| \_ ->
       IO.return (Loop state)
 
     Decl name src ->
@@ -558,7 +479,7 @@ attemptEval (Env root interpreter ansi) oldState newState output =
     (Task.run <|
       Task.bind
         (Task.eio Exit.ReplBadDetails <|
-          Details.load root) <| \details ->
+          Details.load Reporting.silent root) <| \details ->
 
       Task.bind
         (Task.eio identity <|
@@ -568,17 +489,17 @@ attemptEval (Env root interpreter ansi) oldState newState output =
 
   case result of
     Left exit ->
-      IO.bind (interpret interpreter (ShowError exit)) <| \_ ->
+      IO.bind (Exit.toStderr (Exit.replToReport exit)) <| \_ ->
       IO.return oldState
 
     Right Nothing ->
       IO.return newState
 
     Right (Just javascript) ->
-      IO.bind (interpret interpreter (InterpretValue javascript)) <| \interpreterResult ->
-      case interpreterResult of
-        InterpreterSuccess -> IO.return newState
-        InterpreterFailure -> IO.return oldState
+      IO.bind (interpreter javascript) <| \exitSuccess ->
+      if exitSuccess
+        then IO.return newState
+        else IO.return oldState
 
 
 
@@ -644,7 +565,7 @@ genericHelpMessage =
   ++ "  :help    Show this information\n"
   ++ "  :reset   Clear all previous imports and definitions\n"
   ++ "\n"
-  ++ "More info at " ++ D.makeLink "repl" ++ "\n"
+  ++ "More info at " ++ D.makeLink "repl" ++ "\n\n"
 
 
 
@@ -660,8 +581,8 @@ getRoot =
 
     Nothing ->
       IO.bind Stuff.getReplCache <| \cache ->
-      let root = Dir.addName cache "tmp" in
-      IO.bind (Dir.createDirectoryIfMissing True (Dir.addName root "src")) <| \_ ->
+      let root = Path.addName cache "tmp" in
+      IO.bind (Platform.createDirectoryIfMissing (Path.addName root "src")) <| \_ ->
       IO.bind (Outline.write root <| Outline.Pkg <|
         Outline.PkgOutline
           Pkg.dummyName

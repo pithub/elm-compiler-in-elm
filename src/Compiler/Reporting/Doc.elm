@@ -3,8 +3,9 @@ module Compiler.Reporting.Doc exposing
   ( Doc
   , align, cat, empty, fillSep, hang
   , hcat, hsep, indent, sep, vcat
-  , red, redS, cyan, cyanS, green, greenS, blue, blackS, yellow
-  , dullred, dullcyan, dullyellow, dullyellowS
+  , red, redS, cyan, cyanS, green, greenS, blue, blackS, yellow, yellowS
+  , dullred, dullcyan, dullcyanS, dullyellow, dullyellowS
+  , plain
   --
   , fromChars
   , fromName
@@ -12,8 +13,11 @@ module Compiler.Reporting.Doc exposing
   , fromPackage
   , fromInt
   --
+  , toAnsi
   , toString
   , toLine
+  --
+  , encode
   --
   , stack
   , reflow
@@ -36,7 +40,8 @@ module Compiler.Reporting.Doc exposing
   , cycle
   --
   , d, da
-  , fromPath, toClient
+  , fromPath
+  , toClient
   )
 
 
@@ -44,10 +49,15 @@ import Compiler.Data.Index as Index
 import Compiler.Data.Name as Name
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
+import Compiler.Json.Encode as E
+import Compiler.Json.String as Json
 import Elm.Error as Client
 import Extra.Data.Pretty as P
-import Extra.System.Dir as Dir
+import Extra.Platform.Handle as Handle exposing (Handle)
+import Extra.System.IO exposing (IO)
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
+import Extra.Type.Maybe as MMaybe
 
 
 
@@ -73,7 +83,7 @@ blue =
   P.blue
 
 
-cat : TList Doc -> Doc
+cat : TList (Doc) -> Doc
 cat =
   P.cat
 
@@ -91,6 +101,11 @@ cyanS =
 dullcyan : Doc -> Doc
 dullcyan =
   P.dullcyan
+
+
+dullcyanS : String -> Doc
+dullcyanS =
+  P.dullcyanS
 
 
 dullred : Doc -> Doc
@@ -113,7 +128,7 @@ empty =
   P.empty
 
 
-fillSep : TList Doc -> Doc
+fillSep : TList (Doc) -> Doc
 fillSep =
   P.fillSep
 
@@ -133,17 +148,17 @@ hang =
   P.hang
 
 
-hcat : TList Doc -> Doc
+hcat : TList (Doc) -> Doc
 hcat =
   P.hcat
 
 
-da : TList Doc -> Doc
+da : TList (Doc) -> Doc
 da {- abbreviated alias -} =
   hcat
 
 
-hsep : TList Doc -> Doc
+hsep : TList (Doc) -> Doc
 hsep =
   P.hsep
 
@@ -151,6 +166,11 @@ hsep =
 indent : Int -> Doc -> Doc
 indent =
   P.indent
+
+
+plain : Doc -> Doc
+plain =
+  P.plain
 
 
 red : Doc -> Doc
@@ -163,12 +183,12 @@ redS =
   P.redS
 
 
-sep : TList Doc -> Doc
+sep : TList (Doc) -> Doc
 sep =
   P.sep
 
 
-vcat : TList Doc -> Doc
+vcat : TList (Doc) -> Doc
 vcat =
   P.vcat
 
@@ -176,6 +196,11 @@ vcat =
 yellow : Doc -> Doc
 yellow =
   P.yellow
+
+
+yellowS : String -> Doc
+yellowS =
+  P.yellowS
 
 
 
@@ -207,9 +232,9 @@ fromPackage pkg =
   P.text (Pkg.toChars pkg)
 
 
-fromPath : Dir.FilePath -> Doc
+fromPath : FilePath -> Doc
 fromPath path =
-  P.text (Dir.toString path)
+  P.text (Path.toString path)
 
 
 fromInt : Int -> Doc
@@ -219,6 +244,11 @@ fromInt n =
 
 
 -- TO STRING
+
+
+toAnsi : Handle s a -> Doc -> IO s a
+toAnsi handle doc =
+  Handle.hSendStr handle (chunksToAnsi (toClient doc))
 
 
 toString : Doc -> String
@@ -232,11 +262,60 @@ toLine doc =
 
 
 
+-- TO ANSI
+
+
+chunksToAnsi : TList Client.Chunk -> String
+chunksToAnsi chunks =
+  String.concat (MList.map chunkToAnsi chunks)
+
+
+chunkToAnsi : Client.Chunk -> String
+chunkToAnsi chunk =
+  case chunk of
+    Client.Unstyled text ->
+      text
+
+    Client.Styled style text ->
+      styleToAnsi style text
+
+
+styleToAnsi : Client.Style -> String -> String
+styleToAnsi ({ bold, underline, color} as style) =
+  case ( bold, underline, color ) of
+    ( True, _   , _            ) -> unexpected "bold" style
+    ( _   , True, Nothing      ) -> wrapWithAnsi "4"
+    ( _   , True, _            ) -> unexpected "underline with color" style
+    ( _   , _   , Nothing      ) -> identity
+    ( _, _, Just Client.RED    ) -> wrapWithAnsi "91"
+    ( _, _, Just Client.GREEN  ) -> wrapWithAnsi "92"
+    ( _, _, Just Client.CYAN   ) -> wrapWithAnsi "96"
+    ( _, _, Just Client.BLUE   ) -> wrapWithAnsi "94"
+    ( _, _, Just Client.BLACK  ) -> wrapWithAnsi "90"
+    ( _, _, Just Client.YELLOW ) -> wrapWithAnsi "93"
+    ( _, _, Just Client.Cyan   ) -> wrapWithAnsi "36"
+    ( _, _, Just Client.Red    ) -> wrapWithAnsi "31"
+    ( _, _, Just Client.Yellow ) -> wrapWithAnsi "33"
+    _ {- (_, _, _ ) -}           -> unexpected "color" style
+
+
+wrapWithAnsi : String -> String -> String
+wrapWithAnsi ansiCode text =
+  "\u{001b}[" ++ ansiCode ++ "m" ++ text ++ "\u{001b}[0m"
+
+
+unexpected : String -> Client.Style -> String -> String
+unexpected message style text =
+  let _ = Debug.log ("Doc style: unexpected " ++ message) (style, text) in
+  text
+
+
+
 -- TO CHUNKS
 
 
-styles : P.Styles Client.Style
-styles =
+clientStyles : P.Styles Client.Style
+clientStyles =
   { underline = Client.Style False True Nothing
   , red = Client.Style False False (Just Client.RED)
   , green = Client.Style False False (Just Client.GREEN)
@@ -244,57 +323,92 @@ styles =
   , blue = Client.Style False False (Just Client.BLUE)
   , black = Client.Style False False (Just Client.BLACK)
   , yellow = Client.Style False False (Just Client.YELLOW)
-  , dullcyan = Client.Style True False (Just Client.Cyan)
-  , dullred = Client.Style True False (Just Client.Red)
-  , dullyellow = Client.Style True False (Just Client.Yellow)
+  , dullcyan = Client.Style False False (Just Client.Cyan)
+  , dullred = Client.Style False False (Just Client.Red)
+  , dullyellow = Client.Style False False (Just Client.Yellow)
   }
 
 
 toClient : Doc -> TList Client.Chunk
 toClient doc =
-  P.renderPretty 80 renderer doc
+  P.renderPretty 80 clientRenderer doc
 
 
-renderer : P.Renderer Client.Style (TList Client.Chunk) (TList Client.Chunk)
-renderer =
-  { init = rendererInit
-  , tagged = rendererTagged
-  , untagged = rendererUntagged
-  , newline = rendererNewline
-  , outer = rendererOuter
+clientRenderer : P.Renderer Client.Style (TList MultiStringChunk) (TList Client.Chunk)
+clientRenderer =
+  { init = clientRendererInit
+  , tagged = clientRendererTagged
+  , untagged = clientRendererUntagged
+  , newline = clientRendererNewline
+  , outer = clientRendererOuter
   }
 
 
-rendererInit : TList Client.Chunk
-rendererInit =
+type alias MultiStringChunk = ( Maybe Client.Style, TList String )
+
+
+addStyledString : Maybe Client.Style -> String -> TList MultiStringChunk -> TList MultiStringChunk
+addStyledString maybeStyle text chunks =
+  case chunks of
+    [] ->
+      [ ( maybeStyle, [text] ) ]
+
+    ( maybeHeadStyle, headStrings) :: tail ->
+      if maybeHeadStyle == maybeStyle then
+        ( maybeHeadStyle, text :: headStrings ) :: tail
+      else
+        ( maybeStyle, [text] ) :: chunks
+
+
+clientRendererInit : TList MultiStringChunk
+clientRendererInit =
   []
 
 
-rendererTagged : (P.Styles Client.Style -> Client.Style) -> String -> TList Client.Chunk -> TList Client.Chunk
-rendererTagged tagger text chunks =
-  Client.Styled (tagger styles) text :: chunks
+clientRendererTagged : (P.Styles Client.Style -> Client.Style) -> String -> TList MultiStringChunk -> TList MultiStringChunk
+clientRendererTagged tagger text multiStringChunks =
+  addStyledString (Just (tagger clientStyles)) text multiStringChunks
 
 
-rendererUntagged : String -> TList Client.Chunk -> TList Client.Chunk
-rendererUntagged text chunks =
-  Client.Unstyled text :: chunks
+clientRendererUntagged : String -> TList MultiStringChunk -> TList MultiStringChunk
+clientRendererUntagged text multiStringChunks =
+  addStyledString Nothing text multiStringChunks
 
 
-rendererNewline : TList Client.Chunk -> TList Client.Chunk
-rendererNewline chunks =
-  Client.Unstyled "\n" :: chunks
+clientRendererNewline : TList MultiStringChunk -> TList MultiStringChunk
+clientRendererNewline multiStringChunks =
+  addStyledString Nothing "\n" multiStringChunks
 
 
-rendererOuter : TList Client.Chunk -> TList Client.Chunk
-rendererOuter chunks =
-  MList.reverse chunks
+clientRendererOuter : TList MultiStringChunk -> TList Client.Chunk
+clientRendererOuter multiStringChunks =
+  multiStringChunksToClientChunks multiStringChunks []
+
+
+multiStringChunksToClientChunks : TList MultiStringChunk -> TList Client.Chunk -> TList Client.Chunk
+multiStringChunksToClientChunks multiStringChunks clientChunks =
+  case multiStringChunks of
+    [] ->
+      clientChunks
+
+    ( maybeStyle, strings ) :: remainingMultiStringChunks ->
+      let
+        clientChunk =
+          case maybeStyle of
+            Nothing ->
+              Client.Unstyled (String.concat (MList.reverse strings))
+
+            Just style ->
+              Client.Styled style (String.concat (MList.reverse strings))
+      in
+      multiStringChunksToClientChunks remainingMultiStringChunks (clientChunk :: clientChunks)
 
 
 
 -- FORMATTING
 
 
-stack : TList Doc -> Doc
+stack : TList (Doc) -> Doc
 stack docs =
   P.vcat (MList.intersperse (P.text "") docs)
 
@@ -304,7 +418,7 @@ reflow paragraph =
   P.fillSep (MList.map P.text (String.words paragraph))
 
 
-commaSep : Doc -> (a -> Doc) -> TList a -> TList Doc
+commaSep : Doc -> (a -> Doc) -> TList a -> TList (Doc)
 commaSep conjunction addStyle names =
   case names of
     [name] ->
@@ -330,7 +444,7 @@ toSimpleNote message =
   toFancyNote (MList.map P.text (String.words message))
 
 
-toFancyNote : TList Doc -> Doc
+toFancyNote : TList (Doc) -> Doc
 toFancyNote chunks =
   P.fillSep (P.hcat [ P.underline "Note", P.text ":" ] :: chunks)
 
@@ -344,7 +458,7 @@ toSimpleHint message =
   toFancyHint (MList.map P.text (String.words message))
 
 
-toFancyHint : TList Doc -> Doc
+toFancyHint : TList (Doc) -> Doc
 toFancyHint chunks =
   P.fillSep (P.hcat [ P.underline "Hint", P.text ":" ] :: chunks)
 
@@ -362,7 +476,7 @@ link word before fileName after =
     :: MList.map P.text (String.words after)
 
 
-fancyLink : String -> TList Doc -> String -> TList Doc -> Doc
+fancyLink : String -> TList (Doc) -> String -> TList (Doc) -> Doc
 fancyLink word before fileName after =
   P.fillSep <|
     P.hcat [ P.underline word, P.text ":" ] :: before ++ P.text (makeLink fileName) :: after
@@ -436,3 +550,54 @@ cycleMid : Doc
 cycleMid = P.text "│     ↓"
 cycleEnd : Doc
 cycleEnd = P.text "└─────┘"
+
+
+
+-- JSON
+
+
+encode : Doc -> E.Value
+encode doc =
+  E.array (toJsonHelp (toClient doc))
+
+
+toJsonHelp : TList Client.Chunk -> TList E.Value
+toJsonHelp chunks =
+  MList.map encodeChunk chunks
+
+
+encodeChunk : Client.Chunk -> E.Value
+encodeChunk chunk =
+  case chunk of
+    Client.Unstyled text ->
+      E.chars text
+
+    Client.Styled { bold, underline, color } text ->
+      E.object
+        [ ("bold", E.bool bold)
+        , ("underline", E.bool underline)
+        , ("color", MMaybe.maybe E.null encodeColor color)
+        , ("string", E.chars text)
+        ]
+
+
+encodeColor : Client.Color -> E.Value
+encodeColor color =
+  E.string <| Json.fromChars <|
+    case color of
+      Client.Red -> "red"
+      Client.RED -> "RED"
+      Client.Magenta -> "magenta"
+      Client.MAGENTA -> "MAGENTA"
+      Client.Yellow -> "yellow"
+      Client.YELLOW -> "YELLOW"
+      Client.Green -> "green"
+      Client.GREEN -> "GREEN"
+      Client.Cyan -> "cyan"
+      Client.CYAN -> "CYAN"
+      Client.Blue -> "blue"
+      Client.BLUE -> "BLUE"
+      Client.Black -> "black"
+      Client.BLACK -> "BLACK"
+      Client.White -> "white"
+      Client.WHITE -> "WHITE"

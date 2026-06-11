@@ -6,43 +6,49 @@ module Terminal.Init exposing
 
 import Builder.Deps.Solver as Solver
 import Builder.Elm.Outline as Outline
+import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Elm.Constraint as Con
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Reporting.Doc as D exposing (d)
-import Extra.System.Dir as Dir
+import Extra.Platform as Platform
 import Extra.System.IO as IO
+import Extra.System.Path as Path
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList
 import Extra.Type.Map as Map
-import Terminal.Command as Command
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO g h v =
-  IO.IO (Command.GlobalState g h) v
+type alias IO b c d e v =
+  Platform.IO b c d e v
 
 
 
 -- RUN
 
 
-run : IO g h (Either Exit.Init ())
-run =
-  IO.bind (Dir.doesFileExist (Dir.fromString "elm.json")) <| \exists ->
+run : () -> () -> IO b c d e ()
+run () () =
+  Reporting.attempt Exit.initToReport runEither
+
+
+runEither : IO b c d e (Either Exit.Init ())
+runEither =
+  IO.bind (Platform.doesFileExist (Path.fromString "elm.json")) <| \exists ->
   if exists
     then IO.return (Left Exit.InitAlreadyExists)
     else
-      IO.bind (Command.ask question) <| \approved ->
+      IO.bind (Reporting.ask question) <| \approved ->
       if approved
         then init
         else
-          IO.bind (Command.putLine "Okay, I did not make any changes!") <| \_ ->
+          IO.bind (Platform.consoleWrite "Okay, I did not make any changes!\n") <| \_ ->
           IO.return (Right ())
 
 
@@ -70,7 +76,7 @@ question =
 -- INIT
 
 
-init : IO g h (Either Exit.Init ())
+init : IO b c d e (Either Exit.Init ())
 init =
   IO.bind Solver.initEnv <| \eitherEnv ->
   case eitherEnv of
@@ -95,10 +101,10 @@ init =
             directs = Map.intersection solution defaults
             indirects = Map.difference solution defaults
           in
-          IO.bind (Dir.createDirectoryIfMissing True (Dir.fromString "src")) <| \_ ->
-          IO.bind (Outline.write (Dir.fromString "") <| Outline.App <|
-            Outline.AppOutline V.compiler (NE.CList (Outline.RelativeSrcDir (Dir.fromString "src")) []) directs indirects Map.empty Map.empty) <| \_ ->
-          IO.bind (Command.putLine "Okay, I created it. Now read that link!") <| \_ ->
+          IO.bind (Platform.createDirectoryIfMissing (Path.fromString "src")) <| \_ ->
+          IO.bind (Outline.write (Path.fromString "") <| Outline.App <|
+            Outline.AppOutline V.compiler (NE.CList (Outline.RelativeSrcDir (Path.fromString "src")) []) directs indirects Map.empty Map.empty) <| \_ ->
+          IO.bind (Platform.consoleWrite "Okay, I created it. Now read that link!\n") <| \_ ->
           IO.return (Right ())
 
 

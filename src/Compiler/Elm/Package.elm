@@ -37,7 +37,7 @@ import Compiler.Json.String as Json
 import Compiler.Parse.Primitives as P exposing (Col, Row)
 import Compiler.Reporting.Suggest as Suggest
 import Extra.Data.Binary as B
-import Extra.System.Dir as Dir exposing (FilePath)
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 
@@ -92,7 +92,7 @@ toUrl (Name author project) =
 
 toFilePath : Name -> FilePath
 toFilePath (Name author project) =
-  Dir.addName (Dir.fromString author) project
+  Path.addName (Path.fromString author) project
 
 
 toJsonString : Name -> Json.TString
@@ -211,7 +211,7 @@ nearbyNames (Name author1 project1) possibleNames =
     nameDistance (Name author2 project2) =
       authorDist author2 + projectDist project2
   in
-  MList.take 4 <| MList.sortOn nameDistance possibleNames
+  MList.take 4 <| MList.sortOnS nameDistance possibleNames
 
 
 authorDistance : String -> Author -> Int

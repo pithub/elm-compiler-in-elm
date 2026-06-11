@@ -10,9 +10,8 @@ module Builder.Elm.Details exposing
   , loadInterfaces
   , verifyInstall
   --
-  , GlobalState
-  , LocalState
-  , initialState
+  , GlobalState, IO, toGlobalState
+  --
   , lensMVInterfaces
   , lensMVGlobalGraph
   )
@@ -24,6 +23,7 @@ import Builder.Deps.Website as Website
 import Builder.Elm.Outline as Outline
 import Builder.File as File
 import Builder.Http as Http
+import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Builder.Reporting.Task as Task
 import Builder.Stuff as Stuff
@@ -43,9 +43,10 @@ import Compiler.Json.Decode as D
 import Compiler.Parse.Module as Parse
 import Compiler.Reporting.Annotation as A
 import Extra.Data.Binary as B
-import Extra.System.Dir as Dir exposing (FilePath)
+import Extra.Platform as Platform
 import Extra.System.IO as IO
 import Extra.System.MVar as MVar exposing (MVar)
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.Either as Either exposing (Either(..))
 import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
@@ -56,25 +57,32 @@ import Global
 
 
 
--- PUBLIC STATE
-
-type alias GlobalState d e f g h =
-  Dir.GlobalState (LocalState d e f g h) d e f g h
+-- STATE
 
 
-type LocalState d e f g h = LocalState
-  {- mvDep -} (MVar.State (GlobalState d e f g h) Dep)
-  {- mvDepMap -} (MVar.State (GlobalState d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
-  {- mvStatus -} (MVar.State (GlobalState d e f g h) (Maybe Status))
-  {- mvStatusMap -} (MVar.State (GlobalState d e f g h) StatusDict)
-  {- mvResult -} (MVar.State (GlobalState d e f g h) (Maybe TResult))
-  {- mvResultMap -} (MVar.State (GlobalState d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
-  {- mvInterfaces -} (MVar.State (GlobalState d e f g h) (Maybe Interfaces))
-  {- mvGlobalGraph -} (MVar.State (GlobalState d e f g h) (Maybe Opt.GlobalGraph))
+type alias GlobalState c d e =
+  Platform.GlobalState (LocalState c d e) c d e
 
 
-initialState : LocalState d e f g h
-initialState = LocalState
+type LocalState c d e = LocalState
+  {- mvDep -} (MVar.State (GlobalState c d e) Dep)
+  {- mvDepMap -} (MVar.State (GlobalState c d e) (Map.Map Pkg.Comparable (MVar Dep)))
+  {- mvStatus -} (MVar.State (GlobalState c d e) (Maybe Status))
+  {- mvStatusMap -} (MVar.State (GlobalState c d e) StatusDict)
+  {- mvResult -} (MVar.State (GlobalState c d e) (Maybe TResult))
+  {- mvResultMap -} (MVar.State (GlobalState c d e) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
+  {- mvInterfaces -} (MVar.State (GlobalState c d e) (Maybe Interfaces))
+  {- mvGlobalGraph -} (MVar.State (GlobalState c d e) (Maybe Opt.GlobalGraph))
+  {- reportingState -} Reporting.DState
+
+
+toGlobalState : Platform.Flags -> c -> d -> e -> GlobalState c d e
+toGlobalState flags c d e =
+  Platform.toGlobalState flags initialLocalState c d e
+
+
+initialLocalState : LocalState c d e
+initialLocalState = LocalState
   {- mvDep -} (MVar.initialState "Dep")
   {- mvDepMap -} (MVar.initialState "DepDict")
   {- mvStatus -} (MVar.initialState "Status")
@@ -83,77 +91,88 @@ initialState = LocalState
   {- mvResultMap -} (MVar.initialState "ResultDict")
   {- mvInterfaces -} (MVar.initialState "Interfaces")
   {- mvGlobalGraph -} (MVar.initialState "GlobalGraph")
+  {- reportingState -} Reporting.initialDState
 
 
-lensMVDep : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) Dep)
+lensMVDep : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) Dep)
 lensMVDep =
-  { getter = \(Global.State _ _ (LocalState x _ _ _ _ _ _ _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState _ bi ci di ei fi gi hi) d e f g h) -> Global.State a b (LocalState x bi ci di ei fi gi hi) d e f g h
+  { getter = \(Global.State _ (LocalState x _ _ _ _ _ _ _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState _ bi ci di ei fi gi hi ii) c d e) -> Global.State a (LocalState x bi ci di ei fi gi hi ii) c d e
   }
 
-lensMVDepMap : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Map.Map Pkg.Comparable (MVar Dep)))
+lensMVDepMap : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) (Map.Map Pkg.Comparable (MVar Dep)))
 lensMVDepMap =
-  { getter = \(Global.State _ _ (LocalState _ x _ _ _ _ _ _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai _ ci di ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai x ci di ei fi gi hi) d e f g h
+  { getter = \(Global.State _ (LocalState _ x _ _ _ _ _ _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai _ ci di ei fi gi hi ii) c d e) -> Global.State a (LocalState ai x ci di ei fi gi hi ii) c d e
   }
 
-lensMVStatus : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe Status))
+lensMVStatus : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) (Maybe Status))
 lensMVStatus =
-  { getter = \(Global.State _ _ (LocalState _ _ x _ _ _ _ _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai bi _ di ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi x di ei fi gi hi) d e f g h
+  { getter = \(Global.State _ (LocalState _ _ x _ _ _ _ _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi _ di ei fi gi hi ii) c d e) -> Global.State a (LocalState ai bi x di ei fi gi hi ii) c d e
   }
 
-lensMVStatusMap : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) StatusDict)
+lensMVStatusMap : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) StatusDict)
 lensMVStatusMap =
-  { getter = \(Global.State _ _ (LocalState _ _ _ x _ _ _ _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai bi ci _ ei fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci x ei fi gi hi) d e f g h
+  { getter = \(Global.State _ (LocalState _ _ _ x _ _ _ _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi ci _ ei fi gi hi ii) c d e) -> Global.State a (LocalState ai bi ci x ei fi gi hi ii) c d e
   }
 
-lensMVResult : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe TResult))
+lensMVResult : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) (Maybe TResult))
 lensMVResult =
-  { getter = \(Global.State _ _ (LocalState _ _ _ _ x _ _ _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai bi ci di _ fi gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci di x fi gi hi) d e f g h
+  { getter = \(Global.State _ (LocalState _ _ _ _ x _ _ _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi ci di _ fi gi hi ii) c d e) -> Global.State a (LocalState ai bi ci di x fi gi hi ii) c d e
   }
 
-lensMVResultMap : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
+lensMVResultMap : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) (Map.Map ModuleName.Raw (MVar (Maybe TResult))))
 lensMVResultMap =
-  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ x _ _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai bi ci di ei _ gi hi) d e f g h) -> Global.State a b (LocalState ai bi ci di ei x gi hi) d e f g h
+  { getter = \(Global.State _ (LocalState _ _ _ _ _ x _ _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi ci di ei _ gi hi ii) c d e) -> Global.State a (LocalState ai bi ci di ei x gi hi ii) c d e
   }
 
-lensMVInterfaces : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe Interfaces))
+lensMVInterfaces : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) (Maybe Interfaces))
 lensMVInterfaces =
-  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ x _) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai bi ci di ei fi _ hi) d e f g h) -> Global.State a b (LocalState ai bi ci di ei fi x hi) d e f g h
+  { getter = \(Global.State _ (LocalState _ _ _ _ _ _ x _ _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi ci di ei fi _ hi ii) c d e) -> Global.State a (LocalState ai bi ci di ei fi x hi ii) c d e
   }
 
-lensMVGlobalGraph : Lens (GlobalState d e f g h) (MVar.State (GlobalState d e f g h) (Maybe Opt.GlobalGraph))
+lensMVGlobalGraph : Lens (GlobalState c d e) (MVar.State (GlobalState c d e) (Maybe Opt.GlobalGraph))
 lensMVGlobalGraph =
-  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ _ x) _ _ _ _ _) -> x
-  , setter = \x (Global.State a b (LocalState ai bi ci di ei fi gi _) d e f g h) -> Global.State a b (LocalState ai bi ci di ei fi gi x) d e f g h
+  { getter = \(Global.State _ (LocalState _ _ _ _ _ _ _ x _) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi ci di ei fi gi _ ii) c d e) -> Global.State a (LocalState ai bi ci di ei fi gi x ii) c d e
+  }
+
+lensReportingState : Lens (GlobalState c d e) Reporting.DState
+lensReportingState =
+  { getter = \(Global.State _ (LocalState _ _ _ _ _ _ _ _ x) _ _ _) -> x
+  , setter = \x (Global.State a (LocalState ai bi ci di ei fi gi hi _) c d e) -> Global.State a (LocalState ai bi ci di ei fi gi hi x) c d e
   }
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO d e f g h v =
-  IO.IO (GlobalState d e f g h) v
+type alias IO c d e v =
+  IO.IO (GlobalState c d e) v
+
+
+type alias DKey c d e =
+  Reporting.DKey (GlobalState c d e)
 
 
 
 -- LOAD ARTIFACTS
 
 
-loadObjects : FilePath -> Details -> IO d e f g h (MVar (Maybe Opt.GlobalGraph))
+loadObjects : FilePath -> Details -> IO c d e (MVar (Maybe Opt.GlobalGraph))
 loadObjects root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh _ o -> MVar.new lensMVGlobalGraph (Just o)
     ArtifactsCached    -> fork lensMVGlobalGraph (\() -> File.readBinary Opt.bGlobalGraph (Stuff.objects root))
 
 
-loadInterfaces : FilePath -> Details -> IO d e f g h (MVar (Maybe Interfaces))
+loadInterfaces : FilePath -> Details -> IO c d e (MVar (Maybe Interfaces))
 loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> MVar.new lensMVInterfaces (Just i)
@@ -164,10 +183,11 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 -- VERIFY INSTALL -- used by Install
 
 
-verifyInstall : FilePath -> Solver.Env -> Outline.Outline -> IO d e f g h (Either Exit.Details ())
+verifyInstall : FilePath -> Solver.Env -> Outline.Outline -> IO c d e (Either Exit.Details ())
 verifyInstall root (Solver.Env cache manager connection registry) outline =
-  IO.bind (File.getTime (Dir.addName root "elm.json")) <| \time ->
-  let env = Env root cache manager connection registry in
+  IO.bind (File.getTime (Path.addName root "elm.json")) <| \time ->
+  let key = Reporting.ignorer in
+  let env = Env key root cache manager connection registry in
   case outline of
     Outline.Pkg pkg -> Task.run (Task.bind (verifyPkg env time pkg) (\_ -> Task.return ()))
     Outline.App app -> Task.run (Task.bind (verifyApp env time app) (\_ -> Task.return ()))
@@ -238,27 +258,28 @@ type alias Interfaces =
 -- LOAD -- used by Make, Repl, Reactor
 
 
-load : FilePath -> IO d e f g h (Either Exit.Details Details)
-load root =
-  IO.bind (File.getTime (Dir.addName root "elm.json")) <| \newTime ->
+load : Reporting.Style -> FilePath -> IO c d e (Either Exit.Details Details)
+load style root =
+  IO.bind (File.getTime (Path.addName root "elm.json")) <| \newTime ->
   IO.bind (File.readBinary bDetails (Stuff.details root)) <| \maybeDetails ->
   case maybeDetails of
     Nothing ->
-      generate root newTime
+      generate style root newTime
 
     Just ((Details oldTime _ buildID _ _ _) as details) ->
       if oldTime == newTime
       then IO.return (Right (details |> setBuildID (buildID + 1)))
-      else generate root newTime
+      else generate style root newTime
 
 
 
 -- GENERATE
 
 
-generate : FilePath -> File.Time -> IO d e f g h (Either Exit.Details Details)
-generate root time =
-  IO.bind (initEnv root) <| \result ->
+generate : Reporting.Style -> FilePath -> File.Time -> IO c d e (Either Exit.Details Details)
+generate style root time =
+  Reporting.trackDetails lensReportingState style <| \key ->
+  IO.bind (initEnv key root) <| \result ->
   case result of
     Left exit ->
       IO.return (Left exit)
@@ -273,8 +294,9 @@ generate root time =
 -- ENV
 
 
-type Env =
+type Env c d e =
   Env
+    {- key -} (DKey c d e)
     {- root -} FilePath
     {- cache -} Stuff.PackageCache
     {- manager -} Http.Manager
@@ -282,8 +304,8 @@ type Env =
     {- registry -} Registry.Registry
 
 
-initEnv : FilePath -> IO d e f g h (Either Exit.Details (Env, Outline.Outline))
-initEnv root =
+initEnv : DKey c d e -> FilePath -> IO c d e (Either Exit.Details (Env c d e , Outline.Outline))
+initEnv key root =
   IO.bind Solver.initEnv <| \maybeEnv ->
   IO.bind (Outline.read root) <| \eitherOutline ->
   case eitherOutline of
@@ -296,18 +318,18 @@ initEnv root =
           IO.return <| Left <| Exit.DetailsCannotGetRegistry problem
 
         Right (Solver.Env cache manager connection registry) ->
-          IO.return <| Right (Env root cache manager connection registry, outline)
+          IO.return <| Right (Env key root cache manager connection registry, outline)
 
 
 
 -- VERIFY PROJECT
 
 
-type alias Task z d e f g h v =
-  Task.Task z (GlobalState d e f g h) Exit.Details v
+type alias Task z c d e v =
+  Task.Task z (GlobalState c d e) Exit.Details v
 
 
-verifyPkg : Env -> File.Time -> Outline.PkgOutline -> Task z d e f g h Details
+verifyPkg : Env c d e -> File.Time -> Outline.PkgOutline -> Task z c d e Details
 verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
   if Con.goodElm elm
   then
@@ -319,7 +341,7 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) 
     Task.throw <| Exit.DetailsBadElmInPkg elm
 
 
-verifyApp : Env -> File.Time -> Outline.AppOutline -> Task z d e f g h Details
+verifyApp : Env c d e -> File.Time -> Outline.AppOutline -> Task z c d e Details
 verifyApp env time ((Outline.AppOutline elmVersion srcDirs direct _ _ _) as outline) =
   if elmVersion == V.compiler
   then
@@ -332,7 +354,7 @@ verifyApp env time ((Outline.AppOutline elmVersion srcDirs direct _ _ _) as outl
     Task.throw <| Exit.DetailsBadElmInAppOutline elmVersion
 
 
-checkAppDeps : Outline.AppOutline -> Task z d e f g h (Map.Map Pkg.Comparable V.Version)
+checkAppDeps : Outline.AppOutline -> Task z c d e (Map.Map Pkg.Comparable V.Version)
 checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
   Task.bind (union allowEqualDups indirect testDirect) <| \x ->
   Task.bind (union noDups direct testIndirect) <| \y ->
@@ -343,8 +365,8 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 -- VERIFY CONSTRAINTS
 
 
-verifyConstraints : Env -> Map.Map Pkg.Comparable Con.Constraint -> Task z d e f g h (Map.Map Pkg.Comparable Solver.Details)
-verifyConstraints (Env _ cache _ connection registry) constraints =
+verifyConstraints : Env c d e -> Map.Map Pkg.Comparable Con.Constraint -> Task z c d e (Map.Map Pkg.Comparable Solver.Details)
+verifyConstraints (Env _ _ cache _ connection registry) constraints =
   Task.bind (Task.io <| Solver.verify cache connection registry constraints) <| \result ->
   case result of
     Solver.Ok details        -> Task.return details
@@ -357,17 +379,17 @@ verifyConstraints (Env _ cache _ connection registry) constraints =
 -- UNION
 
 
-union : (comparable -> v -> v -> Task z d e f g h v) -> Map.Map comparable v -> Map.Map comparable v -> Task z d e f g h (Map.Map comparable v)
+union : (comparable -> v -> v -> Task z c d e v) -> Map.Map comparable v -> Map.Map comparable v -> Task z c d e (Map.Map comparable v)
 union tieBreaker deps1 deps2 =
   Map.mergeA Task.pure Task.liftA2 (Map.preserveMissing Task.pure) (Map.preserveMissing Task.pure) (Map.zipWithAMatched Task.fmap tieBreaker) deps1 deps2
 
 
-noDups : comparable -> v -> v -> Task z d e f g h v
+noDups : comparable -> v -> v -> Task z c d e v
 noDups _ _ _ =
   Task.throw Exit.DetailsHandEditedDependencies
 
 
-allowEqualDups : comparable -> v -> v -> Task z d e f g h v
+allowEqualDups : comparable -> v -> v -> Task z c d e v
 allowEqualDups _ v1 v2 =
   if v1 == v2
   then Task.return v1
@@ -379,8 +401,8 @@ allowEqualDups _ v1 v2 =
 
 
 fork :
-  MVar.Lens (GlobalState d e f g h) v
-  -> ((() -> IO d e f g h v) -> IO d e f g h (MVar v))
+  MVar.Lens (GlobalState c d e) v
+  -> ((() -> IO c d e v) -> IO c d e (MVar v))
 fork =
   MVar.newWaiting
 
@@ -389,9 +411,10 @@ fork =
 -- VERIFY DEPENDENCIES
 
 
-verifyDependencies : Env -> File.Time -> ValidOutline -> Map.Map Pkg.Comparable Solver.Details -> Map.Map Pkg.Comparable v -> Task z d e f g h Details
-verifyDependencies ((Env root _ _ _ _) as env) time outline solution directDeps =
+verifyDependencies : Env c d e -> File.Time -> ValidOutline -> Map.Map Pkg.Comparable Solver.Details -> Map.Map Pkg.Comparable v -> Task z c d e Details
+verifyDependencies ((Env key root _ _ _ _) as env) time outline solution directDeps =
   Task.eio identity <|
+    IO.bind (Reporting.report key (Reporting.DStart (Map.size solution))) <| \_ ->
     IO.bind (MVar.newEmpty lensMVDepMap) <| \mvar ->
     IO.bind (Map.traverseWithKey IO.pure IO.liftA2 (\k v -> fork lensMVDep (verifyDep env mvar solution (Pkg.fromComparable k) v)) solution) <| \mvars ->
     IO.bind (MVar.write lensMVDepMap mvar mvars) <| \_ ->
@@ -453,29 +476,33 @@ type alias Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 
-verifyDep : Env -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Map.Map Pkg.Comparable Solver.Details -> Pkg.Name -> Solver.Details -> () -> IO d e f g h Dep
-verifyDep (Env _ cache manager _ _) depsMVar solution pkg ((Solver.Details vsn directDeps) as details) () =
+verifyDep : Env c d e -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Map.Map Pkg.Comparable Solver.Details -> Pkg.Name -> Solver.Details -> () -> IO c d e Dep
+verifyDep (Env key _ cache manager _ _) depsMVar solution pkg ((Solver.Details vsn directDeps) as details) () =
   let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps in
-  IO.bind (Dir.doesDirectoryExist (Dir.addName (Stuff.package cache pkg vsn) "src")) <| \exists ->
+  IO.bind (Platform.doesDirectoryExist (Path.addName (Stuff.package cache pkg vsn) "src")) <| \exists ->
   if exists
     then
-      IO.bind (File.readBinary bArtifactCache (Dir.addName (Stuff.package cache pkg vsn) "artifacts.dat")) <| \maybeCache ->
+      IO.bind (Reporting.report key Reporting.DCached) <| \_ ->
+      IO.bind (File.readBinary bArtifactCache (Path.addName (Stuff.package cache pkg vsn) "artifacts.dat")) <| \maybeCache ->
       case maybeCache of
         Nothing ->
-          build cache depsMVar pkg details fingerprint Set.empty
+          build key cache depsMVar pkg details fingerprint Set.empty
 
         Just (ArtifactCache fingerprints artifacts) ->
           if Set.member (toComparable fingerprint) fingerprints
-            then IO.return (Right artifacts)
-            else build cache depsMVar pkg details fingerprint fingerprints
+            then IO.rmap (Reporting.report key Reporting.DBuilt) (\_ -> Right artifacts)
+            else build key cache depsMVar pkg details fingerprint fingerprints
     else
+      IO.bind (Reporting.report key Reporting.DRequested) <| \_ ->
       IO.bind (downloadPackage cache manager pkg vsn) <| \result ->
       case result of
         Left problem ->
+          IO.bind (Reporting.report key (Reporting.DFailed pkg vsn)) <| \_ ->
           IO.return <| Left <| Just <| Exit.BD_BadDownload pkg vsn problem
 
         Right () ->
-          build cache depsMVar pkg details fingerprint Set.empty
+          IO.bind (Reporting.report key (Reporting.DReceived pkg vsn)) <| \_ ->
+          build key cache depsMVar pkg details fingerprint Set.empty
 
 
 
@@ -505,14 +532,16 @@ toComparable f =
 -- BUILD
 
 
-build : Stuff.PackageCache -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set FingerprintComparable -> IO d e f g h Dep
-build cache depsMVar pkg (Solver.Details vsn _) f fs =
+build : DKey c d e -> Stuff.PackageCache -> MVar (Map.Map Pkg.Comparable (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set FingerprintComparable -> IO c d e Dep
+build key cache depsMVar pkg (Solver.Details vsn _) f fs =
   IO.bind (Outline.read (Stuff.package cache pkg vsn)) <| \eitherOutline ->
   case eitherOutline of
     Left _ ->
+      IO.bind (Reporting.report key Reporting.DBroken) <| \_ ->
       IO.return <| Left <| Just <| Exit.BD_BadBuild pkg vsn f
 
     Right (Outline.App _) ->
+      IO.bind (Reporting.report key Reporting.DBroken) <| \_ ->
       IO.return <| Left <| Just <| Exit.BD_BadBuild pkg vsn f
 
     Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
@@ -520,10 +549,11 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
       IO.bind (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVDep) (Map.intersection allDeps deps)) <| \directDeps ->
       case Map.sequenceA Either.pure Either.liftA2 directDeps of
         Left _ ->
+          IO.bind (Reporting.report key Reporting.DBroken) <| \_ ->
           IO.return <| Left <| Nothing
 
         Right directArtifacts ->
-          let src = Dir.addName (Stuff.package cache pkg vsn) "src" in
+          let src = Path.addName (Stuff.package cache pkg vsn) "src" in
           let foreignDeps = gatherForeignInterfaces directArtifacts in
           let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed) in
           IO.bind (getDocsStatus cache pkg vsn) <| \docsStatus ->
@@ -534,6 +564,7 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
           IO.bind (IO.andThen (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVStatus)) <| MVar.read lensMVStatusMap mvar) <| \maybeStatuses ->
           case Map.sequenceA Just Maybe.map2 maybeStatuses of
             Nothing ->
+              IO.bind (Reporting.report key Reporting.DBroken) <| \_ ->
               IO.return <| Left <| Just <| Exit.BD_BadBuild pkg vsn f
 
             Just statuses ->
@@ -543,11 +574,12 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
               IO.bind (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVResult) rmvars) <| \maybeResults ->
               case Map.sequenceA Just Maybe.map2 maybeResults of
                 Nothing ->
+                  IO.bind (Reporting.report key Reporting.DBroken) <| \_ ->
                   IO.return <| Left <| Just <| Exit.BD_BadBuild pkg vsn f
 
                 Just results ->
                   let
-                    path = Dir.addName (Stuff.package cache pkg vsn) "artifacts.dat"
+                    path = Path.addName (Stuff.package cache pkg vsn) "artifacts.dat"
                     ifaces = gatherInterfaces exposedDict results
                     objects = gatherObjects results
                     artifacts = Artifacts ifaces objects
@@ -555,6 +587,7 @@ build cache depsMVar pkg (Solver.Details vsn _) f fs =
                   in
                   IO.bind (writeDocs cache pkg vsn docsStatus results) <| \_ ->
                   IO.bind (File.writeBinary bArtifactCache path (ArtifactCache fingerprints artifacts)) <| \_ ->
+                  IO.bind (Reporting.report key Reporting.DBuilt) <| \_ ->
                   IO.return (Right artifacts)
 
 
@@ -642,9 +675,9 @@ type Status
   | SKernelForeign
 
 
-crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> () -> IO d e f g h (Maybe Status)
+crawlModule : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> () -> IO c d e (Maybe Status)
 crawlModule foreignDeps mvar pkg src name () =
-  let path = Dir.addExtension (Dir.addNames src (ModuleName.toFileNames name)) "elm" in
+  let path = Path.addExtension (Path.addNames src (ModuleName.toFileNames name)) "elm" in
   IO.bind (File.exists path) <| \exists ->
   case Map.lookup name foreignDeps of
     Just ForeignAmbiguous ->
@@ -666,7 +699,7 @@ crawlModule foreignDeps mvar pkg src name () =
         IO.return Nothing
 
 
-crawlFile : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO d e f g h (Maybe Status)
+crawlFile : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO c d e (Maybe Status)
 crawlFile foreignDeps mvar pkg src expectedName path =
   IO.bind (File.readUtf8 path) <| \bytes ->
   case Parse.fromByteString (Parse.Package pkg) bytes of
@@ -681,7 +714,7 @@ crawlFile foreignDeps mvar pkg src expectedName path =
       IO.return Nothing
 
 
-crawlImports : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> TList Src.Import -> IO d e f g h (Map.Map ModuleName.Raw ())
+crawlImports : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> TList Src.Import -> IO c d e (Map.Map ModuleName.Raw ())
 crawlImports foreignDeps mvar pkg src imports =
   IO.bind (MVar.read lensMVStatusMap mvar) <| \statusDict ->
   let deps = Map.fromList (MList.map (\i -> (Src.getImportName i, ())) imports) in
@@ -692,9 +725,9 @@ crawlImports foreignDeps mvar pkg src imports =
   IO.return deps
 
 
-crawlKernel : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO d e f g h (Maybe Status)
+crawlKernel : Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO c d e (Maybe Status)
 crawlKernel foreignDeps mvar pkg src name =
-  let path = Dir.addExtension (Dir.addNames src (ModuleName.toFileNames name)) "js" in
+  let path = Path.addExtension (Path.addNames src (ModuleName.toFileNames name)) "js" in
   IO.bind (File.exists path) <| \exists ->
   if exists
     then
@@ -728,7 +761,7 @@ type TResult
   | RKernelForeign
 
 
-compile : Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe TResult))) -> Status -> () -> IO d e f g h (Maybe TResult)
+compile : Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe TResult))) -> Status -> () -> IO c d e (Maybe TResult)
 compile pkg mvar status () =
   case status of
     SLocal deps modul ->
@@ -777,20 +810,20 @@ type DocsStatus
   | DocsNotNeeded
 
 
-getDocsStatus : Stuff.PackageCache -> Pkg.Name -> V.Version -> IO d e f g h DocsStatus
+getDocsStatus : Stuff.PackageCache -> Pkg.Name -> V.Version -> IO c d e DocsStatus
 getDocsStatus cache pkg vsn =
-  IO.bind (File.exists (Dir.addName (Stuff.package cache pkg vsn) "docs.json")) <| \exists ->
+  IO.bind (File.exists (Path.addName (Stuff.package cache pkg vsn) "docs.json")) <| \exists ->
   if exists
     then IO.return DocsNotNeeded
     else IO.return DocsNeeded
 
 
-writeDocs : Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw TResult -> IO d e f g h ()
-writeDocs _ _ _ status _ =
-  case status of
+writeDocs : Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw TResult -> IO c d e ()
+writeDocs cache pkg vsn status results =
+  case always status ((cache, pkg, vsn), results) of
     DocsNeeded ->
       -- TODO: Builder.Elm.Details.writeDocs
-      --E.writeUgly (Dir.joinPath [Stuff.package cache pkg vsn, "docs.json"]) <|
+      --E.writeUgly (Path.joinPath [Stuff.package cache pkg vsn, "docs.json"]) <|
       --  Docs.encode <| Map.mapMaybe toDocs results
       IO.return ()
 
@@ -802,7 +835,7 @@ writeDocs _ _ _ status _ =
 -- DOWNLOAD PACKAGE
 
 
-downloadPackage : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO d e f g h (Either Exit.PackageProblem ())
+downloadPackage : Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO c d e (Either Exit.PackageProblem ())
 downloadPackage cache manager pkg vsn =
   let
     url = Website.metadata pkg vsn "endpoint.json"

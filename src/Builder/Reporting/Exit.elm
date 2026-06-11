@@ -9,14 +9,16 @@ module Builder.Reporting.Exit exposing
   , Solver(..)
   , Outline(..)
   , OutlineProblem(..)
-  , Details(..), toDetailsReport
+  , Details(..)
   , DetailsBadDep(..)
   , PackageProblem(..)
-  , RegistryProblem(..), toRegistryProblemReport
-  , BuildProblem(..), toBuildProblemReport
+  , RegistryProblem(..)
+  , BuildProblem(..)
   , BuildProjectProblem(..)
   , Generate(..)
   ----
+  , toStderr
+  , toJson
   , toClient
   )
 
@@ -31,6 +33,7 @@ import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
 import Compiler.Json.Decode as Decode
+import Compiler.Json.Encode as Encode
 import Compiler.Json.String as JS
 import Compiler.Parse.Primitives exposing (Row, Col)
 import Compiler.Reporting.Annotation as A
@@ -40,14 +43,33 @@ import Compiler.Reporting.Error.Import as Import
 import Compiler.Reporting.Error.Json as Json
 import Compiler.Reporting.Render.Code as Code
 import Elm.Error as Client
-import Extra.System.Dir as Dir exposing (FilePath)
+import Extra.Platform as Platform
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Http as SysHttp
 
 
 
+-- IO
+
+
+type alias IO b c d e v =
+  Platform.IO b c d e v
+
+
+
 -- RENDERERS
+
+
+toStderr : Help.Report -> IO b c d e ()
+toStderr report =
+  Help.toStderr (Help.reportToDoc report)
+
+
+toJson : Help.Report -> Encode.Value
+toJson report =
+  Help.reportToJson report
 
 
 toClient : Help.Report -> Client.Error
@@ -161,8 +183,10 @@ toSolverReport problem =
 
 
 type Install
-  = InstallBadOutline Outline
+  = InstallNoOutline
+  | InstallBadOutline Outline
   | InstallBadRegistry RegistryProblem
+  | InstallNoArgs FilePath
   | InstallNoOnlineAppSolution Pkg.Name
   | InstallNoOfflineAppSolution Pkg.Name
   | InstallNoOnlinePkgSolution Pkg.Name
@@ -176,6 +200,13 @@ type Install
 installToReport : Install -> Help.Report
 installToReport exit =
   case exit of
+    InstallNoOutline ->
+      Help.report "NEW PROJECT?" Nothing
+        "Are you trying to start a new project? Try this command instead:"
+        [ D.indent 4 <| D.greenS "elm init"
+        , D.reflow "It will help you get started!"
+        ]
+
     InstallBadOutline outline ->
       toOutlineReport outline
 
@@ -183,8 +214,31 @@ installToReport exit =
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem <|
         "I need the list of published packages to figure out how to install things"
 
+    InstallNoArgs elmHome ->
+      Help.report "INSTALL WHAT?" Nothing
+        "I am expecting commands like:"
+        [ D.green <| D.indent 4 <| D.vcat <|
+            [ d"elm install elm/http"
+            , d"elm install elm/json"
+            , d"elm install elm/random"
+            ]
+        , D.toFancyHint
+            [d"In",d"JavaScript",d"folks",d"run",d"`npm install`",d"to",d"start",d"projects."
+            ,d"\"Gotta",d"download",d"everything!\"",d"But",d"why",d"download",d"packages"
+            ,d"again",d"and",d"again?",d"Instead,",d"Elm",d"caches",d"packages",d"in"
+            ,D.dullyellow (D.fromPath elmHome)
+            ,d"so",d"each",d"one",d"is",d"downloaded",d"and",d"built",d"ONCE",d"on",d"your",d"machine."
+            ,d"Elm",d"projects",d"check",d"that",d"cache",d"before",d"trying",d"the",d"internet."
+            ,d"This",d"reduces",d"build",d"times,",d"reduces",d"server",d"costs,",d"and",d"makes",d"it"
+            ,d"easier",d"to",d"work",d"offline.",d"As",d"a",d"result"
+            ,D.dullcyanS "elm install",d"is",d"only",d"for",d"adding",d"dependencies",d"to",d"elm.json,"
+            ,d"whereas",D.dullcyanS "elm make",d"is",d"in",d"charge",d"of",d"gathering",d"dependencies"
+            ,d"and",d"building",d"everything.",d"So",d"maybe",d"try",D.greenS "elm make",d"instead?"
+            ]
+        ]
+
     InstallNoOnlineAppSolution pkg ->
-      Help.report "CANNOT FIND COMPATIBLE VERSION" (Just (Dir.fromString "elm.json"))
+      Help.report "CANNOT FIND COMPATIBLE VERSION" (Just (Path.fromString "elm.json"))
         (
           "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible"
           ++ " with your existing dependencies."
@@ -209,7 +263,7 @@ installToReport exit =
         ]
 
     InstallNoOfflineAppSolution pkg ->
-      Help.report "CANNOT FIND COMPATIBLE VERSION LOCALLY" (Just (Dir.fromString "elm.json"))
+      Help.report "CANNOT FIND COMPATIBLE VERSION LOCALLY" (Just (Path.fromString "elm.json"))
         (
           "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible"
           ++ " with your existing dependencies."
@@ -222,7 +276,7 @@ installToReport exit =
         ]
 
     InstallNoOnlinePkgSolution pkg ->
-      Help.report "CANNOT FIND COMPATIBLE VERSION" (Just (Dir.fromString "elm.json"))
+      Help.report "CANNOT FIND COMPATIBLE VERSION" (Just (Path.fromString "elm.json"))
         (
           "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible"
           ++ " with your existing constraints."
@@ -241,7 +295,7 @@ installToReport exit =
         ]
 
     InstallNoOfflinePkgSolution pkg ->
-      Help.report "CANNOT FIND COMPATIBLE VERSION LOCALLY" (Just (Dir.fromString "elm.json"))
+      Help.report "CANNOT FIND COMPATIBLE VERSION LOCALLY" (Just (Path.fromString "elm.json"))
         (
           "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible"
           ++ " with your existing constraints."
@@ -318,13 +372,13 @@ toOutlineReport : Outline -> Help.Report
 toOutlineReport problem =
   case problem of
     OutlineHasBadStructure decodeError ->
-      Json.toReport (Dir.fromString "elm.json") (Json.FailureToReport toOutlineProblemReport) decodeError <|
+      Json.toReport (Path.fromString "elm.json") (Json.FailureToReport toOutlineProblemReport) decodeError <|
         Json.ExplicitReason "I ran into a problem with your elm.json file."
 
     OutlineHasMissingSrcDirs dir dirs ->
       case dirs of
         [] ->
-          Help.report "MISSING SOURCE DIRECTORY" (Just (Dir.fromString "elm.json"))
+          Help.report "MISSING SOURCE DIRECTORY" (Just (Path.fromString "elm.json"))
             "I need a valid elm.json file, but the \"source-directories\" field lists the following directory:"
             [ D.indent 4 <| D.red <| D.fromPath dir
             , D.reflow <|
@@ -332,7 +386,7 @@ toOutlineReport problem =
             ]
 
         _::_ ->
-          Help.report "MISSING SOURCE DIRECTORIES" (Just (Dir.fromString "elm.json"))
+          Help.report "MISSING SOURCE DIRECTORIES" (Just (Path.fromString "elm.json"))
             "I need a valid elm.json file, but the \"source-directories\" field lists the following directories:"
             [ D.indent 4 <| D.vcat <|
                 MList.map (D.red << D.fromPath) (dir::dirs)
@@ -342,7 +396,7 @@ toOutlineReport problem =
 
     OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2 ->
       if dir1 == dir2 then
-        Help.report "REDUNDANT SOURCE DIRECTORIES" (Just (Dir.fromString "elm.json"))
+        Help.report "REDUNDANT SOURCE DIRECTORIES" (Just (Path.fromString "elm.json"))
           "I need a valid elm.json file, but the \"source-directories\" field lists the same directory twice:"
           [ D.indent 4 <| D.vcat <|
               MList.map (D.red << D.fromPath) [dir1,dir2]
@@ -350,7 +404,7 @@ toOutlineReport problem =
               "Remove one of the entries!"
           ]
       else
-        Help.report "REDUNDANT SOURCE DIRECTORIES" (Just (Dir.fromString "elm.json"))
+        Help.report "REDUNDANT SOURCE DIRECTORIES" (Just (Path.fromString "elm.json"))
           "I need a valid elm.json file, but the \"source-directories\" field has some redundant directories:"
           [ D.indent 4 <| D.vcat <|
               MList.map (D.red << D.fromPath) [dir1,dir2]
@@ -362,7 +416,7 @@ toOutlineReport problem =
           ]
 
     OutlineNoPkgCore ->
-      Help.report "MISSING DEPENDENCY" (Just (Dir.fromString "elm.json"))
+      Help.report "MISSING DEPENDENCY" (Just (Path.fromString "elm.json"))
         ("I need to see an \"elm/core\" dependency your elm.json file. The default imports"
         ++ " of `List` and `Maybe` do not work without it.")
         [ D.reflow <|
@@ -372,7 +426,7 @@ toOutlineReport problem =
         ]
 
     OutlineNoAppCore ->
-      Help.report "MISSING DEPENDENCY" (Just (Dir.fromString "elm.json"))
+      Help.report "MISSING DEPENDENCY" (Just (Path.fromString "elm.json"))
         ("I need to see an \"elm/core\" dependency your elm.json file. The default imports"
         ++ " of `List` and `Maybe` do not work without it.")
         [ D.reflow <|
@@ -382,7 +436,7 @@ toOutlineReport problem =
         ]
 
     OutlineNoAppJson ->
-      Help.report "MISSING DEPENDENCY" (Just (Dir.fromString "elm.json"))
+      Help.report "MISSING DEPENDENCY" (Just (Path.fromString "elm.json"))
         ("I need to see an \"elm/json\" dependency your elm.json file. It helps me handle"
         ++ " flags and ports.")
         [ D.reflow <|
@@ -625,7 +679,7 @@ toDetailsReport : Details -> Help.Report
 toDetailsReport details =
   case details of
     DetailsNoSolution ->
-      Help.report "INCOMPATIBLE DEPENDENCIES" (Just (Dir.fromString "elm.json"))
+      Help.report "INCOMPATIBLE DEPENDENCIES" (Just (Path.fromString "elm.json"))
         "The dependencies in your elm.json are not compatible."
         [ D.fillSep
             [d"Did",d"you",d"change",d"them",d"by",d"hand?",d"Try",d"to",d"change",d"it",d"back!"
@@ -637,7 +691,7 @@ toDetailsReport details =
         ]
 
     DetailsNoOfflineSolution ->
-      Help.report "TROUBLE VERIFYING DEPENDENCIES" (Just (Dir.fromString "elm.json"))
+      Help.report "TROUBLE VERIFYING DEPENDENCIES" (Just (Path.fromString "elm.json"))
         ("I could not connect to https://package.elm-lang.org to get the latest list of"
         ++ " packages, and I was unable to verify your dependencies with the information I"
         ++ " have cached locally.")
@@ -654,7 +708,7 @@ toDetailsReport details =
       toSolverReport solver
 
     DetailsBadElmInPkg constraint ->
-      Help.report "ELM VERSION MISMATCH" (Just (Dir.fromString "elm.json"))
+      Help.report "ELM VERSION MISMATCH" (Just (Path.fromString "elm.json"))
         "Your elm.json says this package needs a version of Elm in this range:"
         [ D.indent 4 <| D.dullyellow <| D.fromChars <| C.toChars constraint
         , D.fillSep
@@ -665,7 +719,7 @@ toDetailsReport details =
         ]
 
     DetailsBadElmInAppOutline version ->
-      Help.report "ELM VERSION MISMATCH" (Just (Dir.fromString "elm.json"))
+      Help.report "ELM VERSION MISMATCH" (Just (Path.fromString "elm.json"))
         "Your elm.json says this application needs a different version of Elm."
         [ D.fillSep
             [ d"It", d"requires"
@@ -677,7 +731,7 @@ toDetailsReport details =
         ]
 
     DetailsHandEditedDependencies ->
-      Help.report "ERROR IN DEPENDENCIES" (Just (Dir.fromString "elm.json"))
+      Help.report "ERROR IN DEPENDENCIES" (Just (Path.fromString "elm.json"))
         ("It looks like the dependencies elm.json in were edited by hand (or by a 3rd"
         ++ " party tool) leaving them in an invalid state.")
         [ D.fillSep
@@ -702,7 +756,7 @@ toDetailsReport details =
           Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
             "I am not sure what is going wrong though."
             [ D.reflow <|
-                "I would try deleting the " ++ Dir.toString cacheDir ++ " and elm-stuff/ directories, then"
+                "I would try deleting the " ++ Path.toString cacheDir ++ " and elm-stuff/ directories, then"
                 ++ " trying to build again. That will work if some cached files got corrupted"
                 ++ " somehow."
             , D.reflow <|
@@ -1133,7 +1187,7 @@ toProjectProblemReport projectProblem =
         "I am having trouble with this file name:"
         [ D.indent 4 <| D.red <| D.fromPath givenPath
         , D.reflow <|
-            "I found it in your " ++ Dir.toString srcDir ++ "/ directory"
+            "I found it in your " ++ Path.toString srcDir ++ "/ directory"
             ++ " which is good, but I expect all of the files in there to use the following"
             ++ " module naming convention:"
         , toModuleNameConventionTable srcDir [ "Main", "HomePage", "Http.Helpers" ]
@@ -1161,7 +1215,7 @@ toProjectProblemReport projectProblem =
     BP_MissingExposed (NE.CList (name, problem) _) ->
       case problem of
         Import.NotFound ->
-          Help.report "MISSING MODULE" (Just (Dir.fromString "elm.json"))
+          Help.report "MISSING MODULE" (Just (Path.fromString "elm.json"))
             "The  \"exposed-modules\" of your elm.json lists the following module:"
             [ D.indent 4 <| D.red <| D.fromName name
             , D.reflow <|
@@ -1169,7 +1223,7 @@ toProjectProblemReport projectProblem =
             ]
 
         Import.Ambiguous _ pkg ->
-          Help.report "AMBIGUOUS MODULE NAME" (Just (Dir.fromString "elm.json"))
+          Help.report "AMBIGUOUS MODULE NAME" (Just (Path.fromString "elm.json"))
             "The  \"exposed-modules\" of your elm.json lists the following module:"
             [ D.indent 4 <| D.red <| D.fromName name
             , D.reflow <|
@@ -1178,7 +1232,7 @@ toProjectProblemReport projectProblem =
             ]
 
         Import.AmbiguousLocal path1 path2 paths ->
-          Help.report "AMBIGUOUS MODULE NAME" (Just (Dir.fromString "elm.json"))
+          Help.report "AMBIGUOUS MODULE NAME" (Just (Path.fromString "elm.json"))
             "The  \"exposed-modules\" of your elm.json lists the following module:"
             [ D.indent 4 <| D.red <| D.fromName name
             , D.reflow <|
@@ -1190,7 +1244,7 @@ toProjectProblemReport projectProblem =
             ]
 
         Import.AmbiguousForeign _ _ _ ->
-          Help.report "MISSING MODULE" (Just (Dir.fromString "elm.json"))
+          Help.report "MISSING MODULE" (Just (Path.fromString "elm.json"))
             "The  \"exposed-modules\" of your elm.json lists the following module:"
             [ D.indent 4 <| D.red <| D.fromName name
             , D.reflow <|
@@ -1206,7 +1260,7 @@ toModuleNameConventionTable srcDir names =
   let
     toPair name =
       ( name
-      , Dir.toString srcDir ++ String.map (\c -> if c == '.' then '/' else c) name ++ ".elm"
+      , Path.toString srcDir ++ String.map (\c -> if c == '.' then '/' else c) name ++ ".elm"
       )
 
     namePairs = MList.map toPair names
@@ -1335,7 +1389,7 @@ replToReport problem =
       toDetailsReport details
 
     ReplBadInput source err ->
-      Help.compilerReport (Dir.fromString "/") (Error.Module N.replModule (Dir.fromString "REPL") File.zeroTime source err) []
+      Help.compilerReport (Path.fromString "/") (Error.Module N.replModule (Path.fromString "REPL") File.zeroTime source err) []
 
     ReplBadLocalDeps root e es ->
       Help.compilerReport root e es

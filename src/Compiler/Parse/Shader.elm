@@ -91,6 +91,6 @@ eatShader src pos end row col =
 
 
 parseGlsl : P.Row -> P.Col -> String -> P.Parser E.Expr Shader.Types
-parseGlsl _ _ _ =
+parseGlsl startRow startCol src =
   -- TODO: Parse.Shader.parseGlsl
-  P.return <| Shader.Types Set.empty Set.empty Set.empty
+  always (P.return <| Shader.Types Set.empty Set.empty Set.empty) (startRow, startCol, src)

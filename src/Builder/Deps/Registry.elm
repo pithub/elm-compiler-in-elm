@@ -20,7 +20,7 @@ import Compiler.Elm.Version as V
 import Compiler.Json.Decode as D
 import Compiler.Parse.Primitives as P
 import Extra.Data.Binary as B
-import Extra.System.Dir as Dir
+import Extra.Platform as Platform
 import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList exposing (TList)
@@ -28,11 +28,11 @@ import Extra.Type.Map as Map
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO c d e f g h v =
-  IO.IO (Dir.GlobalState c d e f g h) v
+type alias IO b c d e v =
+  Platform.IO b c d e v
 
 
 
@@ -55,7 +55,7 @@ type KnownVersions =
 -- READ
 
 
-read : Stuff.PackageCache -> IO c d e f g h (Maybe Registry)
+read : Stuff.PackageCache -> IO b c d e (Maybe Registry)
 read cache =
   File.readBinary bRegistry (Stuff.registry cache)
 
@@ -64,7 +64,7 @@ read cache =
 -- FETCH
 
 
-fetch : Http.Manager -> Stuff.PackageCache -> IO c d e f g h (Either Exit.RegistryProblem Registry)
+fetch : Http.Manager -> Stuff.PackageCache -> IO b c d e (Either Exit.RegistryProblem Registry)
 fetch manager cache =
   post manager "/all-packages" allPkgsDecoder <|
     \versions ->
@@ -101,7 +101,7 @@ allPkgsDecoder =
 -- UPDATE
 
 
-update : Http.Manager -> Stuff.PackageCache -> Registry -> IO c d e f g h (Either Exit.RegistryProblem Registry)
+update : Http.Manager -> Stuff.PackageCache -> Registry -> IO b c d e (Either Exit.RegistryProblem Registry)
 update manager cache ((Registry size packages) as oldRegistry) =
   post manager ("/all-packages/since/" ++ String.fromInt size) (D.list newPkgDecoder) <|
     \news ->
@@ -175,7 +175,7 @@ getVersionsE name (Registry _ versions) =
 -- POST
 
 
-post : Http.Manager -> String -> D.Decoder x v -> (v -> IO c d e f g h z) -> IO c d e f g h (Either Exit.RegistryProblem z)
+post : Http.Manager -> String -> D.Decoder x v -> (v -> IO b c d e z) -> IO b c d e (Either Exit.RegistryProblem z)
 post manager path decoder callback =
   let
     url = Website.route path []

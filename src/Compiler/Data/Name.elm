@@ -1,60 +1,36 @@
+{- MANUALLY FORMATTED -}
 module Compiler.Data.Name exposing
-    ( Name
-    , array
-    , bName
-    , basics
-    , bitwise
-    , bool
-    , char
-    , cmd
-    , debug
-    , debugger
-    , dict
-    , dollar
-    , false
-    , float
-    , fromManyNames
-    , fromPtr
-    , fromTypeVariable
-    , fromTypeVariableScheme
-    , fromVarIndex
-    , fromWords
-    , getKernel
-    , hasDot
-    , identity_
-    , int
-    , isAppendableType
-    , isCompappendType
-    , isComparableType
-    , isKernel
-    , isNumberType
-    , jsArray
-    , l_main
-    , list
-    , maybe
-    , negate
-    , node
-    , platform
-    , program
-    , replModule
-    , replValueToPrint
-    , result
-    , router
-    , sepBy
-    , shader
-    , splitDots
-    , string
-    , sub
-    , task
-    , toBuilder
-    , toElmString
-    , true
-    , tuple
-    , u_Main
-    , utils
-    , value
-    , virtualDom
-    )
+  ( Name, bName
+  --
+  , toElmString
+  , toBuilder
+  --
+  , fromPtr
+  --
+  , getKernel
+  , hasDot
+  , splitDots
+  , isKernel
+  , isNumberType
+  , isComparableType
+  , isAppendableType
+  , isCompappendType
+  , fromVarIndex
+  , fromWords
+  , fromManyNames
+  , fromTypeVariable
+  , fromTypeVariableScheme
+  , sepBy
+  --
+  , int, float, bool, char, string
+  , maybe, result, list, array, dict, tuple, jsArray
+  , task, router, cmd, sub, platform, virtualDom
+  , shader, debug, debugger, bitwise, basics
+  , utils, negate, true, false, value
+  , node, program, l_main, u_Main, dollar, identity_
+  , replModule, replValueToPrint
+  )
+
 
 import Compiler.Data.Utf8 as Utf8
 import Compiler.Elm.String as ES
@@ -67,7 +43,7 @@ import Extra.Type.List as MList exposing (TList)
 
 
 type alias Name =
-    Utf8.Utf8
+  Utf8.Utf8
 
 
 
@@ -76,12 +52,12 @@ type alias Name =
 
 toElmString : Name -> ES.TString
 toElmString =
-    identity
+  identity
 
 
 toBuilder : Name -> String
 toBuilder =
-    Utf8.toBuilder
+  Utf8.toBuilder
 
 
 
@@ -90,7 +66,7 @@ toBuilder =
 
 fromPtr : String -> Int -> Int -> Name
 fromPtr =
-    Utf8.fromPtr
+  Utf8.fromPtr
 
 
 
@@ -99,12 +75,12 @@ fromPtr =
 
 hasDot : Name -> Bool
 hasDot name =
-    Utf8.contains 0x2E {- . -} name
+  Utf8.contains 0x2E {- . -} name
 
 
 splitDots : Name -> TList Name
 splitDots name =
-    Utf8.split 0x2E {- . -} name
+  Utf8.split 0x2E {- . -} name
 
 
 
@@ -113,11 +89,11 @@ splitDots name =
 
 getKernel : Name -> Name
 getKernel name =
-    if isKernel name then
-        String.dropLeft 11 name
+  if isKernel name then
+    String.dropLeft 11 name
 
-    else
-        Debug.todo "getKernel: not a kernel name"
+  else
+    Debug.todo "getKernel: not a kernel name"
 
 
 
@@ -125,53 +101,34 @@ getKernel name =
 
 
 isKernel : Name -> Bool
-isKernel =
-    Utf8.startsWith prefix_kernel
-
+isKernel = Utf8.startsWith prefix_kernel
 
 isNumberType : Name -> Bool
-isNumberType =
-    Utf8.startsWith prefix_number
-
+isNumberType = Utf8.startsWith prefix_number
 
 isComparableType : Name -> Bool
-isComparableType =
-    Utf8.startsWith prefix_comparable
-
+isComparableType = Utf8.startsWith prefix_comparable
 
 isAppendableType : Name -> Bool
-isAppendableType =
-    Utf8.startsWith prefix_appendable
-
+isAppendableType = Utf8.startsWith prefix_appendable
 
 isCompappendType : Name -> Bool
-isCompappendType =
-    Utf8.startsWith prefix_compappend
-
+isCompappendType = Utf8.startsWith prefix_compappend
 
 prefix_kernel : Name
-prefix_kernel =
-    "Elm.Kernel."
-
+prefix_kernel = "Elm.Kernel."
 
 prefix_number : Name
-prefix_number =
-    "number"
-
+prefix_number = "number"
 
 prefix_comparable : Name
-prefix_comparable =
-    "comparable"
-
+prefix_comparable = "comparable"
 
 prefix_appendable : Name
-prefix_appendable =
-    "appendable"
-
+prefix_appendable = "appendable"
 
 prefix_compappend : Name
-prefix_compappend =
-    "compappend"
+prefix_compappend = "compappend"
 
 
 
@@ -180,12 +137,12 @@ prefix_compappend =
 
 fromVarIndex : Int -> Name
 fromVarIndex n =
-    writeDigitsAtEnd n "_v"
+  writeDigitsAtEnd n "_v"
 
 
 writeDigitsAtEnd : Int -> String -> String
 writeDigitsAtEnd n s =
-    s ++ String.fromInt n
+  s ++ String.fromInt n
 
 
 
@@ -194,19 +151,17 @@ writeDigitsAtEnd n s =
 
 fromTypeVariable : Name -> Int -> Name
 fromTypeVariable name index =
-    if index <= 0 then
-        name
+  if index <= 0 then
+    name
 
+  else
+    let
+      end = String.right 1 name
+    in
+    if "0" <= end && end <= "9" then
+      name ++ "_" ++ String.fromInt index
     else
-        let
-            end =
-                String.right 1 name
-        in
-        if "0" <= end && end <= "9" then
-            name ++ "_" ++ String.fromInt index
-
-        else
-            name ++ String.fromInt index
+      name ++ String.fromInt index
 
 
 
@@ -215,18 +170,14 @@ fromTypeVariable name index =
 
 fromTypeVariableScheme : Int -> Name
 fromTypeVariableScheme scheme =
-    if scheme < 26 then
-        String.fromChar (Char.fromCode (0x61 + scheme))
-
-    else
-        let
-            extra =
-                scheme // 26
-
-            letter =
-                modBy 26 scheme
-        in
-        writeDigitsAtEnd extra <| String.fromChar (Char.fromCode (0x61 + letter))
+  if scheme < 26 then
+    String.fromChar (Char.fromCode (0x61 + scheme))
+  else
+    let
+      extra = scheme // 26
+      letter = modBy 26 scheme
+    in
+    writeDigitsAtEnd extra <| String.fromChar (Char.fromCode (0x61 + letter))
 
 
 
@@ -244,19 +195,19 @@ fromTypeVariableScheme scheme =
 
 fromManyNames : TList Name -> Name
 fromManyNames names =
-    case names of
-        [] ->
-            blank
+  case names of
+    [] ->
+      blank
+      -- NOTE: this case is needed for (let _ = Debug.log "x" x in ...)
+      -- but maybe unused patterns should be stripped out instead
 
-        -- NOTE: this case is needed for (let _ = Debug.log "x" x in ...)
-        -- but maybe unused patterns should be stripped out instead
-        name :: _ ->
-            "_M$" ++ name
+    name :: _ ->
+      "_M$" ++ name
 
 
 blank : Name
 blank =
-    "_M$"
+  "_M$"
 
 
 
@@ -265,9 +216,9 @@ blank =
 
 fromWords : TList Int -> Name
 fromWords words =
-    words
-        |> MList.map Char.fromCode
-        |> String.fromList
+  words
+    |> MList.map Char.fromCode
+    |> String.fromList
 
 
 
@@ -276,7 +227,7 @@ fromWords words =
 
 sepBy : Int -> Name -> Name -> Name
 sepBy sep name1 name2 =
-    name1 ++ String.cons (Char.fromCode sep) name2
+  name1 ++ String.cons (Char.fromCode sep) name2
 
 
 
@@ -284,183 +235,147 @@ sepBy sep name1 name2 =
 
 
 int : Name
-int =
-    "Int"
+int = "Int"
 
 
 float : Name
-float =
-    "Float"
+float = "Float"
 
 
 bool : Name
-bool =
-    "Bool"
+bool = "Bool"
 
 
 char : Name
-char =
-    "Char"
+char = "Char"
 
 
 string : Name
-string =
-    "String"
+string = "String"
 
 
 maybe : Name
-maybe =
-    "Maybe"
+maybe = "Maybe"
 
 
 result : Name
-result =
-    "Result"
+result = "Result"
 
 
 list : Name
-list =
-    "List"
+list = "List"
 
 
 array : Name
-array =
-    "Array"
+array = "Array"
 
 
 dict : Name
-dict =
-    "Dict"
+dict = "Dict"
 
 
 tuple : Name
-tuple =
-    "Tuple"
+tuple = "Tuple"
 
 
 jsArray : Name
-jsArray =
-    "JsArray"
+jsArray = "JsArray"
 
 
 task : Name
-task =
-    "Task"
+task = "Task"
 
 
 router : Name
-router =
-    "Router"
+router = "Router"
 
 
 cmd : Name
-cmd =
-    "Cmd"
+cmd = "Cmd"
 
 
 sub : Name
-sub =
-    "Sub"
+sub = "Sub"
 
 
 platform : Name
-platform =
-    "Platform"
+platform = "Platform"
 
 
 virtualDom : Name
-virtualDom =
-    "VirtualDom"
+virtualDom = "VirtualDom"
 
 
 shader : Name
-shader =
-    "Shader"
+shader = "Shader"
 
 
 debug : Name
-debug =
-    "Debug"
+debug = "Debug"
 
 
 debugger : Name
-debugger =
-    "Debugger"
+debugger = "Debugger"
 
 
 bitwise : Name
-bitwise =
-    "Bitwise"
+bitwise = "Bitwise"
 
 
 basics : Name
-basics =
-    "Basics"
+basics = "Basics"
 
 
 utils : Name
-utils =
-    "Utils"
+utils = "Utils"
 
 
 negate : Name
-negate =
-    "negate"
+negate = "negate"
 
 
 true : Name
-true =
-    "True"
+true = "True"
 
 
 false : Name
-false =
-    "False"
+false = "False"
 
 
 value : Name
-value =
-    "Value"
+value = "Value"
 
 
 node : Name
-node =
-    "Node"
+node = "Node"
 
 
 program : Name
-program =
-    "Program"
+program = "Program"
 
 
 l_main : Name
-l_main =
-    "main"
+l_main = "main"
 
 
 u_Main : Name
-u_Main =
-    "Main"
+u_Main = "Main"
 
 
 dollar : Name
-dollar =
-    "$"
+dollar =  "$"
 
 
 identity_ : Name
-identity_ =
-    "identity"
+identity_ = "identity"
 
 
 replModule : Name
-replModule =
-    "Elm_Repl"
+replModule = "Elm_Repl"
 
 
 replValueToPrint : Name
-replValueToPrint =
-    "repl_input_value_"
+replValueToPrint = "repl_input_value_"
 
 
 
@@ -469,4 +384,4 @@ replValueToPrint =
 
 bName : B.Binary Name
 bName =
-    Utf8.bUnder256
+  Utf8.bUnder256
