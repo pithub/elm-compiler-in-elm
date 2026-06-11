@@ -11,21 +11,20 @@ module Builder.Http exposing
 
 
 import Compiler.Elm.Version as V
-import Extra.System.Config as Config
-import Extra.System.Exception exposing (handle)
-import Extra.System.Http as Sys
-import Extra.System.IO as IO exposing (IO)
+import Extra.Platform as Platform
+import Extra.Platform.Http as Sys
+import Extra.System.IO as IO
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List exposing (TList)
 import Zip
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO b c d e f g h v =
-  IO.IO (Config.GlobalState b c d e f g h) v
+type alias IO b c d e v =
+  Platform.IO b c d e v
 
 
 
@@ -36,7 +35,7 @@ type alias Manager =
   Sys.Manager
 
 
-getManager : IO b c d e f g h Manager
+getManager : IO b c d e Manager
 getManager =
   Sys.defaultManager
 
@@ -56,19 +55,19 @@ toUrl url params =
 -- FETCH
 
 
-get : Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO b c d e f g h (Either x v)) -> IO b c d e f g h (Either x v)
+get : Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO b c d e (Either x v)) -> IO b c d e (Either x v)
 get =
   fetch Sys.methodGet
 
 
-post : Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO b c d e f g h (Either x v)) -> IO b c d e f g h (Either x v)
+post : Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO b c d e (Either x v)) -> IO b c d e (Either x v)
 post =
   fetch Sys.methodPost
 
 
-fetch : Sys.Method -> Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO b c d e f g h (Either x v)) -> IO b c d e f g h (Either x v)
+fetch : Sys.Method -> Sys.Manager -> String -> TList Sys.Header -> (Error -> x) -> (String -> IO b c d e (Either x v)) -> IO b c d e (Either x v)
 fetch methodVerb manager url headers onError onSuccess =
-  handle (handleHttpException url onError) <|
+  handleHttpException url onError <|
   IO.bind (Sys.parseUrlThrow url) <| \req0 ->
   let req1 =
         { req0
@@ -101,9 +100,12 @@ type Error
   = BadHttp String Sys.Exception
 
 
-handleHttpException : String -> (Error -> x) -> Sys.Exception -> IO b c d e f g h (Either x v)
-handleHttpException url onError httpException =
-  IO.return (Left (onError (BadHttp url httpException)))
+handleHttpException : String -> (Error -> x) -> IO b c d e (Either Sys.Exception (Either x v)) -> IO b c d e (Either x v)
+handleHttpException url onError io =
+  IO.rmap io <| \result ->
+  case result of
+    Right either   -> either
+    Left exception -> Left (onError (BadHttp url exception))
 
 
 
@@ -115,10 +117,10 @@ getArchive :
   -> String
   -> (Error -> x)
   -> x
-  -> (Zip.Zip -> IO b c d e f g h (Either x v))
-  -> IO b c d e f g h (Either x v)
+  -> (Zip.Zip -> IO b c d e (Either x v))
+  -> IO b c d e (Either x v)
 getArchive manager url onError err onSuccess =
-  handle (handleHttpException url onError) <|
+  handleHttpException url onError <|
   IO.bind (Sys.parseUrlThrow url) <| \req0 ->
   let req1 =
         { req0

@@ -20,9 +20,10 @@ import Bytes exposing (Bytes)
 import Bytes.Decode
 import Bytes.Encode
 import Extra.Data.Binary as B
-import Extra.System.Dir as Dir exposing (FilePath)
-
+import Extra.Platform as Platform
+import Extra.Platform.Handle as Handle
 import Extra.System.IO as IO
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.List as MList
 import Time as T
@@ -31,11 +32,11 @@ import Zip.Entry
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO c d e f g h v =
-  IO.IO (Dir.GlobalState c d e f g h) v
+type alias IO b c d e v =
+  Platform.IO b c d e v
 
 
 
@@ -45,9 +46,9 @@ type alias IO c d e f g h v =
 type Time = Time T.Posix
 
 
-getTime : FilePath -> IO c d e f g h Time
+getTime : FilePath -> IO b c d e Time
 getTime path =
-  IO.fmap Time (Dir.getModificationTime path)
+  IO.fmap Time (Platform.getModificationTime path)
 
 
 toMillis : Time -> Int
@@ -89,36 +90,37 @@ halfTimeFactor =
 -- BINARY
 
 
-writeBinary : B.Binary v -> FilePath -> v -> IO c d e f g h ()
+writeBinary : B.Binary v -> FilePath -> v -> IO b c d e ()
 writeBinary binA path value =
-  let dir = Dir.dropLastName path in
-  IO.bind (Dir.createDirectoryIfMissing True dir) <| \_ ->
-  B.encodeFile binA path value
+  let dir = Path.dropLastName path in
+  IO.bind (Platform.createDirectoryIfMissing dir) <| \_ ->
+  Platform.writeFile path (B.encode binA value)
 
 
-readBinary : B.Binary v -> FilePath -> IO c d e f g h (Maybe v)
+readBinary : B.Binary v -> FilePath -> IO b c d e (Maybe v)
 readBinary binA path =
-  IO.bind (Dir.doesFileExist path) <| \pathExists ->
-  if pathExists
-    then
-      IO.bind (B.decodeFileOrFail binA path) <| \result ->
-      case result of
+  IO.bind (Platform.readFile path) <| \maybeBytes ->
+  case maybeBytes of
+    Just bytes ->
+      case B.decode binA bytes of
         Right a ->
           IO.return (Just a)
 
         Left (offset, message) ->
-          IO.bind (IO.log "readBinary" <|
+          IO.bind (Handle.hPutStr Handle.stderr <| String.join "\n" <|
             [ "+-------------------------------------------------------------------------------"
-            , "|  Corrupt File: " ++ Dir.toString path
+            , "|  Corrupt File: " ++ Path.toString path
             , "|   Byte Offset: " ++ String.fromInt offset
             , "|       Message: " ++ message
             , "|"
             , "| Please report this to https://github.com/elm/compiler/issues"
             , "| Trying to continue anyway."
             , "+-------------------------------------------------------------------------------"
+            , ""
             ]) <| \_ ->
           IO.return Nothing
-    else
+
+    Nothing ->
       IO.return Nothing
 
 
@@ -126,18 +128,18 @@ readBinary binA path =
 -- WRITE UTF-8
 
 
-writeUtf8 : FilePath -> String -> IO c d e f g h ()
+writeUtf8 : FilePath -> String -> IO b c d e ()
 writeUtf8 filePath contents =
-  Dir.writeFile filePath <| Bytes.Encode.encode <| Bytes.Encode.string contents
+  Platform.writeFile filePath <| Bytes.Encode.encode <| Bytes.Encode.string contents
 
 
 
 -- READ UTF-8
 
 
-readUtf8 : FilePath -> IO c d e f g h String
+readUtf8 : FilePath -> IO b c d e String
 readUtf8 path =
-  Dir.readFile path |> IO.fmap (Maybe.andThen bytesToString >> Maybe.withDefault "")
+  Platform.readFile path |> IO.fmap (Maybe.andThen bytesToString >> Maybe.withDefault "")
 
 
 bytesToString : Bytes -> Maybe String
@@ -149,7 +151,7 @@ bytesToString bytes =
 -- WRITE BUILDER
 
 
-writeBuilder : FilePath -> String -> IO c d e f g h ()
+writeBuilder : FilePath -> String -> IO b c d e ()
 writeBuilder =
   writeUtf8
 
@@ -158,7 +160,7 @@ writeBuilder =
 -- WRITE PACKAGE
 
 
-writePackage : FilePath -> Zip.Zip -> IO c d e f g h ()
+writePackage : FilePath -> Zip.Zip -> IO b c d e ()
 writePackage destination archive =
   case Zip.entries archive of
     [] ->
@@ -170,7 +172,7 @@ writePackage destination archive =
         |> MList.mapM_ IO.return IO.bind (writeEntry destination root)
 
 
-writeEntry : FilePath -> Int -> Zip.Entry.Entry -> IO c d e f g h ()
+writeEntry : FilePath -> Int -> Zip.Entry.Entry -> IO b c d e ()
 writeEntry destination root entry =
   let
     path = String.dropLeft root (Zip.Entry.path entry)
@@ -180,15 +182,15 @@ writeEntry destination root entry =
     || path == "README.md"
     || path == "elm.json"
   then
-    if not (String.isEmpty path) && String.endsWith "/" path
-    then Dir.createDirectoryIfMissing True (Dir.combine destination (Dir.fromString path))
+    if String.endsWith "/" path
+    then Platform.createDirectoryIfMissing (Path.combine destination (Path.fromString path))
     else
       case Zip.Entry.toBytes entry of
         Err _ ->
           IO.return ()
 
         Ok bytes ->
-          Dir.writeFile (Dir.combine destination (Dir.fromString path)) bytes
+          Platform.writeFile (Path.combine destination (Path.fromString path)) bytes
   else
     IO.return ()
 
@@ -197,18 +199,15 @@ writeEntry destination root entry =
 -- EXISTS
 
 
-exists : FilePath -> IO c d e f g h Bool
+exists : FilePath -> IO b c d e Bool
 exists path =
-  Dir.doesFileExist path
+  Platform.doesFileExist path
 
 
 
 -- REMOVE FILES
 
 
-remove : FilePath -> IO c d e f g h ()
+remove : FilePath -> IO b c d e ()
 remove path =
-  IO.bind (Dir.doesFileExist path) <| \exists_ ->
-    if exists_
-      then Dir.removeFile path
-      else IO.return ()
+  Platform.removeFile path

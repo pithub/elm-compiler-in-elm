@@ -5,9 +5,7 @@ module Builder.Generate exposing
   , prod
   , repl
   --
-  , GlobalState
-  , LocalState
-  , initialState
+  , GlobalState, IO, toGlobalState
   )
 
 
@@ -27,15 +25,15 @@ import Compiler.Elm.Package as Pkg
 import Compiler.Generate.JavaScript as JS
 import Compiler.Generate.Mode as Mode
 import Compiler.Nitpick.Debug as Nitpick
-import Extra.System.Dir exposing (FilePath)
-import Extra.System.MVar exposing (MVar)
+import Extra.Platform as Platform
+import Extra.System.IO as IO
+import Extra.System.MVar as MVar exposing (MVar)
+import Extra.System.Path exposing (FilePath)
 import Extra.Type.Either exposing (Either(..))
 import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Extra.Type.Maybe as MMaybe
-import Extra.System.IO as IO
-import Extra.System.MVar as MVar
 import Global
 
 
@@ -45,53 +43,59 @@ import Global
 
 
 
--- PUBLIC STATE
+-- STATE
 
 
-type alias GlobalState f g h =
-  Build.GlobalState (LocalState f g h) f g h
-
-type LocalState f g h = LocalState
-  {- mvLocalGraph -} (MVar.State (GlobalState f g h) (Maybe Opt.LocalGraph))
-  {- mvTypes -} (MVar.State (GlobalState f g h) (Maybe Extract.Types))
+type alias GlobalState e =
+  Build.GlobalState (LocalState e) e
 
 
-initialState : LocalState f g h
-initialState = LocalState
+type LocalState e = LocalState
+  {- mvLocalGraph -} (MVar.State (GlobalState e) (Maybe Opt.LocalGraph))
+  {- mvTypes -} (MVar.State (GlobalState e) (Maybe Extract.Types))
+
+
+toGlobalState : Platform.Flags -> e -> GlobalState e
+toGlobalState flags e =
+  Build.toGlobalState flags initialLocalState e
+
+
+initialLocalState : LocalState e
+initialLocalState = LocalState
   {- mvLocalGraph -} (MVar.initialState "LocalGraph")
   {- mvTypes -} (MVar.initialState "Types")
 
 
-lensMVLocalGraph : Lens (GlobalState f g h) (MVar.State (GlobalState f g h) (Maybe Opt.LocalGraph))
+lensMVLocalGraph : Lens (GlobalState e) (MVar.State (GlobalState e) (Maybe Opt.LocalGraph))
 lensMVLocalGraph =
-  { getter = \(Global.State _ _ _ _ (LocalState x _ ) _ _ _) -> x
-  , setter = \x (Global.State a b c d (LocalState _ bi) f g h) -> Global.State a b c d (LocalState x bi) f g h
+  { getter = \(Global.State _ _ _ (LocalState x _ ) _) -> x
+  , setter = \x (Global.State a b c (LocalState _ bi) e) -> Global.State a b c (LocalState x bi) e
   }
 
-lensMVTypes : Lens (GlobalState f g h) (MVar.State (GlobalState f g h) (Maybe Extract.Types))
+lensMVTypes : Lens (GlobalState e) (MVar.State (GlobalState e) (Maybe Extract.Types))
 lensMVTypes =
-  { getter = \(Global.State _ _ _ _ (LocalState _ x) _ _ _) -> x
-  , setter = \x (Global.State a b c d (LocalState ai _) f g h) -> Global.State a b c d (LocalState ai x) f g h
+  { getter = \(Global.State _ _ _ (LocalState _ x) _) -> x
+  , setter = \x (Global.State a b c (LocalState ai _) e) -> Global.State a b c (LocalState ai x) e
   }
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO f g h v =
-  IO.IO (GlobalState f g h) v
+type alias IO e v =
+  IO.IO (GlobalState e) v
 
 
 
 -- GENERATORS
 
 
-type alias Task z f g h v =
-  Task.Task z (GlobalState f g h) Exit.Generate v
+type alias Task z e v =
+  Task.Task z (GlobalState e) Exit.Generate v
 
 
-debug : FilePath -> Details.Details -> Build.Artifacts -> Task z f g h String
+debug : FilePath -> Details.Details -> Build.Artifacts -> Task z e String
 debug root details (Build.Artifacts pkg ifaces roots modules) =
   Task.bind (loadObjects root details modules) <| \loading ->
   Task.bind (loadTypes root ifaces modules) <| \types ->
@@ -102,7 +106,7 @@ debug root details (Build.Artifacts pkg ifaces roots modules) =
   Task.return <| JS.generate mode graph mains
 
 
-dev : FilePath -> Details.Details -> Build.Artifacts -> Task z f g h String
+dev : FilePath -> Details.Details -> Build.Artifacts -> Task z e String
 dev root details (Build.Artifacts pkg _ roots modules) =
   Task.bind (Task.andThen finalizeObjects <| loadObjects root details modules) <| \objects ->
   let mode = Mode.Dev Nothing in
@@ -111,7 +115,7 @@ dev root details (Build.Artifacts pkg _ roots modules) =
   Task.return <| JS.generate mode graph mains
 
 
-prod : FilePath -> Details.Details -> Build.Artifacts -> Task z f g h String
+prod : FilePath -> Details.Details -> Build.Artifacts -> Task z e String
 prod root details (Build.Artifacts pkg _ roots modules) =
   Task.bind (Task.andThen finalizeObjects <| loadObjects root details modules) <| \objects ->
   Task.bind (checkForDebugUses objects) <| \_ ->
@@ -121,7 +125,7 @@ prod root details (Build.Artifacts pkg _ roots modules) =
   Task.return <| JS.generate mode graph mains
 
 
-repl : FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task z f g h String
+repl : FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task z e String
 repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
   Task.bind (Task.andThen finalizeObjects <| loadObjects root details modules) <| \objects ->
   let graph = objectsToGlobalGraph objects in
@@ -132,7 +136,7 @@ repl root details ansi (Build.ReplArtifacts home modules localizer annotations) 
 -- CHECK FOR DEBUG
 
 
-checkForDebugUses : Objects -> Task z f g h ()
+checkForDebugUses : Objects -> Task z e ()
 checkForDebugUses (Objects _ locals) =
   case Map.keys (Map.filter Nitpick.hasDebugUses locals) of
     []    -> Task.return ()
@@ -169,7 +173,7 @@ type LoadingObjects =
     {- local_mvars -} (Map.Map ModuleName.Raw (MVar (Maybe Opt.LocalGraph)))
 
 
-loadObjects : FilePath -> Details.Details -> TList Build.Module -> Task z f g h LoadingObjects
+loadObjects : FilePath -> Details.Details -> TList Build.Module -> Task z e LoadingObjects
 loadObjects root details modules =
   Task.io <|
     IO.bind (Details.loadObjects root details) <| \mvar ->
@@ -177,7 +181,7 @@ loadObjects root details modules =
     IO.return <| LoadingObjects mvar (Map.fromList mvars)
 
 
-loadObject : FilePath -> Build.Module -> IO f g h (ModuleName.Raw, MVar (Maybe Opt.LocalGraph))
+loadObject : FilePath -> Build.Module -> IO e (ModuleName.Raw, MVar (Maybe Opt.LocalGraph))
 loadObject root modul =
   case modul of
     Build.Fresh name _ graph ->
@@ -200,7 +204,7 @@ type Objects =
     {- locals -} (Map.Map ModuleName.Raw Opt.LocalGraph)
 
 
-finalizeObjects : LoadingObjects -> Task z f g h Objects
+finalizeObjects : LoadingObjects -> Task z e Objects
 finalizeObjects (LoadingObjects mvar mvars) =
   Task.eio identity <|
     IO.bind (MVar.read Details.lensMVGlobalGraph mvar) <| \result ->
@@ -219,7 +223,7 @@ objectsToGlobalGraph (Objects globals locals) =
 -- LOAD TYPES
 
 
-loadTypes : FilePath -> Map.Map ModuleName.Comparable I.DependencyInterface -> TList Build.Module -> Task z f g h Extract.Types
+loadTypes : FilePath -> Map.Map ModuleName.Comparable I.DependencyInterface -> TList Build.Module -> Task z e Extract.Types
 loadTypes root ifaces modules =
   Task.eio identity <|
     IO.bind (MList.traverse IO.pure IO.liftA2 (loadTypesHelp root) modules) <| \mvars ->
@@ -230,7 +234,7 @@ loadTypes root ifaces modules =
       Nothing -> IO.return (Left Exit.GenerateCannotLoadArtifacts)
 
 
-loadTypesHelp : FilePath -> Build.Module -> IO f g h (MVar (Maybe Extract.Types))
+loadTypesHelp : FilePath -> Build.Module -> IO e (MVar (Maybe Extract.Types))
 loadTypesHelp root modul =
   case modul of
     Build.Fresh name iface _ ->

@@ -1,21 +1,15 @@
 module Global exposing (State(..))
 
 
-type State a b c d e f g h
+type State a b c d e
     = State
-        -- Config
+        -- Platform
         a
-        -- Dir
-        b
         -- Details
-        c
+        b
         -- Build
-        d
+        c
         -- Generate
-        e
-        -- Terminal
-        f
-        -- Repl
-        g
+        d
         -- App
-        h
+        e

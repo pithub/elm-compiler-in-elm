@@ -30,8 +30,8 @@ module Extra.Data.Binary exposing
     , bin6
     , custom
     , customVar3
-    , decodeFileOrFail
-    , encodeFile
+    , decode
+    , encode
     , enum
     , finish
     , iso
@@ -45,23 +45,15 @@ module Extra.Data.Binary exposing
     )
 
 import BigInt exposing (BigInt)
+import Bytes exposing (Bytes)
 import Bytes.Encode
 import Extra.Data.Binary.Get as Get exposing (Get)
 import Extra.Data.Binary.Put as Put exposing (Put)
-import Extra.System.Dir as Dir exposing (FilePath)
-import Extra.System.IO as IO
-import Extra.Type.Either exposing (Either(..))
+import Extra.System.Path as Path
+import Extra.Type.Either exposing (Either)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 import Extra.Type.Set as Set
-
-
-
--- PRIVATE IO
-
-
-type alias IO c d e f g h v =
-    IO.IO (Dir.GlobalState c d e f g h) v
 
 
 
@@ -78,23 +70,14 @@ type alias ByteOffset =
     Get.ByteOffset
 
 
-encodeFile : Binary v -> FilePath -> v -> IO c d e f g h ()
-encodeFile binV path v =
-    Dir.writeFile path (Put.runPut (binV.put v))
+encode : Binary v -> v -> Bytes
+encode binV v =
+    Put.runPut (binV.put v)
 
 
-decodeFileOrFail : Binary v -> FilePath -> IO c d e f g h (Either ( ByteOffset, String ) v)
-decodeFileOrFail binV path =
-    Dir.readFile path
-        |> IO.fmap
-            (\maybeBytes ->
-                case maybeBytes of
-                    Just bytes ->
-                        Get.runGetOrFail binV.get bytes
-
-                    Nothing ->
-                        Left ( 0, "File not found: " ++ Dir.toString path )
-            )
+decode : Binary v -> Bytes -> Either ( ByteOffset, String ) v
+decode binV bytes =
+    Get.runGetOrFail binV.get bytes
 
 
 
@@ -485,9 +468,9 @@ bMaybe binA =
         |> finish
 
 
-bPath : Binary Dir.FilePath
+bPath : Binary Path.FilePath
 bPath =
-    bin1 Dir.fromString Dir.toString bString
+    bin1 Path.fromString Path.toString bString
 
 
 bSequence : Binary a -> Int -> Binary (List a)

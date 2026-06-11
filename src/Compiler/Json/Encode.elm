@@ -3,10 +3,15 @@ module Compiler.Json.Encode exposing
   ( write
   , encodeUgly
   , Value
+  , array
   , object
   , string
   , name
+  , path
   , chars
+  , bool
+  , int
+  , null
   , dict
   , list
   )
@@ -15,17 +20,18 @@ module Compiler.Json.Encode exposing
 import Builder.File as File
 import Compiler.Data.Name as Name
 import Compiler.Json.String as Json
-import Extra.System.Dir as Dir exposing (FilePath)
-import Extra.System.IO as IO
+import Extra.Platform as Platform
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
 import Extra.Type.Map as Map
 
 
--- PRIVATE IO
+
+-- IO
 
 
-type alias IO c d e f g h v =
-  IO.IO (Dir.GlobalState c d e f g h) v
+type alias IO b c d e v =
+  Platform.IO b c d e v
 
 
 
@@ -36,6 +42,14 @@ type Value
   = Array (TList Value)
   | Object (TList (Json.TString, Value))
   | CString String
+  | Boolean Bool
+  | Integer Int
+  | Null
+
+
+array : TList Value -> Value
+array =
+  Array
 
 
 object : TList (Json.TString, Value) -> Value
@@ -51,6 +65,26 @@ string str =
 name : Name.Name -> Value
 name nm =
   CString ("\"" ++ Name.toBuilder nm ++ "\"")
+
+
+path : FilePath -> Value
+path filePath =
+  CString ("\"" ++ Json.toBuilder (Path.toString filePath) ++ "\"")
+
+
+bool : Bool -> Value
+bool =
+  Boolean
+
+
+int : Int -> Value
+int =
+  Integer
+
+
+null : Value
+null =
+  Null
 
 
 dict : (comparable -> Json.TString) -> (v -> Value) -> Map.Map comparable v -> Value
@@ -91,9 +125,9 @@ escape chrs =
 -- WRITE TO FILE
 
 
-write : FilePath -> Value -> IO c d e f g h ()
-write path value =
-  File.writeBuilder path (encode value ++ "\n")
+write : FilePath -> Value -> IO b c d e ()
+write filePath value =
+  File.writeBuilder filePath (encode value ++ "\n")
 
 
 
@@ -126,6 +160,15 @@ encodeUgly value =
     CString builder ->
       builder
 
+    Boolean boolean ->
+      if boolean then "true" else "false"
+
+    Integer n ->
+      String.fromInt n
+
+    Null ->
+      "null"
+
 
 
 -- ENCODE
@@ -153,6 +196,15 @@ encodeHelp indent value =
 
     CString builder ->
       builder
+
+    Boolean boolean ->
+      if boolean then "true" else "false"
+
+    Integer n ->
+      String.fromInt n
+
+    Null ->
+      "null"
 
 
 

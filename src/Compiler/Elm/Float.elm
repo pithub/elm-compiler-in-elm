@@ -1,8 +1,9 @@
+{- MANUALLY FORMATTED -}
 module Compiler.Elm.Float exposing
-    ( TFloat
-    , bTFloat
-    , fromPtr
-    )
+  ( TFloat, bTFloat
+  , fromPtr
+  )
+
 
 import Compiler.Data.Utf8 as Utf8
 import Extra.Data.Binary as B
@@ -13,7 +14,7 @@ import Extra.Data.Binary as B
 
 
 type alias TFloat =
-    Utf8.Utf8
+  Utf8.Utf8
 
 
 
@@ -22,7 +23,7 @@ type alias TFloat =
 
 fromPtr : String -> Int -> Int -> TFloat
 fromPtr =
-    Utf8.fromPtr
+  Utf8.fromPtr
 
 
 
@@ -31,4 +32,4 @@ fromPtr =
 
 bTFloat : B.Binary TFloat
 bTFloat =
-    Utf8.bUnder256
+  Utf8.bUnder256

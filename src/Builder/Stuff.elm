@@ -18,15 +18,17 @@ module Builder.Stuff exposing
 import Compiler.Elm.ModuleName as ModuleName
 import Compiler.Elm.Package as Pkg
 import Compiler.Elm.Version as V
-import Extra.System.Dir as Dir exposing (FileName, FilePath)
+import Extra.Platform as Platform
 import Extra.System.IO as IO
+import Extra.System.Path as Path exposing (FileName, FilePath)
 
 
--- PRIVATE IO
+
+-- IO
 
 
-type alias IO c d e f g h v =
-  IO.IO (Dir.GlobalState c d e f g h) v
+type alias IO b c d e v =
+  Platform.IO b c d e v
 
 
 
@@ -35,22 +37,22 @@ type alias IO c d e f g h v =
 
 stuff : FilePath -> FilePath
 stuff root =
-  Dir.addNames root [ "elm-stuff", compilerVersion ]
+  Path.addNames root [ "elm-stuff", compilerVersion ]
 
 
 details : FilePath -> FilePath
 details root =
-  Dir.addName (stuff root) "d.dat"
+  Path.addName (stuff root) "d.dat"
 
 
 interfaces : FilePath -> FilePath
 interfaces root =
-  Dir.addName (stuff root) "i.dat"
+  Path.addName (stuff root) "i.dat"
 
 
 objects : FilePath -> FilePath
 objects root =
-  Dir.addName (stuff root) "o.dat"
+  Path.addName (stuff root) "o.dat"
 
 
 compilerVersion : FileName
@@ -74,26 +76,26 @@ elmo root name =
 
 toArtifactPath : FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
-  Dir.addName (stuff root) (ModuleName.toHyphenName name ++ "." ++ ext)
+  Path.addName (stuff root) (ModuleName.toHyphenName name ++ "." ++ ext)
 
 
 
 -- ROOT
 
 
-findRoot : IO c d e f g h (Maybe FilePath)
+findRoot : IO b c d e (Maybe FilePath)
 findRoot =
-  IO.bind Dir.getCurrentDirectory <| \dir ->
+  IO.bind Platform.getCurrentDirectory <| \dir ->
   findRootHelp dir
 
 
-findRootHelp : FilePath -> IO c d e f g h (Maybe FilePath)
+findRootHelp : FilePath -> IO b c d e (Maybe FilePath)
 findRootHelp dirs =
-  IO.bind (Dir.doesFileExist (Dir.addName dirs "elm.json")) <| \exists ->
+  IO.bind (Platform.doesFileExist (Path.addName dirs "elm.json")) <| \exists ->
   if exists
     then IO.return (Just dirs)
     else
-      case Dir.splitLastName dirs of
+      case Path.splitLastName dirs of
         ( _, "" ) ->
           IO.return Nothing
 
@@ -108,38 +110,38 @@ findRootHelp dirs =
 type PackageCache = PackageCache FilePath
 
 
-getPackageCache : IO c d e f g h PackageCache
+getPackageCache : IO b c d e PackageCache
 getPackageCache =
   IO.fmap PackageCache <| getCacheDir "packages"
 
 
 registry : PackageCache -> FilePath
 registry (PackageCache dir) =
-  Dir.addName dir "registry.dat"
+  Path.addName dir "registry.dat"
 
 
 package : PackageCache -> Pkg.Name -> V.Version -> FilePath
 package (PackageCache dir) name version =
-  Dir.addName (Dir.combine dir (Pkg.toFilePath name)) (V.toChars version)
+  Path.addName (Path.combine dir (Pkg.toFilePath name)) (V.toChars version)
 
 
 
 -- CACHE
 
 
-getReplCache : IO c d e f g h FilePath
+getReplCache : IO b c d e FilePath
 getReplCache =
   getCacheDir "repl"
 
 
-getCacheDir : FileName -> IO c d e f g h FilePath
+getCacheDir : FileName -> IO b c d e FilePath
 getCacheDir projectName =
   IO.bind getElmHome <| \home ->
-  let root = Dir.addNames home [ compilerVersion, projectName ] in
-  IO.bind (Dir.createDirectoryIfMissing True root) <| \_ ->
+  let root = Path.addNames home [ compilerVersion, projectName ] in
+  IO.bind (Platform.createDirectoryIfMissing root) <| \_ ->
   IO.return root
 
 
-getElmHome : IO c d e f g h FilePath
+getElmHome : IO b c d e FilePath
 getElmHome =
-  Dir.getAppUserDataDirectory "elm"
+  Platform.getElmHome

@@ -9,10 +9,10 @@ module Builder.Build exposing
   , CachedInterface(..)
   , ReplArtifacts(..)
   , DocsGoal, DocsGoalKind, ignoreDocs
+  , getRootNames
   --
-  , GlobalState
-  , LocalState
-  , initialState
+  , GlobalState, IO, toGlobalState
+  --
   , lensMVCachedInterface
   )
 
@@ -20,6 +20,7 @@ module Builder.Build exposing
 import Builder.Elm.Details as Details
 import Builder.Elm.Outline as Outline
 import Builder.File as File
+import Builder.Reporting as Reporting
 import Builder.Reporting.Exit as Exit
 import Builder.Stuff as Stuff
 import Compiler.AST.Canonical as Can
@@ -39,9 +40,9 @@ import Compiler.Reporting.Error.Import as Import
 import Compiler.Reporting.Error.Syntax as Syntax
 import Compiler.Reporting.Render.Type.Localizer as L
 import Extra.Data.Graph as Graph
-import Extra.System.Config as Config
-import Extra.System.Dir as Dir exposing (FileName, FilePath)
+import Extra.Platform as Platform
 import Extra.System.IO as IO
+import Extra.System.Path as Path exposing (FileName, FilePath)
 import Extra.Type.Either as Either exposing (Either(..))
 import Extra.Type.Lens exposing (Lens)
 import Extra.Type.List as MList exposing (TList)
@@ -54,25 +55,31 @@ import Unicode as UChar
 
 
 
--- PUBLIC STATE
+-- STATE
 
 
-type alias GlobalState e f g h =
-  Details.GlobalState (LocalState e f g h) e f g h
+type alias GlobalState d e =
+  Details.GlobalState (LocalState d e) d e
 
 
-type LocalState e f g h = LocalState
-  {- mvStatus -} (MVar.State (GlobalState e f g h) Status)
-  {- mvStatusMap -} (MVar.State (GlobalState e f g h) (Map.Map ModuleName.Raw (MVar Status)))
-  {- mvRootStatus -} (MVar.State (GlobalState e f g h) RootStatus)
-  {- mvRootResult -} (MVar.State (GlobalState e f g h) RootResult)
-  {- mvResult -} (MVar.State (GlobalState e f g h) Result)
-  {- mvResultMap -} (MVar.State (GlobalState e f g h) ResultDict)
-  {- mvCachedInterface -} (MVar.State (GlobalState e f g h) CachedInterface)
+type LocalState d e = LocalState
+  {- mvStatus -} (MVar.State (GlobalState d e) Status)
+  {- mvStatusMap -} (MVar.State (GlobalState d e) (Map.Map ModuleName.Raw (MVar Status)))
+  {- mvRootStatus -} (MVar.State (GlobalState d e) RootStatus)
+  {- mvRootResult -} (MVar.State (GlobalState d e) RootResult)
+  {- mvResult -} (MVar.State (GlobalState d e) Result)
+  {- mvResultMap -} (MVar.State (GlobalState d e) ResultDict)
+  {- mvCachedInterface -} (MVar.State (GlobalState d e) CachedInterface)
+  {- reportingState -} Int
 
 
-initialState : LocalState e f g h
-initialState = LocalState
+toGlobalState : Platform.Flags -> d -> e -> GlobalState d e
+toGlobalState flags d e =
+  Details.toGlobalState flags initialLocalState d e
+
+
+initialLocalState : LocalState d e
+initialLocalState = LocalState
   {- mvStatus -} (MVar.initialState "Status")
   {- mvStatusMap -} (MVar.initialState "StatusMap")
   {- mvRootStatus -} (MVar.initialState "RootStatus")
@@ -80,65 +87,78 @@ initialState = LocalState
   {- mvResult -} (MVar.initialState "Result")
   {- mvResultMap -} (MVar.initialState "ResultMap")
   {- mvCachedInterface -} (MVar.initialState "CachedInterface")
+  {- reportingState -} 0
 
 
-lensMVStatus : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) Status)
+lensMVStatus : Lens (GlobalState d e) (MVar.State (GlobalState d e) Status)
 lensMVStatus =
-  { getter = \(Global.State _ _ _ (LocalState x _ _ _ _ _ _) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState _ bi ci di ei fi gi) e f g h) -> Global.State a b c (LocalState x bi ci di ei fi gi) e f g h
+  { getter = \(Global.State _ _ (LocalState x _ _ _ _ _ _ _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState _ bi ci di ei fi gi hi) d e) -> Global.State a b (LocalState x bi ci di ei fi gi hi) d e
   }
 
-lensMVStatusMap : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) (Map.Map ModuleName.Raw (MVar Status)))
+lensMVStatusMap : Lens (GlobalState d e) (MVar.State (GlobalState d e) (Map.Map ModuleName.Raw (MVar Status)))
 lensMVStatusMap =
-  { getter = \(Global.State _ _ _ (LocalState _ x _ _ _ _ _) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState bi _ ci di ei fi gi) e f g h) -> Global.State a b c (LocalState bi x ci di ei fi gi) e f g h
+  { getter = \(Global.State _ _ (LocalState _ x _ _ _ _ _ _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai _ ci di ei fi gi hi) d e) -> Global.State a b (LocalState ai x ci di ei fi gi hi) d e
   }
 
-lensMVRootStatus : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) RootStatus)
+lensMVRootStatus : Lens (GlobalState d e) (MVar.State (GlobalState d e) RootStatus)
 lensMVRootStatus =
-  { getter = \(Global.State _ _ _ (LocalState _ _ x _ _ _ _) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState bi ci _ di ei fi gi) e f g h) -> Global.State a b c (LocalState bi ci x di ei fi gi) e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ x _ _ _ _ _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi _ di ei fi gi hi) d e) -> Global.State a b (LocalState ai bi x di ei fi gi hi) d e
   }
 
-lensMVRootResult : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) RootResult)
+lensMVRootResult : Lens (GlobalState d e) (MVar.State (GlobalState d e) RootResult)
 lensMVRootResult =
-  { getter = \(Global.State _ _ _ (LocalState _ _ _ x _ _ _) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState bi ci di _ ei fi gi) e f g h) -> Global.State a b c (LocalState bi ci di x ei fi gi) e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ x _ _ _ _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci _ ei fi gi hi) d e) -> Global.State a b (LocalState ai bi ci x ei fi gi hi) d e
   }
 
-lensMVResult : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) Result)
+lensMVResult : Lens (GlobalState d e) (MVar.State (GlobalState d e) Result)
 lensMVResult =
-  { getter = \(Global.State _ _ _ (LocalState _ _ _ _ x _ _) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState bi ci di ei _ fi gi) e f g h) -> Global.State a b c (LocalState bi ci di ei x fi gi) e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ x _ _ _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di _ fi gi hi) d e) -> Global.State a b (LocalState ai bi ci di x fi gi hi) d e
   }
 
-lensMVResultMap : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) ResultDict)
+lensMVResultMap : Lens (GlobalState d e) (MVar.State (GlobalState d e) ResultDict)
 lensMVResultMap =
-  { getter = \(Global.State _ _ _ (LocalState _ _ _ _ _ x _) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState bi ci di ei fi _ gi) e f g h) -> Global.State a b c (LocalState bi ci di ei fi x gi) e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ x _ _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di ei _ gi hi) d e) -> Global.State a b (LocalState ai bi ci di ei x gi hi) d e
   }
 
-lensMVCachedInterface : Lens (GlobalState e f g h) (MVar.State (GlobalState e f g h) CachedInterface)
+lensMVCachedInterface : Lens (GlobalState d e) (MVar.State (GlobalState d e) CachedInterface)
 lensMVCachedInterface =
-  { getter = \(Global.State _ _ _ (LocalState _ _ _ _ _ _ x) _ _ _ _) -> x
-  , setter = \x (Global.State a b c (LocalState bi ci di ei fi gi _) e f g h) -> Global.State a b c (LocalState bi ci di ei fi gi x) e f g h
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ x _) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di ei fi _ hi) d e) -> Global.State a b (LocalState ai bi ci di ei fi x hi) d e
+  }
+
+
+lensReportingState : Lens (GlobalState d e) Int
+lensReportingState =
+  { getter = \(Global.State _ _ (LocalState _ _ _ _ _ _ _ x) _ _) -> x
+  , setter = \x (Global.State a b (LocalState ai bi ci di ei fi gi _) d e) -> Global.State a b (LocalState ai bi ci di ei fi gi x) d e
   }
 
 
 
--- PRIVATE IO
+-- IO
 
 
-type alias IO e f g h v =
-  IO.IO (GlobalState e f g h) v
+type alias IO d e v =
+  IO.IO (GlobalState d e) v
+
+
+type alias BKey d e =
+  Reporting.BKey (GlobalState d e)
 
 
 
 -- ENVIRONMENT
 
 
-type Env =
+type Env d e =
   Env
+    {- key -} (BKey d e)
     {- root -} FilePath
     {- project -} Parse.ProjectType
     {- srcDirs -} (TList AbsoluteSrcDir)
@@ -147,19 +167,16 @@ type Env =
     {- foreigns -} (Map.Map ModuleName.Raw Details.Foreign)
 
 
-makeEnv : FilePath -> Details.Details -> IO e f g h Env
-makeEnv root (Details.Details _ validOutline buildID locals foreigns _) =
+makeEnv : BKey d e -> FilePath -> Details.Details -> IO d e (Env d e)
+makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
     Details.ValidApp givenSrcDirs ->
       IO.bind (MList.traverse IO.pure IO.liftA2 (toAbsoluteSrcDir root) (NE.toList givenSrcDirs)) <| \srcDirs ->
-      IO.bind Config.additionalSrcDirs <| \additionalSrcDirNames ->
-      let makeAbsolute name = IO.fmap AbsoluteSrcDir (Dir.makeAbsolute (Dir.fromString name)) in
-      IO.bind (MList.traverse IO.pure IO.liftA2 makeAbsolute additionalSrcDirNames) <| \additionalSrcDirs ->
-      IO.return <| Env root Parse.Application (srcDirs ++ additionalSrcDirs) buildID locals foreigns
+      IO.return <| Env key root Parse.Application srcDirs buildID locals foreigns
 
     Details.ValidPkg pkg _ _ ->
-      IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (Dir.fromString "src"))) <| \srcDir ->
-      IO.return <| Env root (Parse.Package pkg) [srcDir] buildID locals foreigns
+      IO.bind (toAbsoluteSrcDir root (Outline.RelativeSrcDir (Path.fromString "src"))) <| \srcDir ->
+      IO.return <| Env key root (Parse.Package pkg) [srcDir] buildID locals foreigns
 
 
 
@@ -170,19 +187,19 @@ type AbsoluteSrcDir =
   AbsoluteSrcDir FilePath
 
 
-toAbsoluteSrcDir : FilePath -> Outline.SrcDir -> IO e f g h AbsoluteSrcDir
+toAbsoluteSrcDir : FilePath -> Outline.SrcDir -> IO d e AbsoluteSrcDir
 toAbsoluteSrcDir root srcDir =
   IO.fmap AbsoluteSrcDir <| IO.return
     (
       case srcDir of
         Outline.AbsoluteSrcDir dir -> dir
-        Outline.RelativeSrcDir dir -> Dir.combine root dir
+        Outline.RelativeSrcDir dir -> Path.combine root dir
     )
 
 
 addRelative : AbsoluteSrcDir -> TList FileName -> FilePath
 addRelative (AbsoluteSrcDir srcDir) segments =
-  Dir.addExtension (Dir.addNames srcDir segments) "elm"
+  Path.addExtension (Path.addNames srcDir segments) "elm"
 
 
 
@@ -193,11 +210,11 @@ addRelative (AbsoluteSrcDir srcDir) segments =
 -- described in Chapter 13 of Parallel and Concurrent Programming in Haskell by Simon Marlow
 -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/ch13.html#sec_conc-par-overhead
 --
-fork : MVar.Lens (GlobalState e f g h) v -> (() -> IO e f g h v) -> IO e f g h (MVar v)
+fork : MVar.Lens (GlobalState d e) v -> (() -> IO d e v) -> IO d e (MVar v)
 fork = MVar.newWaiting
 
 
-forkWithKey : MVar.Lens (GlobalState e f g h) w -> (comparable -> v -> () -> IO e f g h w) -> Map.Map comparable v -> IO e f g h (Map.Map comparable (MVar w))
+forkWithKey : MVar.Lens (GlobalState d e) w -> (comparable -> v -> () -> IO d e w) -> Map.Map comparable v -> IO d e (Map.Map comparable (MVar w))
 forkWithKey lens func dict =
   Map.traverseWithKey IO.pure IO.liftA2 (\k v -> fork lens (func k v)) dict
 
@@ -206,9 +223,10 @@ forkWithKey lens func dict =
 -- FROM EXPOSED
 
 
-fromExposed : FilePath -> Details.Details -> DocsGoal e f g h docs -> NE.TList ModuleName.Raw -> IO e f g h (Either Exit.BuildProblem docs)
-fromExposed root details docsGoal ((NE.CList e es) as exposed) =
-  IO.bind (makeEnv root details) <| \env ->
+fromExposed : Reporting.Style -> FilePath -> Details.Details -> DocsGoal d e docs -> NE.TList ModuleName.Raw -> IO d e (Either Exit.BuildProblem docs)
+fromExposed style root details docsGoal ((NE.CList e es) as exposed) =
+  Reporting.trackBuild lensReportingState style <| \key ->
+  IO.bind (makeEnv key root details) <| \env ->
   IO.bind (Details.loadInterfaces root details) <| \dmvar ->
 
   -- crawl
@@ -255,9 +273,10 @@ type alias Dependencies =
   Map.Map ModuleName.Comparable I.DependencyInterface
 
 
-fromPaths : FilePath -> Details.Details -> NE.TList FilePath -> IO e f g h (Either Exit.BuildProblem Artifacts)
-fromPaths root details paths =
-  IO.bind (makeEnv root details) <| \env ->
+fromPaths : Reporting.Style -> FilePath -> Details.Details -> NE.TList FilePath -> IO d e (Either Exit.BuildProblem Artifacts)
+fromPaths style root details paths =
+  Reporting.trackBuild lensReportingState style <| \key ->
+  IO.bind (makeEnv key root details) <| \env ->
 
   IO.bind (findRoots env paths) <| \elroots ->
   case elroots of
@@ -289,6 +308,22 @@ fromPaths root details paths =
 
 
 
+-- GET ROOT NAMES
+
+
+getRootNames : Artifacts -> NE.TList ModuleName.Raw
+getRootNames (Artifacts _ _ roots _) =
+  NE.fmap getRootName roots
+
+
+getRootName : Root -> ModuleName.Raw
+getRootName root =
+  case root of
+    Inside  name   -> name
+    Outside name _ -> name
+
+
+
 -- CRAWL
 
 
@@ -305,7 +340,7 @@ type Status
   | SKernel
 
 
-crawlDeps : Env -> MVar StatusDict -> TList ModuleName.Raw -> v -> IO e f g h v
+crawlDeps : Env d e -> MVar StatusDict -> TList ModuleName.Raw -> v -> IO d e v
 crawlDeps env mvar deps blockedValue =
   let
     crawlNew name () = fork lensMVStatus (crawlModule env mvar (DocsNeed False) name)
@@ -319,8 +354,8 @@ crawlDeps env mvar deps blockedValue =
   IO.return blockedValue
 
 
-crawlModule : Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> () -> IO e f g h Status
-crawlModule ((Env root projectType srcDirs buildID locals foreigns) as env) mvar docsNeed name () =
+crawlModule : Env d e -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> () -> IO d e Status
+crawlModule ((Env _ root projectType srcDirs buildID locals foreigns) as env) mvar docsNeed name () =
   let fileNames = ModuleName.toFileNames name in
 
   IO.bind (MList.filterM IO.pure IO.liftA2 File.exists (MList.map (\d -> addRelative d fileNames) srcDirs)) <| \paths ->
@@ -343,7 +378,7 @@ crawlModule ((Env root projectType srcDirs buildID locals foreigns) as env) mvar
               else crawlDeps env mvar deps (SCached local)
 
     p1::p2::ps ->
-      IO.return <| SBadImport <| Import.AmbiguousLocal (Dir.makeRelative root p1) (Dir.makeRelative root p2) (MList.map (Dir.makeRelative root) ps)
+      IO.return <| SBadImport <| Import.AmbiguousLocal (Path.makeRelative root p1) (Path.makeRelative root p2) (MList.map (Path.makeRelative root) ps)
 
     [] ->
       case Map.lookup name foreigns of
@@ -357,7 +392,7 @@ crawlModule ((Env root projectType srcDirs buildID locals foreigns) as env) mvar
 
         Nothing ->
           if Name.isKernel name && Parse.isKernel projectType then
-            IO.bind (File.exists (Dir.addExtension (Dir.addNames (Dir.fromString "src") (ModuleName.toFileNames name)) "js")) <| \exists ->
+            IO.bind (File.exists (Path.addExtension (Path.addNames (Path.fromString "src") (ModuleName.toFileNames name)) "js")) <| \exists ->
             IO.return <| if exists then SKernel else
               SBadImport Import.NotFound
           else
@@ -374,12 +409,12 @@ isEquivalent root path oldPath =
         ( _, [] ) -> False
         ( prefixHead :: prefixTail, testHead :: testTail ) -> prefixHead == testHead && startsWith prefixTail testTail
   in
-  startsWith (Dir.getNames (Dir.makeRelative root path)) (Dir.getNames oldPath)
+  startsWith (Path.getNames (Path.makeRelative root path)) (Path.getNames oldPath)
 
 
-crawlFile : Env -> MVar StatusDict -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO e f g h Status
-crawlFile ((Env root projectType _ buildID _ _) as env) mvar expectedName path time lastChange =
-  IO.bind (File.readUtf8 (Dir.combine root path)) <| \source ->
+crawlFile : Env d e -> MVar StatusDict -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO d e Status
+crawlFile ((Env _ root projectType _ buildID _ _) as env) mvar expectedName path time lastChange =
+  IO.bind (File.readUtf8 (Path.combine root path)) <| \source ->
 
   case Parse.fromByteString projectType source of
     Left err ->
@@ -431,8 +466,8 @@ type CachedInterface
   | Corrupted
 
 
-checkModule : Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> () -> IO e f g h Result
-checkModule ((Env root projectType _ _ _ _) as env) foreigns resultsMVar name status () =
+checkModule : Env d e -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> () -> IO d e Result
+checkModule ((Env _ root projectType _ _ _ _) as env) foreigns resultsMVar name status () =
   case status of
     SCached ((Details.Local path time deps hasMain lastChange lastCompile) as local) ->
       IO.bind (MVar.read lensMVResultMap resultsMVar) <| \results ->
@@ -510,7 +545,7 @@ type DepsStatus
   | DepsNotFound (NE.TList (ModuleName.Raw, Import.Problem))
 
 
-checkDeps : FilePath -> ResultDict -> TList ModuleName.Raw -> Details.BuildID -> IO e f g h DepsStatus
+checkDeps : FilePath -> ResultDict -> TList ModuleName.Raw -> Details.BuildID -> IO d e DepsStatus
 checkDeps root results deps lastCompile =
   checkDepsHelp root results deps [] [] [] [] False 0 lastCompile
 
@@ -519,7 +554,7 @@ type alias Dep = (ModuleName.Raw, I.Interface)
 type alias CDep = (ModuleName.Raw, MVar CachedInterface)
 
 
-checkDepsHelp : FilePath -> ResultDict -> TList ModuleName.Raw -> TList Dep -> TList Dep -> TList CDep -> TList (ModuleName.Raw,Import.Problem) -> Bool -> Details.BuildID -> Details.BuildID -> IO e f g h DepsStatus
+checkDepsHelp : FilePath -> ResultDict -> TList ModuleName.Raw -> TList Dep -> TList Dep -> TList CDep -> TList (ModuleName.Raw,Import.Problem) -> Bool -> Details.BuildID -> Details.BuildID -> IO d e DepsStatus
 checkDepsHelp root results deps new same cached importProblems isBlocked lastDepChange lastCompile =
   case deps of
     dep::otherDeps ->
@@ -572,8 +607,8 @@ checkDepsHelp root results deps new same cached importProblems isBlocked lastDep
 -- TO IMPORT ERROR
 
 
-toImportErrors : Env -> ResultDict -> TList Src.Import -> NE.TList (ModuleName.Raw, Import.Problem) -> NE.TList Import.Error
-toImportErrors (Env _ _ _ _ locals foreigns) results imports problems =
+toImportErrors : Env d e -> ResultDict -> TList Src.Import -> NE.TList (ModuleName.Raw, Import.Problem) -> NE.TList Import.Error
+toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
   let
     knownModules =
       Set.unions
@@ -598,7 +633,7 @@ toImportErrors (Env _ _ _ _ locals foreigns) results imports problems =
 -- LOAD CACHED INTERFACES
 
 
-loadInterfaces : FilePath -> TList Dep -> TList CDep -> IO e f g h (Maybe (Map.Map ModuleName.Raw I.Interface))
+loadInterfaces : FilePath -> TList Dep -> TList CDep -> IO d e (Maybe (Map.Map ModuleName.Raw I.Interface))
 loadInterfaces root same cached =
   IO.bind (MList.traverse IO.pure IO.liftA2 (loadInterface root) cached) <| \maybeLoaded ->
   case MList.sequenceA Just Maybe.map2 maybeLoaded of
@@ -609,7 +644,7 @@ loadInterfaces root same cached =
       IO.return <| Just <| Map.union (Map.fromList loaded) (Map.fromList same)
 
 
-loadInterface : FilePath -> CDep -> IO e f g h (Maybe Dep)
+loadInterface : FilePath -> CDep -> IO d e (Maybe Dep)
 loadInterface root (name, ciMvar) =
   IO.bind (MVar.read lensMVCachedInterface ciMvar) <| \cachedInterface ->
   case cachedInterface of
@@ -637,7 +672,7 @@ loadInterface root (name, ciMvar) =
 -- CHECK PROJECT
 
 
-checkMidpoint : MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> IO e f g h (Either Exit.BuildProjectProblem Dependencies)
+checkMidpoint : MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> IO d e (Either Exit.BuildProjectProblem Dependencies)
 checkMidpoint dmvar statuses =
   case checkForCycles statuses of
     Nothing ->
@@ -651,7 +686,7 @@ checkMidpoint dmvar statuses =
       IO.return (Left (Exit.BP_Cycle name names))
 
 
-checkMidpointAndRoots : MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.TList RootStatus -> IO e f g h (Either Exit.BuildProjectProblem Dependencies)
+checkMidpointAndRoots : MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.TList RootStatus -> IO d e (Either Exit.BuildProjectProblem Dependencies)
 checkMidpointAndRoots dmvar statuses sroots =
   case checkForCycles statuses of
     Nothing ->
@@ -766,8 +801,8 @@ checkInside name p1 status =
 -- COMPILE MODULE
 
 
-compile : Env -> Details.Local -> String -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO e f g h Result
-compile (Env root projectType _ buildID _ _) (Details.Local path time deps main lastChange _) source ifaces modul =
+compile : Env d e -> Details.Local -> String -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO d e Result
+compile (Env key root projectType _ buildID _ _) (Details.Local path time deps main lastChange _) source ifaces modul =
   let
     pkg = projectTypeToPkg projectType
   in
@@ -782,6 +817,7 @@ compile (Env root projectType _ buildID _ _) (Details.Local path time deps main 
         otherwise () =
           -- iface may be lazy still
           IO.bind (File.writeBinary I.bInterface elmi iface) <| \_ ->
+          IO.bind (Reporting.report key Reporting.BDone) <| \_ ->
           let local = Details.Local path time deps main buildID buildID in
           IO.return (RNew local iface objects)
       in
@@ -790,6 +826,7 @@ compile (Env root projectType _ buildID _ _) (Details.Local path time deps main 
           -- TODO: Can we compare Interfaces?
           if oldi == iface then
             -- iface should be fully forced by equality check
+            IO.bind (Reporting.report key Reporting.BDone) <| \_ ->
             let local = Details.Local path time deps main lastChange buildID in
             IO.return (RSame local iface objects)
           else otherwise ()
@@ -816,7 +853,7 @@ projectTypeToPkg projectType =
 -- WRITE DETAILS
 
 
-writeDetails : FilePath -> Details.Details -> Map.Map ModuleName.Raw Result -> IO e f g h ()
+writeDetails : FilePath -> Details.Details -> Map.Map ModuleName.Raw Result -> IO d e ()
 writeDetails root (Details.Details time outline buildID locals foreigns extras) results =
   File.writeBinary Details.bDetails (Stuff.details root) <|
     Details.Details time outline buildID (Map.foldrWithKey addNewLocal locals results) foreigns extras
@@ -839,7 +876,7 @@ addNewLocal name result locals =
 -- FINALIZE EXPOSED
 
 
-finalizeExposed : FilePath -> DocsGoal e f g h docs -> NE.TList ModuleName.Raw -> Map.Map ModuleName.Raw Result -> IO e f g h (Either Exit.BuildProblem docs)
+finalizeExposed : FilePath -> DocsGoal d e docs -> NE.TList ModuleName.Raw -> Map.Map ModuleName.Raw Result -> IO d e (Either Exit.BuildProblem docs)
 finalizeExposed root docsGoal exposed results =
   case MList.foldr (addImportProblems results) [] (NE.toList exposed) of
     p::ps ->
@@ -881,15 +918,15 @@ addImportProblems results name problems =
 -- DOCS
 
 
-type alias DocsGoal e f g h v =
+type alias DocsGoal d e v =
   { kind : DocsGoalKind
-  , finalize : Map.Map ModuleName.Raw Result -> IO e f g h v
+  , finalize : Map.Map ModuleName.Raw Result -> IO d e v
   }
 
 type DocsGoalKind
   = IgnoreDocs
 
-ignoreDocs : DocsGoal e f g h ()
+ignoreDocs : DocsGoal d e ()
 ignoreDocs =
   { kind = IgnoreDocs
   , finalize = finalizeIgnoreDocs
@@ -903,19 +940,106 @@ needsDocs : DocsNeed -> Bool
 needsDocs (DocsNeed b) = b
 
 
-toDocsNeed : DocsGoal e f g h v -> DocsNeed
+toDocsNeed : DocsGoal d e v -> DocsNeed
 toDocsNeed goal =
   case goal.kind of
     IgnoreDocs -> DocsNeed False
 
 
-finalizeDocs : DocsGoal e f g h docs -> Map.Map ModuleName.Raw Result -> IO e f g h docs
+finalizeDocs : DocsGoal d e docs -> Map.Map ModuleName.Raw Result -> IO d e docs
 finalizeDocs goal results =
   goal.finalize results
 
-finalizeIgnoreDocs : Map.Map ModuleName.Raw Result -> IO e f g h ()
+finalizeIgnoreDocs : Map.Map ModuleName.Raw Result -> IO d e ()
 finalizeIgnoreDocs _ =
   IO.return ()
+
+
+
+--------------------------------------------------------------------------------
+------ NOW FOR SOME REPL STUFF -------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+-- FROM REPL
+
+
+type ReplArtifacts =
+  ReplArtifacts
+    {- repl_home -} ModuleName.Canonical
+    {- repl_modules -} (TList Module)
+    {- repl_localizer -} L.Localizer
+    {- repl_annotations -} (Map.Map Name.Name Can.Annotation)
+
+
+fromRepl : FilePath -> Details.Details -> String -> IO d e (Either Exit.Repl ReplArtifacts)
+fromRepl root details source =
+  IO.bind (makeEnv Reporting.ignorer root details) <| \((Env _ _ projectType _ _ _ _) as env) ->
+  case Parse.fromByteString projectType source of
+    Left syntaxError ->
+      IO.return <| Left <| Exit.ReplBadInput source <| Error.BadSyntax syntaxError
+
+    Right ((Src.Module _ _ imports _ _ _ _ _) as modul) ->
+      IO.bind (Details.loadInterfaces root details) <| \dmvar ->
+
+      let deps = MList.map Src.getImportName imports in
+      IO.bind (MVar.new lensMVStatusMap Map.empty) <| \mvar ->
+      IO.bind (crawlDeps env mvar deps ()) <| \_ ->
+
+      IO.bind (IO.andThen (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVStatus)) <| MVar.read lensMVStatusMap mvar) <| \statuses ->
+      IO.bind (checkMidpoint dmvar statuses) <| \midpoint ->
+
+      case midpoint of
+        Left problem ->
+          IO.return <| Left <| Exit.ReplProjectProblem problem
+
+        Right foreigns ->
+          IO.bind (MVar.newEmpty lensMVResultMap) <| \rmvar ->
+          IO.bind (forkWithKey lensMVResult (checkModule env foreigns rmvar) statuses) <| \resultMVars ->
+          IO.bind (MVar.write lensMVResultMap rmvar resultMVars) <| \_ ->
+          IO.bind (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVResult) resultMVars) <| \results ->
+          IO.bind (writeDetails root details results) <| \_ ->
+          IO.bind (checkDeps root resultMVars deps 0) <| \depsStatus ->
+          finalizeReplArtifacts env source modul depsStatus resultMVars results
+
+
+finalizeReplArtifacts : Env d e -> String -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO d e (Either Exit.Repl ReplArtifacts)
+finalizeReplArtifacts ((Env _ root projectType _ _ _ _) as env) source ((Src.Module _ _ imports _ _ _ _ _) as modul) depsStatus resultMVars results =
+  let
+    pkg =
+      projectTypeToPkg projectType
+
+    compileInput ifaces =
+      case Compile.compile pkg ifaces modul of
+        Right (Compile.Artifacts canonical annotations objects) ->
+          let
+            h = Can.getName canonical
+            m = Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
+            ms = Map.foldrWithKey addInside [] results
+          in
+          IO.return <| Right <| ReplArtifacts h (m::ms) (L.fromModule modul) annotations
+
+        Left errors ->
+          IO.return <| Left <| Exit.ReplBadInput source errors
+  in
+  case depsStatus of
+    DepsChange ifaces ->
+      compileInput ifaces
+
+    DepsSame same cached ->
+      IO.bind (loadInterfaces root same cached) <| \maybeLoaded ->
+      case maybeLoaded of
+        Just ifaces -> compileInput ifaces
+        Nothing     -> IO.return <| Left <| Exit.ReplBadCache
+
+    DepsBlock ->
+      case Map.foldr addErrors [] results of
+        []    -> IO.return <| Left <| Exit.ReplBlocked
+        e::es -> IO.return <| Left <| Exit.ReplBadLocalDeps root e es
+
+    DepsNotFound problems ->
+      IO.return <| Left <| Exit.ReplBadInput source <| Error.BadImports <|
+        toImportErrors env resultMVars imports problems
 
 
 
@@ -935,7 +1059,7 @@ type RootLocation
   | LOutside FilePath
 
 
-findRoots : Env -> NE.TList FilePath -> IO e f g h (Either Exit.BuildProjectProblem (NE.TList RootLocation))
+findRoots : Env d e -> NE.TList FilePath -> IO d e (Either Exit.BuildProjectProblem (NE.TList RootLocation))
 findRoots env paths =
   IO.bind (NE.traverse IO.pure IO.liftA2 IO.liftA2 (getRootInfo env) paths) <| \einfos ->
   IO.return <| Either.andThen checkRoots <| NE.sequenceA Either.pure Either.liftA2 Either.liftA2 einfos
@@ -945,7 +1069,7 @@ checkRoots : NE.TList RootInfo -> Either Exit.BuildProjectProblem (NE.TList Root
 checkRoots infos =
   let
     toOneOrMore ((RootInfo absolute _ _) as loc) =
-      (Dir.toString absolute, OneOrMore.one loc)
+      (Path.toString absolute, OneOrMore.one loc)
 
     fromOneOrMore loc locs =
       case locs of
@@ -971,26 +1095,26 @@ getRelative (RootInfo _ relative _) = relative
 getLocation (RootInfo _ _ location) = location
 
 
-getRootInfo : Env -> FilePath -> IO e f g h (Either Exit.BuildProjectProblem RootInfo)
+getRootInfo : Env d e -> FilePath -> IO d e (Either Exit.BuildProjectProblem RootInfo)
 getRootInfo env path =
   IO.bind (File.exists path) <| \exists ->
   if exists
-    then IO.andThen (getRootInfoHelp env path) <| Dir.makeAbsolute path
+    then IO.andThen (getRootInfoHelp env path) <| Platform.makeAbsolute path
     else IO.return (Left (Exit.BP_PathUnknown path))
 
 
-getRootInfoHelp : Env -> FilePath -> FilePath -> IO e f g h (Either Exit.BuildProjectProblem RootInfo)
-getRootInfoHelp (Env _ _ srcDirs _ _ _) path absolutePath =
+getRootInfoHelp : Env d e -> FilePath -> FilePath -> IO d e (Either Exit.BuildProjectProblem RootInfo)
+getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
   let
-    (dirs, file) = Dir.splitLastName absolutePath
-    (final, ext) = Dir.splitExtension file
+    (dirs, file) = Path.splitLastName absolutePath
+    (final, ext) = Path.splitExtension file
   in
   if ext /= "elm"
   then
     IO.return <| Left <| Exit.BP_WithBadExtension path
   else
     let
-      absoluteSegments = MList.reverse (final :: Dir.getNames dirs)
+      absoluteSegments = MList.reverse (final :: Path.getNames dirs)
     in
     case MMaybe.mapMaybe (isInsideSrcDirByPath absoluteSegments) srcDirs of
       [] ->
@@ -1016,14 +1140,14 @@ getRootInfoHelp (Env _ _ srcDirs _ _ _) path absolutePath =
 
 
 
-isInsideSrcDirByName : TList FileName -> AbsoluteSrcDir -> IO e f g h Bool
+isInsideSrcDirByName : TList FileName -> AbsoluteSrcDir -> IO d e Bool
 isInsideSrcDirByName names srcDir =
   File.exists (addRelative srcDir names)
 
 
 isInsideSrcDirByPath : TList FileName -> AbsoluteSrcDir -> Maybe (FilePath, Either (TList FileName) (TList FileName))
 isInsideSrcDirByPath segments (AbsoluteSrcDir srcDir) =
-  MMaybe.bind (dropPrefix (MList.reverse (Dir.getNames srcDir)) segments) <| \names ->
+  MMaybe.bind (dropPrefix (MList.reverse (Path.getNames srcDir)) segments) <| \names ->
     if MList.all isGoodName names
     then Just (srcDir, Right names)
     else Just (srcDir, Left names)
@@ -1063,8 +1187,8 @@ type RootStatus
   | SOutsideErr Error.Module
 
 
-crawlRoot : Env -> MVar StatusDict -> RootLocation -> () -> IO e f g h RootStatus
-crawlRoot ((Env _ projectType _ buildID _ _) as env) mvar root () =
+crawlRoot : Env d e -> MVar StatusDict -> RootLocation -> () -> IO d e RootStatus
+crawlRoot ((Env _ _ projectType _ buildID _ _) as env) mvar root () =
   case root of
     LInside name ->
       IO.bind (MVar.newEmpty lensMVStatus) <| \statusMVar ->
@@ -1100,8 +1224,8 @@ type RootResult
 
 
 
-checkRoot : Env -> ResultDict -> RootStatus -> () -> IO e f g h RootResult
-checkRoot ((Env root _ _ _ _ _) as env) results rootStatus () =
+checkRoot : Env d e -> ResultDict -> RootStatus -> () -> IO d e RootResult
+checkRoot ((Env _ root _ _ _ _ _) as env) results rootStatus () =
   case rootStatus of
     SInside name ->
       IO.return (RInside name)
@@ -1129,14 +1253,15 @@ checkRoot ((Env root _ _ _ _ _) as env) results rootStatus () =
             Error.BadImports (toImportErrors env results imports problems)
 
 
-compileOutside : Env -> Details.Local -> String -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO e f g h RootResult
-compileOutside (Env _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
+compileOutside : Env d e -> Details.Local -> String -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO d e RootResult
+compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
   let
     pkg = projectTypeToPkg projectType
     name = Src.getName modul
   in
   case Compile.compile pkg ifaces modul of
     Right (Compile.Artifacts canonical annotations objects) ->
+      IO.bind (Reporting.report key Reporting.BDone) <| \_ ->
       IO.return <| ROutsideOk name (I.fromModule pkg canonical annotations) objects
 
     Left errors ->
@@ -1152,8 +1277,8 @@ type Root
   | Outside ModuleName.Raw Opt.LocalGraph
 
 
-toArtifacts : Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.TList RootResult -> Either Exit.BuildProblem Artifacts
-toArtifacts (Env root projectType _ _ _ _) foreigns results rootResults =
+toArtifacts : Env d e -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.TList RootResult -> Either Exit.BuildProblem Artifacts
+toArtifacts (Env _ root projectType _ _ _ _) foreigns results rootResults =
   case gatherProblemsOrMains results rootResults of
     Left (NE.CList e es) ->
       Left (Exit.BuildBadModules root e es)
@@ -1210,90 +1335,3 @@ addOutside root modules =
     ROutsideOk name iface objs -> Fresh name iface objs :: modules
     ROutsideErr _              -> modules
     ROutsideBlocked            -> modules
-
-
-
---------------------------------------------------------------------------------
------- NOW FOR SOME REPL STUFF -------------------------------------------------
---------------------------------------------------------------------------------
-
-
--- FROM REPL
-
-
-type ReplArtifacts =
-  ReplArtifacts
-    {- repl_home -} ModuleName.Canonical
-    {- repl_modules -} (TList Module)
-    {- repl_localizer -} L.Localizer
-    {- repl_annotations -} (Map.Map Name.Name Can.Annotation)
-
-
-fromRepl : FilePath -> Details.Details -> String -> IO e f g h (Either Exit.Repl ReplArtifacts)
-fromRepl root details source =
-  IO.bind (makeEnv root details) <| \((Env _ projectType _ _ _ _) as env) ->
-  case Parse.fromByteString projectType source of
-    Left syntaxError ->
-      IO.return <| Left <| Exit.ReplBadInput source <| Error.BadSyntax syntaxError
-
-    Right ((Src.Module _ _ imports _ _ _ _ _) as modul) ->
-      IO.bind (Details.loadInterfaces root details) <| \dmvar ->
-
-      let deps = MList.map Src.getImportName imports in
-      IO.bind (MVar.new lensMVStatusMap Map.empty) <| \mvar ->
-      IO.bind (crawlDeps env mvar deps ()) <| \_ ->
-
-      IO.bind (IO.andThen (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVStatus)) <| MVar.read lensMVStatusMap mvar) <| \statuses ->
-      IO.bind (checkMidpoint dmvar statuses) <| \midpoint ->
-
-      case midpoint of
-        Left problem ->
-          IO.return <| Left <| Exit.ReplProjectProblem problem
-
-        Right foreigns ->
-          IO.bind (MVar.newEmpty lensMVResultMap) <| \rmvar ->
-          IO.bind (forkWithKey lensMVResult (checkModule env foreigns rmvar) statuses) <| \resultMVars ->
-          IO.bind (MVar.write lensMVResultMap rmvar resultMVars) <| \_ ->
-          IO.bind (Map.traverse IO.pure IO.liftA2 (MVar.read lensMVResult) resultMVars) <| \results ->
-          IO.bind (writeDetails root details results) <| \_ ->
-          IO.bind (checkDeps root resultMVars deps 0) <| \depsStatus ->
-          finalizeReplArtifacts env source modul depsStatus resultMVars results
-
-
-finalizeReplArtifacts : Env -> String -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO e f g h (Either Exit.Repl ReplArtifacts)
-finalizeReplArtifacts ((Env root projectType _ _ _ _) as env) source ((Src.Module _ _ imports _ _ _ _ _) as modul) depsStatus resultMVars results =
-  let
-    pkg =
-      projectTypeToPkg projectType
-
-    compileInput ifaces =
-      case Compile.compile pkg ifaces modul of
-        Right (Compile.Artifacts canonical annotations objects) ->
-          let
-            h = Can.getName canonical
-            m = Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
-            ms = Map.foldrWithKey addInside [] results
-          in
-          IO.return <| Right <| ReplArtifacts h (m::ms) (L.fromModule modul) annotations
-
-        Left errors ->
-          IO.return <| Left <| Exit.ReplBadInput source errors
-  in
-  case depsStatus of
-    DepsChange ifaces ->
-      compileInput ifaces
-
-    DepsSame same cached ->
-      IO.bind (loadInterfaces root same cached) <| \maybeLoaded ->
-      case maybeLoaded of
-        Just ifaces -> compileInput ifaces
-        Nothing     -> IO.return <| Left <| Exit.ReplBadCache
-
-    DepsBlock ->
-      case Map.foldr addErrors [] results of
-        []    -> IO.return <| Left <| Exit.ReplBlocked
-        e::es -> IO.return <| Left <| Exit.ReplBadLocalDeps root e es
-
-    DepsNotFound problems ->
-      IO.return <| Left <| Exit.ReplBadInput source <| Error.BadImports <|
-        toImportErrors env resultMVars imports problems

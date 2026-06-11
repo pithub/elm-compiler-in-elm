@@ -1,10 +1,12 @@
+{- MANUALLY FORMATTED -}
 module Compiler.AST.Utils.Shader exposing
-    ( Source
-    , Types(..)
-    , bSource
-    , fromChars
-    , toJsStringBuilder
-    )
+  ( Source
+  , Types(..)
+  , bSource
+  , fromChars
+  , toJsStringBuilder
+  )
+
 
 import Compiler.Data.Name as Name
 import Extra.Data.Binary as B
@@ -16,7 +18,7 @@ import Extra.Type.Set as Set
 
 
 type Source
-    = Source String
+  = Source String
 
 
 
@@ -24,7 +26,10 @@ type Source
 
 
 type Types
-    = Types {- attribute -} (Set.Set Name.Name) {- uniform -} (Set.Set Name.Name) {- varying -} (Set.Set Name.Name)
+  = Types
+      {- attribute -} (Set.Set Name.Name)
+      {- uniform -} (Set.Set Name.Name)
+      {- varying -} (Set.Set Name.Name)
 
 
 
@@ -42,33 +47,22 @@ toJsStringBuilder (Source src) =
 
 fromChars : String -> Source
 fromChars chars =
-    Source (escape chars)
+  Source (escape chars)
 
 
 escape : String -> String
 escape chars =
-    case String.uncons chars of
-        Nothing ->
-            ""
+  case String.uncons chars of
+    Nothing ->
+      ""
 
-        Just ( c, cs ) ->
-            if c == '\u{000D}' then
-                escape cs
-
-            else if c == '\n' then
-                String.cons '\\' (String.cons 'n' (escape cs))
-
-            else if c == '"' then
-                String.cons '\\' (String.cons '"' (escape cs))
-
-            else if c == '\'' then
-                String.cons '\\' (String.cons '\'' (escape cs))
-
-            else if c == '\\' then
-                String.cons '\\' (String.cons '\\' (escape cs))
-
-            else
-                String.cons c (escape cs)
+    Just ( c, cs ) ->
+      if c == '\u{000D}' then escape cs
+      else if c == '\n'  then String.cons '\\' (String.cons 'n' (escape cs))
+      else if c == '"'   then String.cons '\\' (String.cons '"' (escape cs))
+      else if c == '\''  then String.cons '\\' (String.cons '\'' (escape cs))
+      else if c == '\\'  then String.cons '\\' (String.cons '\\' (escape cs))
+      else                    String.cons c (escape cs)
 
 
 
@@ -77,4 +71,5 @@ escape chars =
 
 bSource : B.Binary Source
 bSource =
-    B.bin1 Source (\(Source a) -> a) B.bString
+  B.bin1 Source (\(Source a) -> a)
+    B.bString

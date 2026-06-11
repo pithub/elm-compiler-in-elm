@@ -43,33 +43,33 @@ canonicalize : Env.Env -> Src.Type -> TResult i w Can.Type
 canonicalize env (A.At typeRegion tipe) =
   case tipe of
     Src.TVar x ->
-        MResult.ok (Can.TVar x)
+      MResult.ok (Can.TVar x)
 
     Src.TType region name args ->
-        MResult.andThen (canonicalizeType env typeRegion name args)
-          (Env.findType region env name)
+      MResult.andThen (canonicalizeType env typeRegion name args)
+        (Env.findType region env name)
 
     Src.TTypeQual region home name args ->
-        MResult.andThen (canonicalizeType env typeRegion name args)
-          (Env.findTypeQual region env home name)
+      MResult.andThen (canonicalizeType env typeRegion name args)
+        (Env.findTypeQual region env home name)
 
     Src.TLambda a b ->
-        MResult.pure Can.TLambda
-          |> MResult.andMap (canonicalize env a)
-          |> MResult.andMap (canonicalize env b)
+      MResult.pure Can.TLambda
+        |> MResult.andMap (canonicalize env a)
+        |> MResult.andMap (canonicalize env b)
 
     Src.TRecord fields ext ->
-        MResult.bind (MResult.andThen MResult.sequenceAMap (Dups.checkFields (canonicalizeFields env fields))) <| \cfields ->
-        MResult.return <| Can.TRecord cfields (Maybe.map A.toValue ext)
+      MResult.bind (MResult.andThen MResult.sequenceAMap (Dups.checkFields (canonicalizeFields env fields))) <| \cfields ->
+      MResult.return <| Can.TRecord cfields (Maybe.map A.toValue ext)
 
     Src.TUnit ->
-        MResult.ok Can.TUnit
+      MResult.ok Can.TUnit
 
     Src.TTuple a b cs ->
-        MResult.pure Can.TTuple
-          |> MResult.andMap (canonicalize env a)
-          |> MResult.andMap (canonicalize env b)
-          |> MResult.andMap
+      MResult.pure Can.TTuple
+        |> MResult.andMap (canonicalize env a)
+        |> MResult.andMap (canonicalize env b)
+        |> MResult.andMap
             (case cs of
               [] ->
                 MResult.ok Nothing

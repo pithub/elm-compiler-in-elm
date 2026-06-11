@@ -1,16 +1,21 @@
+{- MANUALLY FORMATTED -}
 module Compiler.Data.Utf8 exposing
-    ( Utf8
-    , bUnder256
-    , bVeryLong
-    , contains
-    , empty
-    , fromPtr
-    , fromSnippet
-    , size
-    , split
-    , startsWith
-    , toBuilder
-    )
+  ( Utf8
+  , empty
+  , size
+  , contains
+  , startsWith
+  , split
+  --
+  , bUnder256
+  , bVeryLong
+  --
+  , toBuilder
+  --
+  , fromPtr
+  , fromSnippet
+  )
+
 
 import Compiler.Parse.Primitives as P
 import Extra.Data.Binary as B
@@ -22,7 +27,7 @@ import Extra.Type.List exposing (TList)
 
 
 type alias Utf8 =
-    String
+  String
 
 
 
@@ -31,7 +36,7 @@ type alias Utf8 =
 
 empty : Utf8
 empty =
-    ""
+  ""
 
 
 
@@ -40,7 +45,7 @@ empty =
 
 size : Utf8 -> Int
 size =
-    String.length
+  String.length
 
 
 
@@ -49,7 +54,7 @@ size =
 
 contains : Int -> Utf8 -> Bool
 contains word str =
-    String.contains (String.fromChar (Char.fromCode word)) str
+  String.contains (String.fromChar (Char.fromCode word)) str
 
 
 
@@ -58,7 +63,7 @@ contains word str =
 
 startsWith : Utf8 -> Utf8 -> Bool
 startsWith =
-    String.startsWith
+  String.startsWith
 
 
 
@@ -67,7 +72,7 @@ startsWith =
 
 split : Int -> Utf8 -> TList Utf8
 split divider str =
-    String.split (String.fromChar (Char.fromCode divider)) str
+  String.split (String.fromChar (Char.fromCode divider)) str
 
 
 
@@ -76,7 +81,7 @@ split divider str =
 
 toBuilder : Utf8 -> String
 toBuilder =
-    identity
+  identity
 
 
 
@@ -85,7 +90,7 @@ toBuilder =
 
 fromPtr : String -> Int -> Int -> Utf8
 fromPtr src pos end =
-    String.slice pos end src
+  String.slice pos end src
 
 
 
@@ -94,7 +99,7 @@ fromPtr src pos end =
 
 fromSnippet : P.Snippet -> Utf8
 fromSnippet (P.Snippet fptr off len _ _) =
-    String.slice off (off + len) fptr
+  String.slice off (off + len) fptr
 
 
 
@@ -103,9 +108,9 @@ fromSnippet (P.Snippet fptr off len _ _) =
 
 bUnder256 : B.Binary Utf8
 bUnder256 =
-    B.bStringWith B.bWord8
+  B.bStringWith B.bWord8
 
 
 bVeryLong : B.Binary Utf8
 bVeryLong =
-    B.bString
+  B.bString

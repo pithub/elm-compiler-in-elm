@@ -42,13 +42,13 @@ verify context (MResult.CResult k) =
   MResult.CResult <| \info warnings ->
     case k Dups.none warnings of
       MResult.Rbad _ warnings1 errors ->
-          MResult.Rbad info warnings1 errors
+        MResult.Rbad info warnings1 errors
       MResult.Rgood bindings warnings1 value ->
-          case Dups.detect (Error.DuplicatePattern context) bindings of
-            MResult.CResult k1 ->
-              case k1 () () of
-                MResult.Rbad () () errs -> MResult.Rbad info warnings1 errs
-                MResult.Rgood () () dict -> MResult.Rgood info warnings1 (value, dict)
+        case Dups.detect (Error.DuplicatePattern context) bindings of
+          MResult.CResult k1 ->
+            case k1 () () of
+              MResult.Rbad () () errs -> MResult.Rbad info warnings1 errs
+              MResult.Rgood () () dict -> MResult.Rgood info warnings1 (value, dict)
 
 
 

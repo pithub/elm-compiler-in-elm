@@ -3,6 +3,7 @@ module Compiler.Reporting.Error exposing
   ( Module(..)
   , Error(..)
   , toDoc
+  , toJson
   , toClient
   )
 
@@ -11,6 +12,7 @@ import Builder.File as File
 import Compiler.Data.NonEmptyList as NE
 import Compiler.Data.OneOrMore as OneOrMore
 import Compiler.Elm.ModuleName as ModuleName
+import Compiler.Json.Encode as E
 import Compiler.Nitpick.PatternMatches as PatternMatches
 import Compiler.Reporting.Annotation as A
 import Compiler.Reporting.Doc as D exposing (d)
@@ -24,7 +26,7 @@ import Compiler.Reporting.Render.Code as Code
 import Compiler.Reporting.Render.Type.Localizer as L
 import Compiler.Reporting.Report as Report
 import Elm.Error as Client
-import Extra.System.Dir as Dir exposing (FilePath)
+import Extra.System.Path as Path exposing (FilePath)
 import Extra.Type.List as MList exposing (TList)
 
 
@@ -136,7 +138,7 @@ moduleToDoc root (Module _ absolutePath _ source err) =
       toReports (Code.toSource source) err
 
     relativePath =
-      Dir.makeRelative root absolutePath
+      Path.makeRelative root absolutePath
   in
   D.vcat <| MList.map (reportToDoc relativePath) (NE.toList reports)
 
@@ -155,16 +157,58 @@ toMessageBar : String -> FilePath -> D.Doc
 toMessageBar title filePath =
   let
     usedSpace =
-      4 + String.length title + 1 + String.length (Dir.toString filePath)
+      4 + String.length title + 1 + String.length (Path.toString filePath)
   in
     D.dullcyan <| D.fromChars <|
       "-- " ++ title
       ++ " " ++ String.repeat (max 1 (80 - usedSpace)) "-"
-      ++ " " ++ (Dir.toString filePath)
+      ++ " " ++ (Path.toString filePath)
 
 
 
--- TO CLIENT (original: TO JSON)
+-- TO JSON
+
+
+toJson : Module -> E.Value
+toJson (Module name path _ source err) =
+  let
+    reports =
+      toReports (Code.toSource source) err
+  in
+  E.object
+    [ ("path", E.path path)
+    , ("name", E.name name)
+    , ("problems", E.array (MList.map reportToJson (NE.toList reports)))
+    ]
+
+
+reportToJson : Report.Report -> E.Value
+reportToJson (Report.Report title region message) =
+  E.object
+    [ ("title", E.chars title)
+    , ("region", encodeRegion region)
+    , ("message", D.encode message)
+    ]
+
+
+encodeRegion : A.Region -> E.Value
+encodeRegion (A.Region (A.Position sr sc) (A.Position er ec)) =
+  E.object
+    [ ("start",
+        E.object
+          [ ("line", E.int sr)
+          , ("column", E.int sc)
+          ])
+    , ("end",
+        E.object
+          [ ("line", E.int er)
+          , ("column", E.int ec)
+          ])
+    ]
+
+
+
+-- TO CLIENT
 
 
 toClient : Module -> Client.BadModule
@@ -173,7 +217,7 @@ toClient (Module name path _ source err) =
     reports =
       toReports (Code.toSource source) err
   in
-  { path = Dir.toString path
+  { path = Path.toString path
   , name = name
   , problems = MList.map reportToClient (NE.toList reports)
   }

@@ -6,9 +6,11 @@ module Extra.Type.List exposing
     , concat
     , concatMap
     , drop
+    , dropWhile
     , elem
     , filter
     , filterM
+    , find
     , foldl
     , foldl1
     , foldlM
@@ -27,7 +29,7 @@ module Extra.Type.List exposing
     , mapMaybe
     , mappend
     , maximum
-    , notelem
+    , notElem
     , null
     , pure
     , range
@@ -36,8 +38,10 @@ module Extra.Type.List exposing
     , sequenceA
     , sortBy
     , sortOn
+    , sortOnS
     , splitAt
     , take
+    , takeWhile
     , traverse
     , unzip
     , unzip3
@@ -87,6 +91,20 @@ drop =
     List.drop
 
 
+dropWhile : (a -> Bool) -> TList a -> TList a
+dropWhile p l =
+    case l of
+        [] ->
+            []
+
+        x :: xs ->
+            if p x then
+                dropWhile p xs
+
+            else
+                l
+
+
 elem : Foldable.Elem a (TList a)
 elem =
     List.member
@@ -115,6 +133,20 @@ filterM pPure pLiftA2 predicate =
                 (predicate x)
         )
         (pPure [])
+
+
+find : (a -> Bool) -> TList a -> Maybe a
+find p l =
+    case l of
+        [] ->
+            Nothing
+
+        x :: xs ->
+            if p x then
+                Just x
+
+            else
+                find p xs
 
 
 foldl : Foldable.Foldl a (TList a) b
@@ -275,8 +307,8 @@ maximum l =
             Debug.todo "Extra.Type.List.maximum: empty list"
 
 
-notelem : Foldable.NotElem a (TList a)
-notelem a l =
+notElem : Foldable.NotElem a (TList a)
+notElem a l =
     not (elem a l)
 
 
@@ -323,6 +355,14 @@ sortOn =
     List.sortBy
 
 
+sortOnS : (a -> comparable) -> TList a -> TList a
+sortOnS f l =
+    l
+        |> List.map (\x -> ( f x, x ))
+        |> List.sortBy Tuple.first
+        |> List.map Tuple.second
+
+
 splitAt : Int -> TList a -> ( TList a, TList a )
 splitAt n l =
     ( take n l, drop n l )
@@ -331,6 +371,20 @@ splitAt n l =
 take : Int -> TList a -> TList a
 take =
     List.take
+
+
+takeWhile : (a -> Bool) -> TList a -> TList a
+takeWhile p l =
+    case l of
+        [] ->
+            []
+
+        x :: xs ->
+            if p x then
+                x :: takeWhile p xs
+
+            else
+                []
 
 
 traverse :

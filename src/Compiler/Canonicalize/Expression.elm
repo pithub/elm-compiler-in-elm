@@ -153,7 +153,7 @@ canonicalize env (A.At region expression) =
         |> MResult.andMap (canonicalizeTupleExtras region env cs)
 
     Src.Shader src tipe ->
-        MResult.ok (Can.Shader src tipe)
+      MResult.ok (Can.Shader src tipe)
 
 
 
@@ -427,17 +427,17 @@ addDefNodes env nodes (A.At _ def) =
           MResult.CResult k ->
             case k Map.empty ws of
               MResult.Rbad freeLocals warnings errors ->
-                  MResult.Rbad (Map.unionWith combineUses freeLocals fs) warnings errors
+                MResult.Rbad (Map.unionWith combineUses freeLocals fs) warnings errors
               MResult.Rgood freeLocals warnings cbody ->
-                  let
-                    names = getPatternNames [] pattern
-                    name = Name.fromManyNames (MList.map A.toValue names)
-                    node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
-                  in
-                  MResult.Rgood
-                    (Map.unionWith combineUses fs freeLocals)
-                    warnings
-                    (MList.foldl (addEdge [name]) (node::nodes) names)
+                let
+                  names = getPatternNames [] pattern
+                  name = Name.fromManyNames (MList.map A.toValue names)
+                  node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
+                in
+                MResult.Rgood
+                  (Map.unionWith combineUses fs freeLocals)
+                  warnings
+                  (MList.foldl (addEdge [name]) (node::nodes) names)
 
 
 logLetLocals : TList arg -> FreeLocals -> value -> TResult FreeLocals w value
@@ -656,7 +656,7 @@ directUsage (MResult.CResult k) =
     case k () warnings of
       MResult.Rbad () ws es -> MResult.Rbad freeLocals ws es
       MResult.Rgood () ws (value, newFreeLocals) ->
-          MResult.Rgood (Map.unionWith combineUses freeLocals newFreeLocals) ws value
+        MResult.Rgood (Map.unionWith combineUses freeLocals newFreeLocals) ws value
 
 
 delayedUsage : TResult () w (expr, FreeLocals) -> TResult FreeLocals w expr
@@ -665,8 +665,8 @@ delayedUsage (MResult.CResult k) =
     case k () warnings of
       MResult.Rbad () ws es -> MResult.Rbad freeLocals ws es
       MResult.Rgood () ws (value, newFreeLocals) ->
-          let delayedLocals = Map.map delayUse newFreeLocals in
-          MResult.Rgood (Map.unionWith combineUses freeLocals delayedLocals) ws value
+        let delayedLocals = Map.map delayUse newFreeLocals in
+        MResult.Rgood (Map.unionWith combineUses freeLocals delayedLocals) ws value
 
 
 
