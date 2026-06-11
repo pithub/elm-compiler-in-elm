@@ -819,8 +819,8 @@ getDocsStatus cache pkg vsn =
 
 
 writeDocs : Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw TResult -> IO c d e ()
-writeDocs _ _ _ status _ =
-  case status of
+writeDocs cache pkg vsn status results =
+  case always status ((cache, pkg, vsn), results) of
     DocsNeeded ->
       -- TODO: Builder.Elm.Details.writeDocs
       --E.writeUgly (Path.joinPath [Stuff.package cache pkg vsn, "docs.json"]) <|

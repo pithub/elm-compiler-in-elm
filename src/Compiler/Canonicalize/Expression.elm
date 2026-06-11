@@ -646,8 +646,8 @@ verifyBindings context bindings (MResult.CResult k) =
 
 
 addUnusedWarning : W.Context -> TList W.Warning -> Name.Name -> A.Region -> TList W.Warning
-addUnusedWarning _ warnings _ _ =
-  W.UnusedVariable :: warnings
+addUnusedWarning context warnings name region =
+  always (W.UnusedVariable :: warnings) (context, name, region)
 
 
 directUsage : TResult () w (expr, FreeLocals) -> TResult FreeLocals w expr
